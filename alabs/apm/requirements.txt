@@ -1,0 +1,6 @@
+# pip dependent packages
+
+# default for alabs.apm
+PyYAML>=3.13
+
+# ...

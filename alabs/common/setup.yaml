@@ -1,0 +1,31 @@
+---
+setup:
+  version: "0.2.1030"
+  description: ARGOS-LABS common library for python
+  author: Jerry Chae
+  author_email: mcchae@argos-labs.com
+  url: https://www.argos-labs.com
+  license: ARGOS-LABS Proprietary License
+  keywords:
+  - common
+  - library
+  - util
+  - store
+  - rest
+  platforms:
+  - Mac
+  - Windows
+  - Linux
+  classifiers:
+  - "Operating System :: MacOS :: MacOS X"
+  - "Operating System :: Microsoft :: Windows :: Windows 10"
+  - "Operating System :: POSIX :: Linux"
+  - "License :: Other/Proprietary License"
+  - "Natural Language :: English"
+  - "Programming Language :: Python :: 3.7"
+  - "Topic :: Library"
+  - "Topic :: argos :: common"
+  - "Topic :: System :: RPA"
+  - "Topic :: Change :: Log :: Unittest for Mac"
+  - "Topic :: Change :: Log :: Unittest for Linux"
+  - "Topic :: Change :: Log :: Unittest for Windows"
