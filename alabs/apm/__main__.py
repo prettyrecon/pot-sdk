@@ -1,11 +1,9 @@
-#!/usr/bin/env python
-# coding=utf8
 """
 ====================================
  :mod:alabs.apm ARGOS-LABS Plugin Module Manager
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
-.. note:: VIVANS
+.. note:: ARGOS-LABS
 """
 
 # 관련 작업자

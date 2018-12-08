@@ -1,31 +1,43 @@
----
 setup:
-  version: "0.2.1030"
-  description: ARGOS-LABS common library for python
   author: Jerry Chae
   author_email: mcchae@argos-labs.com
-  url: https://www.argos-labs.com
-  license: ARGOS-LABS Proprietary License
+  classifiers:
+  - 'Operating System :: MacOS :: MacOS X'
+  - 'Operating System :: Microsoft :: Windows :: Windows 10'
+  - 'Operating System :: POSIX :: Linux'
+  - 'License :: Other/Proprietary License'
+  - 'Natural Language :: English'
+  - 'Programming Language :: Python :: 3.7'
+  - 'Topic :: Library'
+  - 'Topic :: argos :: common'
+  - 'Topic :: System :: RPA'
+  - 'Topic :: Change :: Log :: Unittest for Mac'
+  - 'Topic :: Change :: Log :: Unittest for Linux'
+  - 'Topic :: Change :: Log :: Unittest for Windows'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155232 for darwin'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155803 for darwin'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160337 for darwin'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160557 for linux'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-181807 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-090232 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-091346 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-091415 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-204153 for darwin'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205017 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205506 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210112 for win32'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210314 for linux'
+  description: ARGOS-LABS common library for python
   keywords:
   - common
   - library
   - util
   - store
   - rest
+  license: ARGOS-LABS Proprietary License
   platforms:
   - Mac
   - Windows
   - Linux
-  classifiers:
-  - "Operating System :: MacOS :: MacOS X"
-  - "Operating System :: Microsoft :: Windows :: Windows 10"
-  - "Operating System :: POSIX :: Linux"
-  - "License :: Other/Proprietary License"
-  - "Natural Language :: English"
-  - "Programming Language :: Python :: 3.7"
-  - "Topic :: Library"
-  - "Topic :: argos :: common"
-  - "Topic :: System :: RPA"
-  - "Topic :: Change :: Log :: Unittest for Mac"
-  - "Topic :: Change :: Log :: Unittest for Linux"
-  - "Topic :: Change :: Log :: Unittest for Windows"
+  url: https://www.argos-labs.com
+  version: 18.1208.30
