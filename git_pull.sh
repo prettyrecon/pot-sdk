@@ -1,6 +1,6 @@
 #!/bin/bash
 
-git pull | grep "Already up to date"
+LC_ALL=C git pull | grep "Already up to date"
 if [ $? -eq 0 ];then
 	echo "Noting changed!"
 	exit 1
