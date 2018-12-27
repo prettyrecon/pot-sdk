@@ -1,4 +1,4 @@
-20181227 1937 - auto build test for Windows
+20181227 1951 - auto build test for All
 20181227 1914 - auto build test for Windows
 20181227 1854 - auto build test for Windows
 20181227 1749 - git down & auto build test for linux
