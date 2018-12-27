@@ -59,7 +59,8 @@ def get_version(yf):
 ################################################################################
 def new_version(ver):
     now = datetime.datetime.utcnow()
-    now_v = '%s%s' % (now.year-2000, now.strftime('%m%d'))
+    now_ymd = '%02d%02d%02d' % (now.year-2000, now.month, now.day)
+	now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
     if not ver:
         ver = '0.1'
     if not isinstance(ver, str):
@@ -72,32 +73,17 @@ def new_version(ver):
                 break
     if len(vs) > 4:
         vs = vs[:4]
-    if vs[2] != now_v:
-        vs[2] = now_v
-        vs[3] = '1'
-    else:
-        vs[3] = str(int(vs[3]) + 1)
+	vs[2] = now_ymd
+    vs[3] = now_hms
     return '.'.join(vs)
 
 
 ################################################################################
 def new_version_n(ver):
     now = datetime.datetime.utcnow()
-    now_v = '%s.%s' % (now.year-2000, now.strftime('%m%d'))
-    if not ver:
-        return '%s.10' % now_v
-    vl = ver.split('.')
-    if len(vl) != 3:
-        return '%s.10' % now_v
-    if '.'.join(vl[:2]) != now_v:
-        return '%s.10' % now_v
-    # noinspection PyBroadException
-    try:
-        # 무조건 이전 값의 다음 10
-        inc = (int(vl[2]) + 10) // 10 * 10
-    except Exception:
-        inc = 10
-    return '%s.%s' % (now_v, inc)
+    now_ymd = '%02d.%02d%02d' % (now.year-2000, now.month, now.day)
+	now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
+    return '%s.%s' % (now_ymd, now_hms)
 
 
 ################################################################################
@@ -107,31 +93,42 @@ def parse_params():
 
 Version changing rule is:
   version is seems like: 1.2.180123.8
-  Only change third and forth version info (eg. 180123.08)
+  Only change third and forth version info (eg. 180123.083456)
 
-    180123.8
+    180123.083456
     ==
     Two digits of year
 
-    180123.8
+    180123.083456
       ====
       Month and Day
-    180123.8
+    180123.083456
            ==
-           Sequence
+           Hour
+    180123.083456
+             ==
+             Minute
+    180123.083456
+               ==
+               Second
 
   Howevery if '--normalize' or '-n' option is given
-    18.1207.10
+    18.1207.131740
     ==
     Two digits of year
 
-    18.1207.10
+    18.1207.131740
        ====
        Month and Day
-    18.1207.10
+    18.1207.131740
             ==
-            Sequence number of 10 times (10, 20, 30, ...)
-            if previous is 5 then next is 10.
+            Hour
+    18.1207.131740
+              ==
+              Minute
+    18.1207.131740
+                ==
+                Second
     above VERSION is set  
 
 ''', formatter_class=argparse.RawTextHelpFormatter)
