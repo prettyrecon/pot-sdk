@@ -12,22 +12,6 @@ setup:
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-153454 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-153909 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155550 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155707 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155741 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160316 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160535 for linux'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-181722 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-090146 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-203843 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-204133 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-204926 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205420 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210022 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210255 for linux'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181227-141932 for darwin'
   description: ARGOS-LABS Module Manager
   keywords:
   - rpa
@@ -40,4 +24,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 18.1227.10
+  version: NA

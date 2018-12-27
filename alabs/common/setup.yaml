@@ -14,20 +14,6 @@ setup:
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155232 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-155803 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160337 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-160557 for linux'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181206-181807 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-090232 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-091346 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181207-091415 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-204153 for darwin'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205017 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205506 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210112 for win32'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210314 for linux'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 181227-142000 for darwin'
   description: ARGOS-LABS common library for python
   keywords:
   - common
@@ -41,4 +27,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 18.1227.10
+  version: NA
