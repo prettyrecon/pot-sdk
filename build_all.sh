@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# next is for Mac brew
+export PATH=$PATH:/usr/local/bin
+
 # 1) check if dirty.txt exists or not
 if [ ! -e dirty.txt ];then
 	echo "Nothing to build!"
