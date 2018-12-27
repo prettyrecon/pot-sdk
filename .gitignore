@@ -30,3 +30,4 @@ obj
 venv
 Cache
 py.*
+dirty.txt
