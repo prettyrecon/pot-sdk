@@ -1,13 +1,18 @@
 #!/bin/bash
 
-# 0) pkg
+# 1) check if dirty.txt exists or not
+if [ ! -e dirty.txt ];then
+	echo "Nothing to build!"
+	exit 0
+fi
+# 2) pkg
 pip3 install PyYAML
 
-# 1) 쉘 스크립트가 있는 디레터리 위치 구함
+# 3) 쉘 스크립트가 있는 디레터리 위치 구함
 WDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 echo "working directory for build_all is \"${WDIR}\""
 
-# 2) 해당 디렉터리에서 재귀적으로 build.sh 를 구하여 $bf로 작업
+# 4) 해당 디렉터리에서 재귀적으로 build.sh 를 구하여 $bf로 작업
 for bf in $(find ${WDIR} -name "build.sh");do
     echo "building ${bf} ..."
     BDIR=$(dirname ${bf})
