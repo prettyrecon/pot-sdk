@@ -3,6 +3,9 @@
 VB=-vvv
 #VB=
 
+# for linux alabs.apm bin
+export PATH=$PATH:/home/toor/.local/bin
+
 REP=$(alabs.apm get repository)
 TH=$(alabs.apm get trusted-host)
 
