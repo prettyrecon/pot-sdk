@@ -27,6 +27,7 @@ setup:
   - 'Topic :: Change :: Log :: Auto Build & Release at 181208-205420 for win32'
   - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210022 for win32'
   - 'Topic :: Change :: Log :: Auto Build & Release at 181208-210255 for linux'
+  - 'Topic :: Change :: Log :: Auto Build & Release at 181227-141932 for darwin'
   description: ARGOS-LABS Module Manager
   keywords:
   - rpa
@@ -39,4 +40,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 18.1208.30
+  version: 18.1227.10

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 0) pkg
+pip3 install PyYAML
+
 # 1) 쉘 스크립트가 있는 디레터리 위치 구함
 WDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 echo "working directory for build_all is \"${WDIR}\""

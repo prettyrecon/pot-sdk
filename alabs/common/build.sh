@@ -7,7 +7,7 @@ REP=$(alabs.apm get repository)
 TH=$(alabs.apm get trusted-host)
 
 # install alabs.apm
-pip install -U alabs.apm -i $REP --trusted-host $TH
+pip3 install -U alabs.apm -i $REP --trusted-host $TH
 
 # clear
 alabs.apm --venv clear-all
