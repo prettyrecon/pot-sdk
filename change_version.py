@@ -60,7 +60,7 @@ def get_version(yf):
 def new_version(ver):
     now = datetime.datetime.utcnow()
     now_ymd = '%02d%02d%02d' % (now.year-2000, now.month, now.day)
-	now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
+    now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
     if not ver:
         ver = '0.1'
     if not isinstance(ver, str):
@@ -73,7 +73,7 @@ def new_version(ver):
                 break
     if len(vs) > 4:
         vs = vs[:4]
-	vs[2] = now_ymd
+    vs[2] = now_ymd
     vs[3] = now_hms
     return '.'.join(vs)
 
@@ -82,7 +82,7 @@ def new_version(ver):
 def new_version_n(ver):
     now = datetime.datetime.utcnow()
     now_ymd = '%02d.%02d%02d' % (now.year-2000, now.month, now.day)
-	now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
+    now_hms = '%02d%02d%02d' % (now.hour, now.minute, now.second)
     return '%s.%s' % (now_ymd, now_hms)
 
 
