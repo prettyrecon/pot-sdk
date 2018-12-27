@@ -34,7 +34,7 @@ def change_version(yf, old_ver, new_ver):
     #     yfs = ifp.read()
     # with open(yf, 'w') as ofp:
     #     ofp.write(yfs.replace(old_ver, new_ver))
-    now = datetime.datetime.now().strftime('%y%m%d-%H%M%S')
+    now = datetime.datetime.utcnow().strftime('%y%m%d-%H%M%S')
     with open(yf) as ifp:
         yc = yaml.load(ifp)
     yc['setup']['version'] = new_ver
@@ -58,7 +58,7 @@ def get_version(yf):
 
 ################################################################################
 def new_version(ver):
-    now = datetime.datetime.now()
+    now = datetime.datetime.utcnow()
     now_v = '%s%s' % (now.year-2000, now.strftime('%m%d'))
     if not ver:
         ver = '0.1'
@@ -82,7 +82,7 @@ def new_version(ver):
 
 ################################################################################
 def new_version_n(ver):
-    now = datetime.datetime.now()
+    now = datetime.datetime.utcnow()
     now_v = '%s.%s' % (now.year-2000, now.strftime('%m%d'))
     if not ver:
         return '%s.10' % now_v
