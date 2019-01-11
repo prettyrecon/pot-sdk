@@ -53,8 +53,8 @@ class ArgumentParser(argparse.ArgumentParser):
         if message:
             self._print_message(message, sys.stderr)
             raise RuntimeWarning('ArgumentParser Exit: %s', message)
-        else:
-            raise RuntimeWarning('ArgumentParser Exit')
+        # else:
+        #     raise RuntimeWarning('ArgumentParser Exit')
 
 
 ################################################################################
