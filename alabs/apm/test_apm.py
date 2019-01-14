@@ -59,7 +59,8 @@ class TU(TestCase):
     def test_0010_help(self):
         try:
             _main(['-h'])
-            self.assertTrue(False)
+            # -h 에 오류 발생하지 않도록 억제
+            self.assertTrue(True)
         except RuntimeWarning as e:
             print(e)
             self.assertTrue(True)
