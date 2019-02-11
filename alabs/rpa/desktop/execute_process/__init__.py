@@ -25,7 +25,8 @@ Change Log
 
 ################################################################################
 import sys
-import subprocess
+
+from subprocess import Popen, PIPE
 
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
@@ -54,11 +55,13 @@ def execute_process(mcxt, argspec):
     :return: True
     """
     mcxt.logger.info('>>>starting...')
-    subprocess.Popen(
-        '{}'.format(argspec.command), shell=True)
+    with Popen(
+        '{}'.format(argspec.command), shell=True, stdout=PIPE) as proc:
+        ret = proc.stdout.read()
+        mcxt.logger.info(ret)
 
     mcxt.logger.info('>>>end...')
-    return argspec
+    return ret
 
 
 ################################################################################
@@ -158,7 +161,7 @@ def _main(*args):
     ) as mcxt:
         ###################################### for app dependent parameters
         mcxt.add_argument('command', help='Command to execute')
-        argspec = mcxt.parse_args()
+        argspec = mcxt.parse_args(args)
         return execute_process(mcxt, argspec)
 
 ################################################################################
