@@ -22,7 +22,7 @@
 import os
 import sys
 # noinspection PyProtectedMember
-from alabs.apm import _main
+from alabs.ppm import _main
 from unittest import TestCase, TestLoader, TextTestRunner
 from pathlib import Path
 from contextlib import contextmanager

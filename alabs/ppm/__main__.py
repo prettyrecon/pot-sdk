@@ -1,6 +1,6 @@
 """
 ====================================
- :mod:alabs.apm ARGOS-LABS Plugin Module Manager
+ :mod:alabs.ppm ARGOS-LABS Plugin Module Manager
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: ARGOS-LABS
@@ -20,7 +20,7 @@
 #     - 본 모듈 작업 시작
 ################################################################################
 import sys
-from alabs.apm import main
+from alabs.ppm import main
 
 ################################################################################
 if __name__ == '__main__':
