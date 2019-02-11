@@ -1,4 +1,4 @@
-# alabs.apm
+# alabs.ppm
 
-This program is ARGOS-LABS module package manager.
+This program is ARGOS-LABS plugin package manager.
 

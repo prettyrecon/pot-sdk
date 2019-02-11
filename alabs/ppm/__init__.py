@@ -175,7 +175,7 @@ class VEnv(object):
 
 
 ################################################################################
-class APM(object):
+class PPM(object):
     # ==========================================================================
     BUILD_PKGS = [
         'wheel',
@@ -548,22 +548,24 @@ setup(
 def get_repository_env():
     cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
     dcf = {
-        'repository': 'http://pypi.argos-labs.com:8080',
-        'username': None,
-        'password': None,
+        'repository': {
+            'url': 'http://pypi.argos-labs.com:8080',
+            'username': None,
+            'password': None,
+        }
     }
     if os.path.exists(cf):
         with open(cf) as ifp:
             dcf = yaml.load(ifp)
-    v = os.environ.get('APM_REPOSITORY')
+    v = os.environ.get('PPM_URL')
     if v:
-        dcf['repository'] = v
-    v = os.environ.get('APM_USERNAME')
+        dcf['repository']['url'] = v
+    v = os.environ.get('PPM_USERNAME')
     if v:
-        dcf['username'] = v
-    v = os.environ.get('APM_PASSWORD')
+        dcf['repository']['username'] = v
+    v = os.environ.get('PPM_PASSWORD')
     if v:
-        dcf['password'] = v
+        dcf['repository']['password'] = v
     return dcf
 
 
@@ -584,9 +586,9 @@ password: pass
 
 Or 
 set environmental variables
-APM_REPOSITORY=http://pypi.argos-labs.com:8080
-APM_USERNAME=user
-APM_PASSWORD=pass
+PPM_REPOSITORY=http://pypi.argos-labs.com:8080
+PPM_USERNAME=user
+PPM_PASSWORD=pass
 
 Or use argument options
 --repository http://pypi.argos-labs.com:8080
@@ -602,7 +604,7 @@ Or use argument options
                                  ' If not set. Use system python instead.'
                                  % sys.platform)
         parser.add_argument('--repository', '-r', nargs='?',
-                            help='set module repository')
+                            help='set url for private repository')
         parser.add_argument('--username', nargs='?',
                             help='user name for private repository')
         parser.add_argument('--password', nargs='?',
@@ -675,13 +677,13 @@ Or use argument options
             return False
         else:
             if not args.repository:
-                args.repository = dcf['repository']
+                args.repository = dcf['repository']['url']
             if not args.username:
-                args.username = dcf['username']
+                args.username = dcf['repository']['username']
             if not args.password:
-                args.password = dcf['password']
+                args.password = dcf['repository']['password']
             venv = VEnv(args)
-            ppm = APM(venv, args)
+            ppm = PPM(venv, args)
             return ppm.do()
     finally:
         os.chdir(cwd)

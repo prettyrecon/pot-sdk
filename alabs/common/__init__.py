@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:alabs.apm ARGOS-LABS Plugin Module Manager
+ :mod:alabs.common ARGOS-LABS common moudle package
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: VIVANS
