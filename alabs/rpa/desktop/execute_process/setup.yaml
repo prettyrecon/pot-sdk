@@ -1,6 +1,6 @@
 setup:
-  author: Jerry Chae
-  author_email: mcchae@argos-labs.com
+  author: Raven Lim
+  author_email: deokyu@argos-labs.com
   classifiers:
   - 'Operating System :: MacOS :: MacOS X'
   - 'Operating System :: Microsoft :: Windows :: Windows 10'
@@ -12,8 +12,7 @@ setup:
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 190114-050728 for darwin'
-  description: ARGOS-LABS RPA plugin module sample
+  description: ARGOS-LABS RPA basic module for execute process
   keywords:
   - rpa
   - robot
@@ -25,4 +24,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 1.0.190114.050728
+  version: 1.0
