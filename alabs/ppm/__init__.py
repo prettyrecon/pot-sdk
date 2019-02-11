@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:alabs.apm ARGOS-LABS Plugin Module Manager
+ :mod:alabs.ppm ARGOS-LABS Plugin Module Manager
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: VIVANS
@@ -175,7 +175,7 @@ class VEnv(object):
 
 
 ################################################################################
-class APM(object):
+class PPM(object):
     # ==========================================================================
     BUILD_PKGS = [
         'wheel',
@@ -192,7 +192,7 @@ class APM(object):
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         # for build date
-        'Build :: Method :: alabs.apm',
+        'Build :: Method :: alabs.ppm',
         'Build :: Date :: %s' %
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
@@ -210,11 +210,11 @@ class APM(object):
     # ==========================================================================
     def _get_pkgname(self):
         # alabs.demo.helloworld 패키지를 설치하려고 하면, 해당 helloworld 폴더에
-        # 들어가서 apm 을 돌림
+        # 들어가서 ppm 을 돌림
         if not os.path.exists('__init__.py'):
             # --venv 가 없는 경우도 있으므로 그냥 '.' 을 리턴
             # raise RuntimeError('Cannot find __init__.py file. Please run '
-            #                    'apm in python package folder')
+            #                    'ppm in python package folder')
             return '.'
         pkglist = []
         abspath = os.path.abspath('.')
@@ -332,7 +332,7 @@ class APM(object):
             if self.args.command.startswith('clear') and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
-            # apm functions
+            # ppm functions
             if self.args.command == 'clear':
                 return self._clear()
             elif self.args.command == 'clear-py':
@@ -546,24 +546,26 @@ setup(
 
 ################################################################################
 def get_repository_env():
-    cf = os.path.join(str(Path.home()), '.apm.conf')
+    cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
     dcf = {
-        'repository': 'http://pypi.argos-labs.com:8080',
-        'username': None,
-        'password': None,
+        'repository': {
+            'url': 'http://pypi.argos-labs.com:8080',
+            'username': None,
+            'password': None,
+        }
     }
     if os.path.exists(cf):
         with open(cf) as ifp:
             dcf = yaml.load(ifp)
-    v = os.environ.get('APM_REPOSITORY')
+    v = os.environ.get('PPM_URL')
     if v:
-        dcf['repository'] = v
-    v = os.environ.get('APM_USERNAME')
+        dcf['repository']['url'] = v
+    v = os.environ.get('PPM_USERNAME')
     if v:
-        dcf['username'] = v
-    v = os.environ.get('APM_PASSWORD')
+        dcf['repository']['username'] = v
+    v = os.environ.get('PPM_PASSWORD')
     if v:
-        dcf['password'] = v
+        dcf['repository']['password'] = v
     return dcf
 
 
@@ -573,10 +575,10 @@ def _main(argv=None):
     try:
         dcf = get_repository_env()
         parser = ArgumentParser(
-            description='''ARGOS-LABS Plugin Module Manager
+            description='''ARGOS-LABS Plugin Package Manager
 
 This manager use private PyPI repository.
-set {home}{sep}.apm.conf
+set {home}{sep}.argos-rpa.conf
 
 repository: http://pypi.argos-labs.com:8080
 username: user
@@ -584,9 +586,9 @@ password: pass
 
 Or 
 set environmental variables
-APM_REPOSITORY=http://pypi.argos-labs.com:8080
-APM_USERNAME=user
-APM_PASSWORD=pass
+PPM_REPOSITORY=http://pypi.argos-labs.com:8080
+PPM_USERNAME=user
+PPM_PASSWORD=pass
 
 Or use argument options
 --repository http://pypi.argos-labs.com:8080
@@ -602,7 +604,7 @@ Or use argument options
                                  ' If not set. Use system python instead.'
                                  % sys.platform)
         parser.add_argument('--repository', '-r', nargs='?',
-                            help='set module repository')
+                            help='set url for private repository')
         parser.add_argument('--username', nargs='?',
                             help='user name for private repository')
         parser.add_argument('--password', nargs='?',
@@ -612,8 +614,8 @@ Or use argument options
         parser.add_argument('--verbose', '-v', action='count', default=0,
                             help='verbose output eg) -v, -vv, -vvv, ...')
 
-        subps = parser.add_subparsers(help='apm command help', dest='command')
-        # apm functions
+        subps = parser.add_subparsers(help='ppm command help', dest='command')
+        # ppm functions
         _ = subps.add_parser('test', help='test this module')
         _ = subps.add_parser('build', help='build this module')
         _ = subps.add_parser('register', help='register to upload server')
@@ -670,19 +672,19 @@ Or use argument options
         if args.verbose > 0:
             print(str(args).replace('Namespace', 'Arguments'))
         if not args.command:
-            sys.stderr.write('Need command for apm.\n')
+            sys.stderr.write('Need command for ppm.\n')
             parser.print_help()
             return False
         else:
             if not args.repository:
-                args.repository = dcf['repository']
+                args.repository = dcf['repository']['url']
             if not args.username:
-                args.username = dcf['username']
+                args.username = dcf['repository']['username']
             if not args.password:
-                args.password = dcf['password']
+                args.password = dcf['repository']['password']
             venv = VEnv(args)
-            apm = APM(venv, args)
-            return apm.do()
+            ppm = PPM(venv, args)
+            return ppm.do()
     finally:
         os.chdir(cwd)
 

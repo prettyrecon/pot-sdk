@@ -1,6 +1,6 @@
 """
 ====================================
- :mod:test_apm
+ :mod:test_ppm
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: ARGOS-LABS
@@ -22,7 +22,7 @@
 import os
 import sys
 # noinspection PyProtectedMember
-from alabs.apm import _main
+from alabs.ppm import _main
 from unittest import TestCase, TestLoader, TextTestRunner
 from pathlib import Path
 from contextlib import contextmanager
@@ -50,7 +50,7 @@ class TU(TestCase):
 
     # ==========================================================================
     def test_0005_check_apm_conf(self):
-        cf = os.path.join(str(Path.home()), '.apm.conf')
+        cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
         if not os.path.exists(cf):
             sys.stderr.write('First MUST edit "%s"' % cf)
         self.assertTrue(os.path.exists(cf))
@@ -73,8 +73,8 @@ class TU(TestCase):
             self.assertTrue(not r)
             stdout = out.getvalue().strip()
             stderr = err.getvalue().strip()
-            self.assertTrue(stdout.find('ARGOS-LABS Plugin Module Manager') > 0)
-            self.assertTrue(stderr == 'Need command for apm.')
+            self.assertTrue(stdout.find('ARGOS-LABS Plugin Package Manager') > 0)
+            self.assertTrue(stderr == 'Need command for ppm.')
         except Exception as e:
             print(e)
             self.assertTrue(False)
@@ -110,7 +110,7 @@ class TU(TestCase):
         self.assertTrue(r)
         mdir = os.path.dirname(__file__)
         ppdir = os.path.abspath(os.path.join(mdir, '..', '..'))
-        self.assertTrue(os.path.exists(os.path.join(ppdir, 'alabs.apm.egg-info',
+        self.assertTrue(os.path.exists(os.path.join(ppdir, 'alabs.ppm.egg-info',
                                                     'PKG-INFO')))
         if sys.platform == 'win32':
             self.assertTrue(os.path.exists(os.path.join(str(Path.home()),
@@ -134,6 +134,7 @@ class TU(TestCase):
 
     # ==========================================================================
     def test_0060_upload(self):
+        # 사설 저장소에 wheel upload (내부 QC를 거친 후)
         r = _main(['--venv', 'upload'])
         self.assertTrue(r)
 
@@ -172,51 +173,51 @@ class TU(TestCase):
             r = _main(['-vv', 'list'])
         self.assertTrue(r)
         stdout = out.getvalue().strip()
-        # self.assertTrue(stdout.find('alabs.apm') > 0)
-        if stdout.find('alabs.apm') > 0:
-            r = _main(['-vv', 'uninstall', 'alabs.apm'])
+        # self.assertTrue(stdout.find('alabs.ppm') > 0)
+        if stdout.find('alabs.ppm') > 0:
+            r = _main(['-vv', 'uninstall', 'alabs.ppm'])
             self.assertTrue(r)
 
     # ==========================================================================
     def test_0200_install(self):
-        r = _main(['-vv', 'install', 'alabs.apm'])
+        r = _main(['-vv', 'install', 'alabs.ppm'])
         self.assertTrue(r)
         # check install
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
         self.assertTrue(r)
         stdout = out.getvalue().strip()
-        self.assertTrue(stdout.find('alabs.apm') > 0)
+        self.assertTrue(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_0210_show(self):
         with captured_output() as (out, err):
-            r = _main(['show', 'alabs.apm'])
+            r = _main(['show', 'alabs.ppm'])
         self.assertTrue(r)
         stdout = out.getvalue().strip()
-        self.assertTrue(stdout.find('alabs.apm') > 0)
+        self.assertTrue(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_0220_uninstall(self):
-        r = _main(['-vv', 'uninstall', 'alabs.apm'])
+        r = _main(['-vv', 'uninstall', 'alabs.ppm'])
         self.assertTrue(r)
         # check uninstall
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
         self.assertTrue(r)
         stdout = out.getvalue().strip()
-        self.assertFalse(stdout.find('alabs.apm') > 0)
+        self.assertFalse(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_9980_install_last(self):
-        r = _main(['-vv', 'install', 'alabs.apm'])
+        r = _main(['-vv', 'install', 'alabs.ppm'])
         self.assertTrue(r)
         # check install
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
         self.assertTrue(r)
         stdout = out.getvalue().strip()
-        self.assertTrue(stdout.find('alabs.apm') > 0)
+        self.assertTrue(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_9990_clear_all(self):
