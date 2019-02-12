@@ -27,4 +27,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: N/A
+  version: 1.0

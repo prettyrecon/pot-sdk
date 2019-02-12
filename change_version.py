@@ -136,9 +136,11 @@ Version changing rule is:
 ''', formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--version', '-v', action='store',
                         help='version info like "1.2.18012308"')
-    parser.add_argument('--normalize', '-n', action='store_true',
+    parser.add_argument('--normalize', '-m', action='store_true',
                         help='Normalized VERSION like "18.1207.10", '
                              'refer help')
+    parser.add_argument('--no-convert', '-n', action='store_true',
+                        help='Use direct version from setup.yaml')
     parser.add_argument('yamls', metavar='setup-file', nargs='+',
                         help='setup.yaml file path (one or more)')
     args = parser.parse_args()
@@ -151,8 +153,11 @@ if __name__ == '__main__':
     for yf in _args.yamls:
         ov = get_version(yf)
         if not _args.version:
-            if _args.normalize:
-                _args.version = new_version_n(ov)
+            if _args.no_convert:
+                pass
             else:
-                _args.version = new_version(ov)
-        change_version(yf, ov, _args.version)
+                if _args.normalize:
+                    _args.version = new_version_n(ov)
+                else:
+                    _args.version = new_version(ov)
+                change_version(yf, ov, _args.version)

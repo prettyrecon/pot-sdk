@@ -3,20 +3,20 @@
 VB=-vvv
 #VB=
 
-# for linux alabs.apm bin
+# for linux alabs.ppm bin
 export PATH=$PATH:/home/toor/.local/bin
 
-REP=$(alabs.apm get repository)
-TH=$(alabs.apm get trusted-host)
+REP=$(alabs.ppm get repository)
+TH=$(alabs.ppm get trusted-host)
 
-# install alabs.apm
-pip3 install -U alabs.apm -i $REP --trusted-host $TH
+# install alabs.ppm
+pip3 install -U alabs.ppm -i $REP --trusted-host $TH
 
 # clear
-alabs.apm --venv clear-all
+alabs.ppm --venv clear-all
 
 # test
-alabs.apm --venv $VB test
+alabs.ppm --venv $VB test
 if [ $? -ne 0 ];then
 	RC=$?
 	echo "test failed!"
@@ -24,7 +24,7 @@ if [ $? -ne 0 ];then
 fi
 
 # build
-alabs.apm --venv $VB build
+alabs.ppm --venv $VB build
 if [ $? -ne 0 ];then
 	RC=$?
 	echo "build failed!"
@@ -32,7 +32,7 @@ if [ $? -ne 0 ];then
 fi
 
 # upload
-alabs.apm --venv $VB upload
+alabs.ppm --venv $VB upload
 if [ $? -ne 0 ];then
 	RC=$?
 	echo "upload failed!"
@@ -40,4 +40,4 @@ if [ $? -ne 0 ];then
 fi
 
 # clear
-alabs.apm --venv clear-all
+alabs.ppm --venv clear-all
