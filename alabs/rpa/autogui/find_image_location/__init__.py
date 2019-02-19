@@ -85,9 +85,9 @@ def _main(*args):
         # 필수 입력 항목
         mcxt.add_argument('filename', re_match='.*[.](png|PNG).*$',
                           metavar='image_filename.png',  help='')
-        mcxt.add_argument('--searchlocation', nargs=4, type=int, default=None,
+        mcxt.add_argument('--region', nargs=4, type=int, default=None,
                           metavar='0', help='')
-        mcxt.add_argument('--similarity', type=int, metavar='50',
+        mcxt.add_argument('--similarity', type=int, metavar='SIMILARITY',
                             default=50, min_value=0, max_value=100, help='')
         argspec = mcxt.parse_args(args)
         return find_image_loacation(mcxt, argspec)

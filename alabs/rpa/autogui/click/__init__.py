@@ -47,15 +47,15 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 ################################################################################
 class ClickMotionType(enum.Enum):
     CLICK = 'click'
+    DOUBLE = 'doubleClick'
     PRESS = 'mouseDown'
     RELEASE = 'mouseUp'
 
 
 ################################################################################
 class ClickType(enum.Enum):
-    RIGHT = 'Right'
-    LEFT = 'Left'
-    DOUBLE = 'Double'
+    RIGHT = 'right'
+    LEFT = 'left'
     NONE = 'None'
 
 
@@ -69,29 +69,6 @@ class BaseAreaType(enum.Enum):
 ################################################################################
 def to_int(value:str):
     return tuple((int(v) for v in value.split(',')))
-
-################################################################################
-def motion_type_for_la(click_motion_type, click_type):
-    motion = None
-    button = None
-    if ClickMotionType.RELEASE.value == click_motion_type:
-        motion = 'mouseUp'
-    elif ClickMotionType.PRESS.value == click_motion_type:
-        motion = 'mouseDown'
-    elif ClickMotionType.CLICK.value == click_motion_type:
-        motion = 'click'
-
-    if ClickType.LEFT.value == click_type:
-        button = 'left'
-    elif ClickType.RIGHT.value == click_type:
-        button = 'right'
-    elif ClickType.DOUBLE.value == click_type:
-        motion = 'doubleClick'
-        button = 'left'
-
-    if any([motion, button]):
-        raise ValueError("MOTION or CLICK TYPE VALUE ERROR")
-    return motion, button
 
 ################################################################################
 @func_log
@@ -109,12 +86,10 @@ def click(mcxt, argspec):
     # 캡쳐파일 불러오기
     # 캡쳐파일과 화면 비교
     # 마우스 포인터를 해당 좌표에 위치시키기
-    button = ''
-    motion = ''
-    x, y = to_int(argspec.clickpoint)
-    click_motion_type = argspec.clickmotiontype
-    click_type = argspec.clicktype
-    motion, button = motion_type_for_la(click_motion_type, click_type)
+    x, y = argspec.coordinates
+    # 버튼
+    motion = ClickMotionType[argspec.motion].value
+    button = ClickType[argspec.button].value
 
     action = getattr(pyautogui, motion)
     action(button=button, x=x, y=y)
@@ -149,39 +124,24 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('--attname', help='NOT SUPPORTED YET')
-        mcxt.add_argument('--attvalue', help='NOT SUPPORTED YET')
-        mcxt.add_argument('--baseareatype',
-                            default=BaseAreaType.FULLSCREEN.value,
+        mcxt.add_argument('--motion',
+                            default=ClickMotionType.CLICK.name,
                             choices=[
-                                BaseAreaType.BROWSER.value,
-                                BaseAreaType.FULLSCREEN.value,
-                                BaseAreaType.ELEMENT.value,
-                                BaseAreaType.CURSOR.value],
+                                ClickMotionType.CLICK.name,
+                                ClickMotionType.DOUBLE.name,
+                                ClickMotionType.PRESS.name,
+                                ClickMotionType.RELEASE.name, ],
                             help='')
-        mcxt.add_argument('--classpath', help='NOT SUPPORTED YET.')
-        mcxt.add_argument('--framename', help='NOT SUPPORTED YET.')
-        mcxt.add_argument('--tagname', help='NOT SUPPORTED YET.')
-        mcxt.add_argument('--clickmotiontype',
-                            default=ClickMotionType.CLICK.value,
+        mcxt.add_argument('--button',
+                            default=ClickType.LEFT.name,
                             choices=[
-                                ClickMotionType.CLICK.value,
-                                ClickMotionType.PRESS.value,
-                                ClickMotionType.RELEASE.value, ],
-                            help='')
-        mcxt.add_argument('--clicktype',
-                            default=ClickType.LEFT.value,
-                            choices=[
-                                ClickType.RIGHT.value,
-                                ClickType.LEFT.value,
-                                ClickType.DOUBLE.value,
-                                ClickType.NONE.value, ],
+                                ClickType.RIGHT.name,
+                                ClickType.LEFT.name,
+                                ClickType.NONE.name, ],
                             help='')
         ########################################################################
-        mcxt.add_argument('clickpoint',
-                            type=str,
-                            re_match='^\d+\s*,\s*\d+',
-                            help='0, 0')
+        mcxt.add_argument('coordinates', nargs=2, type=int, default=None,
+                          metavar='COORDINATE', help='X Y')
 
         argspec = mcxt.parse_args(args)
         return click(mcxt, argspec)

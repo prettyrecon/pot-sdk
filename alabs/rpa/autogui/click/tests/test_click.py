@@ -59,7 +59,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0100_argument_click_motion_type(self):
         """
-        --clickmotiontype 옵션 검사
+        --motion 옵션 검사
         :return:
         """
         _WRONG_VALUE = "ABC"
@@ -71,7 +71,7 @@ class TU(TestCase):
 
         # 유효 값 오류 검사
         with self.assertRaises(ArgsError):
-            _main(*G_PARAMS, '--clickmotiontype', _WRONG_VALUE)
+            _main(*G_PARAMS, '--motion', _WRONG_VALUE)
 
         # 유효 값 검사
         ret = _main(*G_PARAMS)
@@ -80,7 +80,7 @@ class TU(TestCase):
     # ==========================================================================
     def test_argument_click_point(self):
         """
-        --clickpoint 옵션 검사
+        --coordinates 옵션 검사
         :return:
         """
         _VALUE_2 = "123, 45"
@@ -106,23 +106,23 @@ class TU(TestCase):
     # ==========================================================================
     def test_argument_click_type(self):
         """
-        --clicktype 옵션 검사
+        --button 옵션 검사
         :return:
         """
         _VALUE = "Left"
         _WRONG_VALUE = "ABC"
 
         # 값 입력 유무 검사
-        args = '--clicktype'
+        args = '--button'
         with self.assertRaises(ArgsError):
             _main(*G_PARAMS, args)
 
         # 유효 값 오류 검사
-        args = '--clicktype', _WRONG_VALUE
+        args = '--button', _WRONG_VALUE
         with self.assertRaises(ArgsError):
             _main(*G_PARAMS, args)
 
         # 유효 값 검사
-        args = '--clicktype', _VALUE
+        args = '--button', _VALUE
         _main(*G_PARAMS, args)
 
