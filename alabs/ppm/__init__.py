@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/03/05]
+#     - add package_data
 #  * [2018/11/28]
 #     - Linux 테스트 OK
 #  * [2018/11/27]
@@ -497,7 +499,7 @@ setup(
     platforms={platforms},
     install_requires=reqs,
     python_requires='>=3.6',
-    package_data={{}},
+    package_data={package_data},
     zip_safe=False,
     classifiers=[
 {classifiers}
@@ -507,6 +509,7 @@ setup(
             '{pkgname}={pkgname}:main',
         ],
     }},
+    include_package_data=True,
 )
 '''.format(
                 pkghistory=','.join(pkghistory),
@@ -520,6 +523,7 @@ setup(
                 license=setup_config.get('license', 'Proprietary License'),
                 keywords=keywords,
                 platforms=str(setup_config.get('platforms', [])),
+                package_data=setup_config.get('package_data', '{}'),
                 classifiers=classifiers_str,
             ))
         # for setup.cfg
@@ -540,6 +544,9 @@ setup(
 # description-file = README.md
 {readme}
 '''.format(license=_license, readme=readme))
+        # instead use package_data
+        # if os.path.exists(os.path.join(self.pkgpath, 'MANIFEST.in')):
+        #     shutil.copy(os.path.join(self.pkgpath, 'MANIFEST.in'), supath)
 
         return self.venv.venv_py(supath, *args)
 

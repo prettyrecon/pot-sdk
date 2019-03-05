@@ -12,6 +12,8 @@ setup:
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
+  - 'Topic :: Change :: Log :: Add input_group, input_method for plugin argument input attributes'
+  - 'Topic :: Change :: Log :: Add Manifest'
   description: ARGOS-LABS Module Manager
   keywords:
   - rpa
@@ -24,4 +26,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 1.1
+  version: 1.3.3

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+echo "git pull is not applied because of naswork samba directory build"
+echo " build automatically without git check"
+exit 0
+
 LC_ALL=C git reset --hard origin/master
 LC_ALL=C git pull | tee dirty.txt 
 

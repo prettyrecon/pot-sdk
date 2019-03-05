@@ -18,6 +18,10 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/02/25]
+#     - 입력 아규먼트에 input_group 속성 추가
+#     - 입력 아규먼트에 input_method 속성 추가
+#     - 모듈 스펙에 icon 추가 방법 TODO
 #  * [2018/09/30]
 #     - 본 모듈 작업 시작
 ################################################################################
@@ -28,6 +32,7 @@ import datetime
 import traceback
 import logging
 import hashlib
+from copy import copy
 from json import dumps as json_dumps
 from yaml import dump as yaml_dump
 # noinspection PyProtectedMember
@@ -113,30 +118,40 @@ class ModuleContext(ArgumentParser):
     PLATFORMS = ("windows", "darwin", "linux")
     OUTPUT_TYPES = ("text", "json", "csv")
     VALID_RE1 = re.compile(r"^[a-zA-Z0-9_\-.]+")
+
+    # 각 패러미터에 대한 부가 속성 : 주로 사용자 입력 UI 관련
+    ETC_ATTRS = {
+        # 1) 해당 패러미터의 입력 그룹 (디폴트는 None)
+        'input_group': None,
+        # 2) 해당 패러미터의 특정 UI 입력 방법 (디폴트는 None)
+        'input_method': None,
+    }
     # argparse 에 더붙이는 자체 검증 모듈
     EXTENDED_ATTRS = {
-        # 람다 함수 : av(사용자 입력값), cv(설정값)
-        # 사용자가 입력한 값이 설정 값보다 같거나 크면 정상
+        # 사용자 입력 검증
+        # 패러미터속성이름 : 람다함수
+        #   람다 함수 : av(사용자 입력값), cv(설정값)
+        # 1) 사용자가 입력한 값이 설정 값보다 같거나 크면 정상
         'min_value': lambda av, cv: av >= cv,
-        # 사용자가 입력한 값이 설정 값보다 같거나 작으면 정상
+        # 2) 사용자가 입력한 값이 설정 값보다 같거나 작으면 정상
         'max_value': lambda av, cv: av <= cv,
-        # 사용자가 입력한 값이 설정 값보다 크면 정상
+        # 3) 사용자가 입력한 값이 설정 값보다 크면 정상
         'min_value_ni': lambda av, cv: av > cv,
-        # 사용자가 입력한 값이 설정 값보다 작으면 정상
+        # 4) 사용자가 입력한 값이 설정 값보다 작으면 정상
         'max_value_ni': lambda av, cv: av < cv,
-        # 사용자가 입력한 값이 설정 값보다 크면 정상: min_value_ni 와 동일
+        # 5) 사용자가 입력한 값이 설정 값보다 크면 정상: min_value_ni 와 동일
         'greater': lambda av, cv: av > cv,
-        # 사용자가 입력한 값이 설정 값보다 같거나 크면 정상: min_value 와 동일
+        # 6) 사용자가 입력한 값이 설정 값보다 같거나 크면 정상: min_value 와 동일
         'greater_eq': lambda av, cv: av >= cv,
-        # 사용자가 입력한 값이 설정 값보다 작으면 정상: max_value_ni 와 동일
+        # 7) 사용자가 입력한 값이 설정 값보다 작으면 정상: max_value_ni 와 동일
         'less': lambda av, cv: av < cv,
-        # 사용자가 입력한 값이 설정 값보다 같거나 작으면 정상: max_value 와 동일
+        # 8) 사용자가 입력한 값이 설정 값보다 같거나 작으면 정상: max_value 와 동일
         'less_eq': lambda av, cv: av <= cv,
-        # 사용자가 입력한 값이 설정 값과 같으면 정상
+        # 9) 사용자가 입력한 값이 설정 값과 같으면 정상
         'equal': lambda av, cv: av == cv,
-        # 사용자가 입력한 값이 설정 값과 같지 않으면 정상
+        # 10) 사용자가 입력한 값이 설정 값과 같지 않으면 정상
         'not_equal': lambda av, cv: av != cv,
-        # 사용자가 입력한 값이 설정 정규식을 만족하면 정상
+        # 11) 사용자가 입력한 값이 설정 정규식을 만족하면 정상
         're_match': re_match,
     }
 
@@ -200,6 +215,7 @@ class ModuleContext(ArgumentParser):
         self._raise_args_error = False
         self._args_error = None
         self._ext_argspec = {}
+        self._etc_argspec = {}
 
     # ==========================================================================
     def __repr__(self):
@@ -223,8 +239,14 @@ class ModuleContext(ArgumentParser):
             if ea in kwargs:
                 ext_kwargs[ea] = kwargs[ea]
                 del kwargs[ea]
+        etc_kwargs = copy(self.ETC_ATTRS)
+        for ea in self.ETC_ATTRS.keys():
+            if ea in kwargs:
+                etc_kwargs[ea] = kwargs[ea]
+                del kwargs[ea]
         action = ArgumentParser.add_argument(self, *args, **kwargs)
         self._ext_argspec[action.dest] = ext_kwargs
+        self._etc_argspec[action.dest] = etc_kwargs
         return action
 
     # ==========================================================================
@@ -301,6 +323,9 @@ class ModuleContext(ArgumentParser):
             }
             if a.dest in self._ext_argspec:
                 for ea, ev in self._ext_argspec[a.dest].items():
+                    action_spec[ea] = ev
+            if a.dest in self._etc_argspec:
+                for ea, ev in self._etc_argspec[a.dest].items():
                     action_spec[ea] = ev
             if a.option_strings:
                 mod_spec['options'].append(action_spec)

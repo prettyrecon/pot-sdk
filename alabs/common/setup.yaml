@@ -14,6 +14,7 @@ setup:
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
+  - 'Topic :: Change :: Log :: Add input_group, input_method for plugin argument input attributes'
   description: ARGOS-LABS common library for python
   keywords:
   - common
@@ -27,4 +28,4 @@ setup:
   - Windows
   - Linux
   url: https://www.argos-labs.com
-  version: 1.0
+  version: 1.1

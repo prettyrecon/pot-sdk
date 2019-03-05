@@ -2,6 +2,11 @@ echo "git pull"
 REM @ECHO OFF
 PUSHD integration
 
+echo "git pull is not applied because of naswork samba directory build"
+echo " build automatically without git check"
+
+EXIT 0
+
 SET IS_DIRTY=n
 
 CALL git reset --hard origin/master
