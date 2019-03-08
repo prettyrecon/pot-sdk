@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding=utf8
 """
 ====================================
  :mod:mon_dir
@@ -18,16 +16,24 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#
+#  * [2019/03/07]
+#     - 모듈 스펙에 icon 추가 방법
+#     - dumpspec 시 icon.* 파일이 존재하면 첫번째 파일에 대하여 base64 형식 포함
+#  * [2019/03/06]
+#     - display_name 추가
+#     - mod_spec에 action 추가 (클래스 이름에서 유추, _get_action_name)
 #  * [2019/02/25]
 #     - 입력 아규먼트에 input_group 속성 추가
 #     - 입력 아규먼트에 input_method 속성 추가
-#     - 모듈 스펙에 icon 추가 방법 TODO
 #  * [2018/09/30]
 #     - 본 모듈 작업 시작
 ################################################################################
 import os
 import re
 import sys
+import glob
+import base64
 import datetime
 import traceback
 import logging
@@ -67,6 +73,16 @@ def get_file_hash(f):
                 break
             sha256.update(data)
     return sha256.hexdigest()
+
+
+################################################################################
+def get_icon_path(f):
+    md = os.path.abspath(os.path.dirname(f))
+    icon_f = None
+    for f in glob.glob(os.path.join(md, 'icon.*')):
+        icon_f = f
+        break  # 첫번째 아이콘만 처리
+    return icon_f
 
 
 ################################################################################
@@ -181,6 +197,8 @@ class ModuleContext(ArgumentParser):
                  version=None,
                  platform=None,
                  output_type=None,
+                 display_name=None,
+                 icon_path=None,
                  *args, **kwargs):
         """
         ModuleContext consturctor
@@ -190,6 +208,7 @@ class ModuleContext(ArgumentParser):
         :param platform: list of words ["windows", "darwin", "linux"]
             which will be supported
         :param output_type: one of these ["text", "json", "csv"]
+        :param display_name: display name for Stu
         :param args:
         :param kwargs:
         """
@@ -198,6 +217,8 @@ class ModuleContext(ArgumentParser):
         self.version = self._valid_literal(version)
         self.platform = self._valid_choice(platform, self.PLATFORMS)
         self.output_type = self._valid_choice(output_type, self.OUTPUT_TYPES)
+        self.display_name = display_name
+        self.icon_path = icon_path
         kwargs['add_help'] = False
         ArgumentParser.__init__(self, *args, **kwargs)
         self._add_common_args()
@@ -227,6 +248,8 @@ class ModuleContext(ArgumentParser):
             'description': self.description,
             'platform': self.platform,
             'output_type': self.output_type,
+            'display_name': self.display_name,
+            'icon_path': self.icon_path,
             'args': self._args,
             'isopened': self._isopened,
         }
@@ -282,6 +305,29 @@ class ModuleContext(ArgumentParser):
         #                   help='unittest for this module')
 
     # ==========================================================================
+    @staticmethod
+    def _get_action_name(a):
+        r = type(a).__name__.lower()
+        if r.startswith('argparse.'):
+            r = r[9:]
+        if r.startswith('_'):
+            r = r[1:]
+        if r.endswith('action'):
+            r = r[:-6]
+        return r
+
+    # ==========================================================================
+    @staticmethod
+    def _get_icon(icon_path):
+        if not (icon_path
+                and os.path.exists(icon_path)):
+            return None
+        with open(icon_path, 'rb') as ifp:
+            rb = ifp.read()
+        icon = base64.b64encode(rb)
+        return icon.decode('ascii')
+
+    # ==========================================================================
     def _module_spec(self):
         common_names = (
             'help', 'infile', 'outfile', 'errfile', 'statfile', 'logfile',
@@ -301,6 +347,9 @@ class ModuleContext(ArgumentParser):
             'parameters': [],
             'mutually_exclusive_group': [],
             'output_type': self.output_type,
+            'display_name': self.display_name if self.display_name else self.prog,
+            'icon_path': self.icon_path,
+            'icon': self._get_icon(self.icon_path)
         }
         for a in self._actions:
             if isinstance(a, _HelpAction):
@@ -320,6 +369,7 @@ class ModuleContext(ArgumentParser):
                 'option_strings': a.option_strings,
                 'placeholder': None,  # background placeholder for text input
                 'is_visible': False if a.dest in common_names else True,
+                'action': self._get_action_name(a)
             }
             if a.dest in self._ext_argspec:
                 for ea, ev in self._ext_argspec[a.dest].items():

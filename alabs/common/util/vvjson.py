@@ -1,11 +1,9 @@
-#!/usr/bin/env python
-# coding=utf8
 """
 ====================================
- :mod:`vivans.util.vvjson` JSON 및 XML 관련 작업 (XPath)
+ :mod:`alabs.common.util.vvjson` JSON 및 XML 관련 작업 (XPath)
 ====================================
 .. moduleauthor:: 채문창 <mcchae@vivans.net>
-.. note:: MIT License
+.. note:: ARGOS-LABS License
 """
 # 설명
 # =====

@@ -24,5 +24,7 @@ setup:
   - Mac
   - Windows
   - Linux
+  package_data:
+    alabs.rpa.autogui.find_image_location: ['icon.*']
   url: https://www.argos-labs.com
   version: 1.0

@@ -25,5 +25,7 @@ setup:
   - Mac
   - Windows
   - Linux
+  package_data:
+    alabs.ppm: ['icon.*']
   url: https://www.argos-labs.com
-  version: 1.3.3
+  version: 1.307.2217

@@ -1,6 +1,6 @@
 setup:
-  author: Raven Lim
-  author_email: deokyu@argos-labs.com
+  author: Jerry Chae
+  author_email: mcchae@argos-labs.com
   classifiers:
   - 'Operating System :: MacOS :: MacOS X'
   - 'Operating System :: Microsoft :: Windows :: Windows 10'
@@ -8,23 +8,26 @@ setup:
   - 'License :: Other/Proprietary License'
   - 'Natural Language :: English'
   - 'Programming Language :: Python :: 3.7'
-  - 'Topic :: Demo :: HelloWorld'
+  - 'Topic :: Library'
+  - 'Topic :: argos :: common'
+  - 'Topic :: System :: RPA'
   - 'Topic :: Change :: Log :: Unittest for Mac'
   - 'Topic :: Change :: Log :: Unittest for Linux'
   - 'Topic :: Change :: Log :: Unittest for Windows'
-  - 'Topic :: Change :: Log :: Auto Build & Release at 190114-050728 for darwin'
-  description: ARGOS-LABS RPA plugin module 
+  - 'Topic :: Change :: Log :: Add input_group, input_method for plugin argument input attributes'
+  description: ARGOS-LABS common library for python
   keywords:
-  - rpa
-  - robot
-  - module
-  - demo
+  - common
+  - library
+  - util
+  - store
+  - rest
   license: ARGOS-LABS Proprietary License
   platforms:
   - Mac
   - Windows
   - Linux
   package_data:
-    alabs.rpa.autogui.deply: ['icon.*']
+    alabs.rest: ['icon.*']
   url: https://www.argos-labs.com
-  version: 1.0
+  version: 1.1.100

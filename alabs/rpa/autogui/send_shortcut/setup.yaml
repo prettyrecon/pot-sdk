@@ -24,5 +24,7 @@ setup:
   - Mac
   - Windows
   - Linux
+  package_data:
+    alabs.rpa.autogui.send_shortcut: ['icon.*']
   url: https://www.argos-labs.com
   version: 1.0

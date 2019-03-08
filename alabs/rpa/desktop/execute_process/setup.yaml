@@ -23,5 +23,7 @@ setup:
   - Mac
   - Windows
   - Linux
+  package_data:
+    alabs.rpa.desktop.execute_process: ['icon.*']
   url: https://www.argos-labs.com
   version: 1.0

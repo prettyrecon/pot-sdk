@@ -5,6 +5,7 @@
 ################################################################################
 import os
 from unittest import TestCase
+from alabs.common.util.vvargs import get_icon_path
 
 
 ################################################################################
@@ -35,12 +36,12 @@ class TU(TestCase):
         self.assertTrue(True)
 
     # ==========================================================================
-    def test0100_timer(self):
+    def test0010_timer(self):
         from alabs.common.util.timer import test_main
         self.assertTrue(test_main())
 
     # ==========================================================================
-    def test0200_vvargs(self):
+    def test0020_vvargs(self):
         from alabs.common.util.vvargs import ModuleContext, str2bool
         with ModuleContext(
                 owner='ARGOS-LABS',
@@ -48,6 +49,8 @@ class TU(TestCase):
                 version='1.0',
                 platform=['windows', 'darwin', 'linux'],
                 output_type='text',
+                display_name='Unit Test',
+                icon_path=get_icon_path(__file__),
                 description='Test friends',
         ) as mcxt:
             mcxt.add_argument('boolparam', type=str2bool,
@@ -66,9 +69,14 @@ class TU(TestCase):
             self.assertTrue(True)
 
     # ==========================================================================
-    def test0300_vvlogger(self):
+    def test0030_vvlogger(self):
         print('vvlogger need test: but vvargs use it instead!')
         self.assertTrue(True)
+
+    # ==========================================================================
+    def test0040_vvjson(self):
+        from alabs.common.util.vvjson import do_test
+        self.assertTrue(do_test())
 
     # ==========================================================================
     def test9999_quit(self):

@@ -9,7 +9,7 @@ import copy
 import time
 import glob
 from alabs.common.util.vvargs import ArgsError, ArgsExit, ModuleContext, func_log, \
-    str2bool
+    str2bool, get_icon_path
 from unittest import TestCase
 
 
@@ -120,6 +120,8 @@ def main(*args):
         version='1.0',
         platform=['windows', 'darwin', 'linux'],
         output_type='text',
+        display_name='Test vvargs',
+        icon_path=get_icon_path(__file__),
         description='Hello World friends',
     ) as mcxt:
         # ############################################ for app dependent options

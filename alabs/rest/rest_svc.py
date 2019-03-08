@@ -51,7 +51,7 @@
 import os
 from flask import Flask
 from flask_restplus import Api
-from alabs.common.rest.ns_rest import ns_api, on_load
+from alabs.rest import ns_api, on_load
 
 # from vivans.rest import MONGO_API_PREFIX, MONGO_API_NAME, MONGO_API_VERSION, \
 #     MYSQL_API_PREFIX, MYSQL_API_NAME, MYSQL_API_VERSION, \

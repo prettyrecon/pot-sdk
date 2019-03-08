@@ -50,13 +50,12 @@
 #  * [2018/04/10]
 #     - 본 모듈 작업 시작
 ################################################################################
-import os
 # noinspection PyProtectedMember
 from flask_restplus import Namespace, Resource
 from flask import abort, request, current_app
 # from vivans.store.pickle import PickleDB
-from alabs.common.rest import parse_req_data, DEFAULT_LIMIT
-from alabs.common.rest import get_keyval
+from alabs.rest import parse_req_data, DEFAULT_LIMIT
+from alabs.rest import get_keyval
 from alabs.common.util.vvjson import safe_jsonify, convert_safe_str
 from copy import deepcopy
 

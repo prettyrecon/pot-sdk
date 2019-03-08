@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/03/06]
+#     - dumpspec 추가
 #  * [2019/03/05]
 #     - add package_data
 #  * [2018/11/28]
@@ -331,7 +333,9 @@ class PPM(object):
                 return self.venv.venv_pip('list', getstdout=True) == 0
 
             # 만약 clear* 명령이면 venv를 강제로 true 시킴
-            if self.args.command.startswith('clear') and not self.args.venv:
+            if self.args.command in ('clear', 'clear-py',
+                                     'clear-all', 'dumpspec') \
+                    and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
             # ppm functions
@@ -342,6 +346,8 @@ class PPM(object):
             elif self.args.command == 'clear-all':
                 self._clear()
                 return self._clear_py()
+            elif self.args.command == 'dumpspec':
+                pass
             elif self.args.command == 'test':
                 return self.setup('test') == 0
             elif self.args.command == 'build':
@@ -654,6 +660,9 @@ Or use argument options
         sp = subps.add_parser('search', help='search keywords')
         sp.add_argument('subargs', metavar='keyword', nargs=argparse.REMAINDER,
                         help='search module which have keywords')
+        sp = subps.add_parser('dumpspec', help='dumpspec keywords')
+        sp.add_argument('modulename',
+                        help='dumpspec module which have modulename')
         _ = subps.add_parser('list', help='list installed module')
         _ = subps.add_parser('list-repository',
                              help='list all modules at remote')
@@ -686,9 +695,9 @@ Or use argument options
             if not args.repository:
                 args.repository = dcf['repository']['url']
             if not args.username:
-                args.username = dcf['repository']['username']
+                args.username = dcf['repository'].get('username')
             if not args.password:
-                args.password = dcf['repository']['password']
+                args.password = dcf['repository'].get('password')
             venv = VEnv(args)
             ppm = PPM(venv, args)
             return ppm.do()
