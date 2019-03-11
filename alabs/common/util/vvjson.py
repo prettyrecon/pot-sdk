@@ -25,14 +25,17 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/03/11]
+#     - change get_xpath for a[1][2]/b[3][4] for multiple index
 #  * [2017/10/19]
 #     - add safe_jsonify
 #  * [2017/04/10]
 #     - 본 모듈 작업 시작
 
 ################################################################################
-import collections
+import re
 import datetime
+import collections
 from io import StringIO
 try:
     # noinspection PyPackageRequirements
@@ -44,6 +47,13 @@ try:  # pragma no cover
 except ImportError:  # pragma no cover
     OrderedDict = dict
 xmlrpclib = __import__('xmlrpc.client')
+# next is for DeprecationWarning: Using or importing the ABCs from 'collections'
+#   instead of from 'collections.abc' is deprecated, and in 3.8 it will stop
+#   working
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 
 ################################################################################
 __author__ = "MoonChang Chae <mcchae@vivans.net>"
@@ -76,7 +86,7 @@ def safe_jsonify(data):
         data[u'_id'] = str(data[u'_id'])
     if isinstance(data, str):
         return data
-    elif isinstance(data, collections.Mapping):
+    elif isinstance(data, Mapping):
         return dict(map(safe_jsonify, data.items()))
     elif isinstance(data, collections.Iterable):
         return type(data)(map(safe_jsonify, data))
@@ -314,7 +324,7 @@ def decode_dict_cs(data):
 
 
 ################################################################################
-def get_xpath(d, xpath, raise_exception=False, dflt_val=None):
+def get_xpath(d, xpath, raise_exception=False, default_value=None):
     """XML 접근 방법으로 XPath가 있듯이 유사한 방법으로 파이썬의 dict를 XPath로 접속하는 함수
 
     :param dict d: 정보를 담고 있을 파이썬의 dict 객체
@@ -323,7 +333,7 @@ def get_xpath(d, xpath, raise_exception=False, dflt_val=None):
         - 만약 True 이고 접근이 불가능하면 ReferenceError 예외발생
         - 만약 False 이고 접근이 불가능하면 None 리턴
         - 디폴트는 False
-    :param dflt_val: 만약 loop up 실패시 return 되는 디폴트 값
+    :param default_value: 만약 loop up 실패시 return 되는 디폴트 값
     :return: object dict에서 XPath 해당 값
     :raises ReferenceError: 만약 raise_exception 패러미터가 True 이고 접근이
         불가능하면 ReferenceError 예외발생 (디폴트 False)
@@ -339,25 +349,50 @@ def get_xpath(d, xpath, raise_exception=False, dflt_val=None):
         if raise_exception:
             raise ReferenceError('ftjson.get_xpath: Invalid type <%s> must dict'
                                  % type(d))
-        return dflt_val
+        return default_value
     try:
-        xeles = xpath.strip('/').split('/')
+        # xeles = xpath.strip('/').split('/')
+        # for xele in xeles:
+        #     if not bool(xele):
+        #         continue
+        #     while True:
+        #         lb = xele.find('[')
+        #         rb = xele.find(']')
+        #         if lb > 0 and rb > 0:
+        #             xk = xele[:lb]
+        #             d = d[xk]
+        #             xndx = int(xele[lb+1:rb])
+        #             if not isinstance(d, (list, tuple)):
+        #                 if xndx == 0:
+        #                     continue  # regards /a[0] == /a
+        #                 if raise_exception:
+        #                     raise ReferenceError('ftjson.get_xpath: '
+        #                                          'Invalid Index <%s>' % xndx)
+        #                 return default_value
+        #             else:
+        #                 d = d[xndx]
+        #         else:
+        #             if lb > 0 or rb > 0:
+        #                 #  only '[' or ']' error
+        #                 if raise_exception:
+        #                     raise ReferenceError('ftjson.get_xpath: '
+        #                                          'Invalid matching brace %s'
+        #                                          % xpath)
+        #             d = d[xele]
+        # return d
+        # noinspection RegExpSingleCharAlternation
+        xeles = re.split(r'/|\[', xpath.strip('/'))
         for xele in xeles:
-            if not bool(xele):
-                continue
-            lb = xele.find('[')
-            rb = xele.find(']')
-            if lb > 0 and rb > 0:
-                xk = xele[:lb]
-                d = d[xk]
-                xndx = int(xele[lb+1:rb])
+            xele = xele.strip()
+            if xele[-1] == ']':
+                xndx = int(xele[:-1])
                 if not isinstance(d, (list, tuple)):
                     if xndx == 0:
                         continue  # regards /a[0] == /a
                     if raise_exception:
                         raise ReferenceError('ftjson.get_xpath: '
                                              'Invalid Index <%s>' % xndx)
-                    return dflt_val
+                    return default_value
                 else:
                     d = d[xndx]
             else:
@@ -365,11 +400,12 @@ def get_xpath(d, xpath, raise_exception=False, dflt_val=None):
         return d
     except KeyError as e:
         if raise_exception:
-            raise ReferenceError('ftjson.get_xpath: Invalid Key <%s>' % str(e))
+            raise ReferenceError('ftjson.get_xpath: Invalid Key <%s>'
+                                 % str(e))
     except Exception as e:
         if raise_exception:
             raise ReferenceError('ftjson.get_xpath: Error <%s>' % str(e))
-        return dflt_val
+        return default_value
 
 
 ################################################################################
@@ -689,7 +725,23 @@ def do_test():
         u'bar': {
             u'baz': 97,
             'lst': [{'@name': 'aaa'}, {'@name': 'bbb'}, {'@name': 'ccc'}]
-        }
+        },
+        u'aaa': [
+            1,
+            2,
+            [
+                3,
+                4,
+                [
+                    5,
+                    6,
+                    {
+                        'ccc': 7,
+                        'zzz': 999
+                    }
+                ]
+            ]
+        ]
     }
     sd = convert_str(ud)
 
@@ -704,6 +756,13 @@ def do_test():
         return False
 
     # test for get_xpath
+    if get_xpath(sd, 'aaa[1]') != 2:
+        return False
+    if get_xpath(sd, 'aaa[2][1]') != 4:
+        return False
+    if get_xpath(sd, 'aaa[2][2][2]/zzz') != 999:
+        return False
+    #  org test
     if get_xpath(sd, '/spam') != 'eggs':
         return False
     if get_xpath(sd, '/bar/baz') != 97:
