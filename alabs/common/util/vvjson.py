@@ -25,6 +25,8 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/03/12]
+#     - change set_xpath for a[1][2]/b[3][4] for multiple index
 #  * [2019/03/11]
 #     - change get_xpath for a[1][2]/b[3][4] for multiple index
 #  * [2017/10/19]
@@ -351,36 +353,6 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
                                  % type(d))
         return default_value
     try:
-        # xeles = xpath.strip('/').split('/')
-        # for xele in xeles:
-        #     if not bool(xele):
-        #         continue
-        #     while True:
-        #         lb = xele.find('[')
-        #         rb = xele.find(']')
-        #         if lb > 0 and rb > 0:
-        #             xk = xele[:lb]
-        #             d = d[xk]
-        #             xndx = int(xele[lb+1:rb])
-        #             if not isinstance(d, (list, tuple)):
-        #                 if xndx == 0:
-        #                     continue  # regards /a[0] == /a
-        #                 if raise_exception:
-        #                     raise ReferenceError('ftjson.get_xpath: '
-        #                                          'Invalid Index <%s>' % xndx)
-        #                 return default_value
-        #             else:
-        #                 d = d[xndx]
-        #         else:
-        #             if lb > 0 or rb > 0:
-        #                 #  only '[' or ']' error
-        #                 if raise_exception:
-        #                     raise ReferenceError('ftjson.get_xpath: '
-        #                                          'Invalid matching brace %s'
-        #                                          % xpath)
-        #             d = d[xele]
-        # return d
-        # noinspection RegExpSingleCharAlternation
         xeles = re.split(r'/|\[', xpath.strip('/'))
         for xele in xeles:
             xele = xele.strip()
@@ -393,8 +365,7 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
                         raise ReferenceError('ftjson.get_xpath: '
                                              'Invalid Index <%s>' % xndx)
                     return default_value
-                else:
-                    d = d[xndx]
+                d = d[xndx]
             else:
                 d = d[xele]
         return d
@@ -449,37 +420,31 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
         raise ReferenceError('ftjson.set_xpath: Invalid type <%s> must dict'
                              % type(d))
     try:
-        xeles = xpath.strip('/').split('/')
+        xeles = re.split(r'/|\[', xpath.strip('/'))
         last_ndx = len(xeles) - 1
         for i, xele in enumerate(xeles):
-            lb = xele.find('[')
-            rb = xele.find(']')
-            if lb > 0 and rb > 0:
-                xk = xele[:lb]
-                if not (is_make_attribute or xk in d):
-                    return False
-                if xk not in d:
-                    d[xk] = []
-                d = d[xk]
-                if not isinstance(d, list):
-                    raise TypeError('ftjson.set_xpath: Invalid type <%s> '
-                                    'must list' % type(d))
-                xndx = int(xele[lb+1:rb])
+            xele = xele.strip()
+            if xele[-1] == ']':
+                xndx = int(xele[:-1])
                 if not isinstance(d, (list, tuple)):
                     return False
-                else:
-                    if not (is_make_attribute or len(d) > xndx):
-                        return False
-                    if len(d) <= xndx:
-                        extlst = [{} for _ in range(len(d), xndx+1)]
+                if len(d) <= xndx:
+                    if is_make_attribute:
+                        extlst = [None for _ in range(len(d), xndx + 1)]
                         d.extend(extlst)
-                    if i == last_ndx:
-                        if is_delete:
-                            del d[xndx]
-                        else:
-                            d[xndx] = xval
+                    else:  # out of index
+                        return False
+                if i == last_ndx:
+                    if is_delete:
+                        del d[xndx]
                     else:
-                        d = d[xndx]
+                        d[xndx] = xval
+                else:
+                    if xeles[i+1][-1] == ']':
+                        d[xndx] = []
+                    else:
+                        d[xndx] = {}
+                    d = d[xndx]
             else:
                 if not (is_make_attribute or xele in d):
                     return False
@@ -493,8 +458,8 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
                         d[xele] = {}
                     d = d[xele]
         return True
-    except Exception:
-        raise
+    except Exception as e:
+        raise ReferenceError('ftjson.set_xpath: Error <%s>' % str(e))
 
 
 ################################################################################
@@ -805,6 +770,20 @@ def do_test():
     if not set_xpath(sd, '/bar/lst[5]/@att2/#text', 'att2_text'):
         return False
     if get_xpath(sd, '/bar/lst[5]/@att2/#text') != 'att2_text':
+        return False
+    if not set_xpath(sd, 'aaa[2][2][2]/zzz', 888):
+        return False
+    if get_xpath(sd, 'aaa[2][2][2]/zzz') != 888:
+        return False
+    if set_xpath(sd, 'aaa[5][5][5]', 888, is_make_attribute=False):
+        return False
+    if not set_xpath(sd, 'aaa[3][4][5]', 888):
+        return False
+    if get_xpath(sd, 'aaa[3][4][5]') != 888:
+        return False
+    if not set_xpath(sd, 'aaa[3][4][5]/a/b/c', 777):
+        return False
+    if get_xpath(sd, 'aaa[3][4][5]/a/b/c') != 777:
         return False
 
     # test getSafe...
