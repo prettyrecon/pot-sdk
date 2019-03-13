@@ -17,6 +17,8 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/03/13]
+#     - get_pip_version 추가 및 plugin_version 추가
 #  * [2019/03/07]
 #     - 모듈 스펙에 icon 추가 방법
 #     - dumpspec 시 icon.* 파일이 존재하면 첫번째 파일에 대하여 base64 형식 포함
@@ -338,6 +340,7 @@ class ModuleContext(ArgumentParser):
             'owner': self.owner,  # module owner
             'group': self.group,  # group name
             'name': self.prog,
+            'plugin_version': get_pip_version(self.prog),
             'version': self.version,  # module version
             'sha256': get_file_hash(self.prog),
             'type': 'embeded-exe',
@@ -615,3 +618,34 @@ def str2bool(v):
         return False
     else:
         raise ArgsError('Boolean value expected but "%s"' % v)
+
+
+################################################################################
+def get_all_pip_version():
+    try:
+        from pip._internal.operations import freeze
+    except ImportError:  # pip < 10.0
+        from pip.operations import freeze
+
+    x = freeze.freeze()
+    rd = {}
+    for p in x:
+        # print(p)
+        eles = p.split('==')
+        rd[eles[0]] = eles[1]
+    return rd
+
+
+################################################################################
+def get_pip_version(modname):
+    d = get_all_pip_version()
+    if modname not in d:
+        return None
+    return d[modname]
+
+
+################################################################################
+if __name__ == '__main__':
+    d = get_all_pip_version()
+    print(d)
+    print(get_pip_version('alabs.common'))

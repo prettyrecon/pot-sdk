@@ -30,4 +30,4 @@ setup:
   package_data:
     alabs.common: ['icon.*']
   url: https://www.argos-labs.com
-  version: 1.308.1421
+  version: 1.313.1834
