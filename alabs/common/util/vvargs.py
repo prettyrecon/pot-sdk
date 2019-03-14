@@ -142,6 +142,9 @@ class ModuleContext(ArgumentParser):
         # 1) 해당 패러미터의 입력 그룹 (디폴트는 None)
         'input_group': None,
         # 2) 해당 패러미터의 특정 UI 입력 방법 (디폴트는 None)
+        # 2.1) "password" : Stu에서 암호표시
+        # 2.2) "fileread" : Stu에서 읽을 파일을 지정
+        # 2.3) "filewrite" : Stu에서 쓸 파일을 지정
         'input_method': None,
     }
     # argparse 에 더붙이는 자체 검증 모듈
@@ -242,7 +245,7 @@ class ModuleContext(ArgumentParser):
 
     # ==========================================================================
     def __repr__(self):
-        d = {
+        _d = {
             'owner': self.owner,
             'group': self.group,
             'prog': self.prog,
@@ -255,7 +258,7 @@ class ModuleContext(ArgumentParser):
             'args': self._args,
             'isopened': self._isopened,
         }
-        return 'ModuleContext=%s' % pformat(d)
+        return 'ModuleContext=%s' % pformat(_d)
 
     # ==========================================================================
     def add_argument(self, *args, **kwargs):
@@ -621,6 +624,7 @@ def str2bool(v):
 
 
 ################################################################################
+# noinspection PyProtectedMember,PyUnresolvedReferences,PyUnresolvedReferences
 def get_all_pip_version():
     try:
         from pip._internal.operations import freeze
@@ -638,10 +642,10 @@ def get_all_pip_version():
 
 ################################################################################
 def get_pip_version(modname):
-    d = get_all_pip_version()
-    if modname not in d:
+    _d = get_all_pip_version()
+    if modname not in _d:
         return None
-    return d[modname]
+    return _d[modname]
 
 
 ################################################################################
