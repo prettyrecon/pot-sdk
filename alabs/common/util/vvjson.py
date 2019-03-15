@@ -25,6 +25,8 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/03/15]
+#     - set_xpath에서 최초 없던 상태에서 ABC/DEV[1] 에 값을 넣는 것
 #  * [2019/03/12]
 #     - change set_xpath for a[1][2]/b[3][4] for multiple index
 #  * [2019/03/11]
@@ -326,6 +328,7 @@ def decode_dict_cs(data):
 
 
 ################################################################################
+# noinspection RegExpSingleCharAlternation
 def get_xpath(d, xpath, raise_exception=False, default_value=None):
     """XML 접근 방법으로 XPath가 있듯이 유사한 방법으로 파이썬의 dict를 XPath로 접속하는 함수
 
@@ -380,6 +383,7 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
 
 
 ################################################################################
+# noinspection RegExpSingleCharAlternation
 def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
     """파이썬의 dict 객체를 XPath로 특정 값을 설정하는 함수
 
@@ -455,7 +459,10 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
                         d[xele] = xval
                 else:
                     if xele not in d:
-                        d[xele] = {}
+                        if xeles[i + 1][-1] == ']':
+                            d[xele] = []
+                        else:
+                            d[xele] = {}
                     d = d[xele]
         return True
     except Exception as e:
@@ -784,6 +791,12 @@ def do_test():
     if not set_xpath(sd, 'aaa[3][4][5]/a/b/c', 777):
         return False
     if get_xpath(sd, 'aaa[3][4][5]/a/b/c') != 777:
+        return False
+    # empty set
+    ed = {}
+    if not set_xpath(ed, 'ABC/DEV[1]', 'abcde'):
+        return False
+    if get_xpath(ed, 'ABC/DEV[1]') != 'abcde':
         return False
 
     # test getSafe...
