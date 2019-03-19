@@ -17,6 +17,8 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/03/18]
+#     - --outfile, --errfile을 모두 utf-8 인코딩 방식으로 열기
 #  * [2019/03/13]
 #     - get_pip_version 추가 및 plugin_version 추가
 #  * [2019/03/07]
@@ -509,12 +511,12 @@ class ModuleContext(ArgumentParser):
                 self._stdin = open(self._args.infile, 'r')
                 sys.stdin = self._stdin
         if self._args.outfile:
-            self._stdout = open(self._args.outfile, 'w')
+            self._stdout = open(self._args.outfile, 'w', encoding='utf-8')
             sys.stdout = self._stdout
         else:
             self._stdout = sys.stdout
         if self._args.errfile:
-            self._stderr = open(self._args.errfile, 'w')
+            self._stderr = open(self._args.errfile, 'w', encoding='utf-8')
             sys.stderr = self._stderr
         else:
             self._stderr = sys.stderr
