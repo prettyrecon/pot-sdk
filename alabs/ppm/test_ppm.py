@@ -102,12 +102,12 @@ class TU(TestCase):
     # ==========================================================================
     def test_0035_clear_all(self):
         r = _main(['clear-all'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_0040_build(self):
         r = _main(['--venv', 'build'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         mdir = os.path.dirname(__file__)
         ppdir = os.path.abspath(os.path.join(mdir, '..', '..'))
         self.assertTrue(os.path.exists(os.path.join(ppdir, 'alabs.ppm.egg-info',
@@ -124,11 +124,11 @@ class TU(TestCase):
                                                         'python')))
 
     # ==========================================================================
-    def test_0050_register(self):
+    def test_0050_submit(self):
         try:
-            _main(['register'])
+            _main(['submit', 'submit_key'])
             self.assertTrue(False)
-        except NotImplementedError as e:
+        except Exception as e:
             print(e)
             self.assertTrue(True)
 
@@ -136,19 +136,19 @@ class TU(TestCase):
     def test_0060_upload(self):
         # 사설 저장소에 wheel upload (내부 QC를 거친 후)
         r = _main(['--venv', 'upload'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_0070_clear_all_after_upload(self):
         r = _main(['clear-all'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_0110_invalid_get(self):
         try:
             _ = _main(['get', 'alskdfjasklfj'])
             self.assertTrue(False)
-        except RuntimeWarning as e:
+        except Exception as e:
             print(e)
             self.assertTrue(True)
 
@@ -156,14 +156,14 @@ class TU(TestCase):
     def test_0120_get(self):
         with captured_output() as (out, err):
             r = _main(['get', 'repository'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertTrue(stdout.startswith('http'))
         rep = stdout
 
         with captured_output() as (out, err):
             r = _main(['get', 'trusted-host'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertTrue(rep.find(stdout) > 0)
 
@@ -171,21 +171,21 @@ class TU(TestCase):
     def test_0150_list_uninstall(self):
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         # self.assertTrue(stdout.find('alabs.ppm') > 0)
         if stdout.find('alabs.ppm') > 0:
             r = _main(['-vv', 'uninstall', 'alabs.ppm'])
-            self.assertTrue(r)
+            self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_0200_install(self):
         r = _main(['-vv', 'install', 'alabs.ppm'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         # check install
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertTrue(stdout.find('alabs.ppm') > 0)
 
@@ -193,36 +193,36 @@ class TU(TestCase):
     def test_0210_show(self):
         with captured_output() as (out, err):
             r = _main(['show', 'alabs.ppm'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertTrue(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_0220_uninstall(self):
         r = _main(['-vv', 'uninstall', 'alabs.ppm'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         # check uninstall
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertFalse(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_9980_install_last(self):
         r = _main(['-vv', 'install', 'alabs.ppm'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         # check install
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertTrue(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
     def test_9990_clear_all(self):
         r = _main(['clear-all'])
-        self.assertTrue(r)
+        self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_9999_quit(self):

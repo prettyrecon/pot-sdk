@@ -18,6 +18,12 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/03/22]
+#     - PPM.do 에서 return 값을 실제 프로세스 returncode를 리턴 0-정상
+#     - submit 에서 upload 서버로 올림
+#  * [2019/03/20]
+#     - .argos-rpa.conf 애 private-repositories 목록 추가
+#     - 기존 register => submit 변경
 #  * [2019/03/06]
 #     - dumpspec 추가
 #  * [2019/03/05]
@@ -39,6 +45,7 @@ import argparse
 import datetime
 import traceback
 import subprocess
+from alabs.common.util.vvjson import get_xpath
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
@@ -79,7 +86,7 @@ class VEnv(object):
         if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
             raise EnvironmentError('Python Version must greater then "3.3" '
                                    'which support venv')
-        return True
+        return 0
 
     # ==========================================================================
     def check_environments(self):
@@ -89,12 +96,12 @@ class VEnv(object):
     def clear(self):
         if os.path.isdir(self.root):
             shutil.rmtree(self.root)
-        return True
+        return 0
 
     # ==========================================================================
     def make_venv(self, isdelete=True):
         if not self.use:
-            return 0
+            return 9
         if os.path.isdir(self.root) and isdelete:
             shutil.rmtree(self.root)
 
@@ -202,14 +209,16 @@ class PPM(object):
     ]
 
     # ==========================================================================
-    def __init__(self, venv, args):
+    def __init__(self, venv, args, config):
         self.venv = venv
         self.args = args
+        self.config = config    # .argos-rpa.conf (yaml)
         # for internal
         self.pkgname = None
         self.pkgpath = None
         self.basepath = None
-        self.rep_param = []
+        self.indices = []
+        self.ndx_param = []
 
     # ==========================================================================
     def _get_pkgname(self):
@@ -284,12 +293,40 @@ class PPM(object):
             if os.path.exists(gf):
                 os.unlink(gf)
                 c_cnt += 1
-        return c_cnt > 0
+        return 0 if c_cnt > 0 else 1
 
     # ==========================================================================
     # noinspection PyMethodMayBeStatic
     def _clear_py(self):
         return self.venv.clear()
+
+    # ==========================================================================
+    def _get_indices(self):
+        self.indices = []
+        self.nex_param = []
+        url = get_xpath(self.config, '/repository/url')
+        if not url:
+            raise RuntimeError('Invalid repository.url from .argos-rpa.conf')
+        self.indices.append(url)
+        self.ndx_param.append('--index')
+        self.ndx_param.append(url)
+        self.ndx_param.append('--trusted-host')
+        self.ndx_param.append(self._get_host_from_index(url))
+        for rep in self.config.get('private-repositories', []):
+            url = rep.get('url')
+            if not url:
+                continue
+            self.indices.append(url)
+            self.ndx_param.append('--extra-index-url')
+            self.ndx_param.append(url)
+            self.ndx_param.append('--trusted-host')
+            self.ndx_param.append(self._get_host_from_index(url))
+        return self.indices
+
+    # ==========================================================================
+    @staticmethod
+    def _get_host_from_index(url):
+        return urlparse(url).netloc.split(':')[0]
 
     # ==========================================================================
     def do(self):
@@ -298,39 +335,35 @@ class PPM(object):
                 subargs = self._check_subargs(self.args.subargs)
             else:
                 subargs = []
-
-            rep_host = urlparse(self.args.repository).netloc.split(':')[0]
-            self.rep_param = ['--index', self.args.repository,
-                              '--trusted-host', rep_host]
+            self._get_indices()
             # first do actions which do not need virtualenv
             # get commond
             if self.args.command == 'get':
                 if self.args.get_config == 'repository':
-                    print(self.args.repository)
+                    print(self.indices[0])
                 elif self.args.get_config == 'trusted-host':
-                    print(rep_host)
-                return True
-
+                    print(self._get_host_from_index(self.indices[0]))
+                return 0
             print('start %s ...' % self.args.command)
             # pip commond
             if self.args.command == 'install':
                 subargs.insert(0, 'install')
-                subargs.extend(self.rep_param)
-                return self.venv.venv_pip(*subargs) == 0
+                subargs.extend(self.ndx_param)
+                return self.venv.venv_pip(*subargs)
             elif self.args.command == 'show':
                 subargs.insert(0, 'show')
                 subargs.append('--verbose')
-                return self.venv.venv_pip(*subargs, getstdout=True) == 0
+                return self.venv.venv_pip(*subargs, getstdout=True)
             elif self.args.command == 'uninstall':
                 subargs.insert(0, '-y')
                 subargs.insert(0, 'uninstall')
-                return self.venv.venv_pip(*subargs) == 0
+                return self.venv.venv_pip(*subargs)
             elif self.args.command == 'search':
                 subargs.insert(0, 'search')
-                subargs.extend(self.rep_param)
-                return self.venv.venv_pip(*subargs, getstdout=True) == 0
+                subargs.extend(self.ndx_param)
+                return self.venv.venv_pip(*subargs, getstdout=True)
             elif self.args.command == 'list':
-                return self.venv.venv_pip('list', getstdout=True) == 0
+                return self.venv.venv_pip('list', getstdout=True)
 
             # 만약 clear* 명령이면 venv를 강제로 true 시킴
             if self.args.command in ('clear', 'clear-py',
@@ -349,51 +382,68 @@ class PPM(object):
             elif self.args.command == 'dumpspec':
                 pass
             elif self.args.command == 'test':
-                return self.setup('test') == 0
+                return self.setup('test')
             elif self.args.command == 'build':
                 for pkg in self.BUILD_PKGS:
-                    self.venv.venv_pip('install', pkg, *self.rep_param)
-                return self.setup('bdist_wheel') == 0
-            elif self.args.command == 'register':
-                raise NotImplementedError('TODO:register into '
+                    self.venv.venv_pip('install', pkg, *self.ndx_param)
+                return self.setup('bdist_wheel')
+            elif self.args.command == 'submit':
+                raise NotImplementedError('TODO:submit into '
                                           'module upload server '
                                           '(Not yet implemented)')
             elif self.args.command == 'upload':
                 for pkg in self.UPLOAD_PKGS:
-                    self.venv.venv_pip('install', pkg, *self.rep_param)
+                    self.venv.venv_pip('install', pkg, *self.ndx_param)
+
+                pri_reps = get_xpath(self.config, '/private-repositories')
+                if not pri_reps:
+                    raise RuntimeError('Private repository (private-repositories) '
+                                       'is not set at .argos-rpa.conf,')
+                pri_rep = None
+                if not self.args.repository_name:
+                    pri_rep = pri_reps[0]
+                else:
+                    for pr in pri_reps:
+                        if pr.get('name') == self.args.repository_name:
+                            pri_rep = pr
+                            break
+                if not pri_reps:
+                    raise RuntimeError('Private repository "%s" is not exists '
+                                       'at .argos-rpa.conf,' % self.args.repository_name)
+
+                pr_url = pri_rep.get('url')
+                pr_user = pri_rep.get('username')
+                pr_pass = pri_rep.get('password')
+                if not pr_url:
+                    raise RuntimeError('url of private repository is not set, please '
+                                       'check private-repositories at .argos-rpa.conf')
+                if not pr_user:
+                    raise RuntimeError('username of private repository is not set, please '
+                                       'check private-repositories at .argos-rpa.conf')
+                if not pr_pass:
+                    raise RuntimeError('password of private repository is not set, please '
+                                       'check private-repositories at .argos-rpa.conf')
                 gl = glob.glob('dist/%s*.whl' % self.pkgname)
                 if not gl:
                     raise RuntimeError('Cannot find wheel package file at "%s",'
                                        ' please build first' %
                                        os.path.join(self.basepath, 'dist'))
-                if not self.args.repository:
-                    raise RuntimeError('Private repository is not set, please '
-                                       'set --repository option first')
-                if not self.args.username:
-                    raise RuntimeError('username is not set for Private '
-                                       'repository, please set --username '
-                                       'option first')
-                if not self.args.password:
-                    raise RuntimeError('password is not set for Private '
-                                       'repository, please set --password '
-                                       'option first')
                 return self.venv.venv_py('-m', 'twine', 'upload', 'dist/*',
-                                         '--repository-url',
-                                         self.args.repository,
-                                         '--username', self.args.username,
-                                         '--password', self.args.password,
-                                         stdout=True) == 0
+                                         '--repository-url', pr_url,
+                                         '--username', pr_user,
+                                         '--password', pr_pass,
+                                         stdout=True)
 
             # direct command for (pip, python, python setup.py)
             if self.args.command == 'pip':
-                return self.venv.venv_pip(*subargs) == 0
+                return self.venv.venv_pip(*subargs)
             elif self.args.command == 'py':
-                return self.venv.venv_py(*subargs) == 0
+                return self.venv.venv_py(*subargs)
             elif self.args.command == 'setup':
-                return self.setup(*subargs) == 0
+                return self.setup(*subargs)
             elif self.args.command == 'list-repository':
                 for pkg in self.LIST_PKGS:
-                    self.venv.venv_pip('install', pkg, *self.rep_param)
+                    self.venv.venv_pip('install', pkg, *self.ndx_param)
                 import urllib.request
                 import urllib.parse
                 # noinspection PyUnresolvedReferences,PyPackageRequirements
@@ -406,7 +456,7 @@ class PPM(object):
                     soup = BeautifulSoup(html, 'html.parser')
                 for x in soup.find_all('a'):
                     pprint(x.text)
-                return True
+                return 0
             else:
                 raise RuntimeError('Cannot support command "%s"'
                                    % self.args.command)
@@ -447,7 +497,7 @@ class PPM(object):
             with open(requirements_txt, 'w') as ofp:
                 ofp.write('# pip dependent packages\n')
         r = self.venv.venv_pip('install', '-r', requirements_txt,
-                               *self.rep_param)
+                               *self.ndx_param)
         if r != 0:
             raise RuntimeError('Error in installing "%s"' % requirements_txt)
         pkghistory = []
@@ -560,25 +610,8 @@ setup(
 ################################################################################
 def get_repository_env():
     cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
-    dcf = {
-        'repository': {
-            'url': 'http://pypi.argos-labs.com:8080',
-            'username': None,
-            'password': None,
-        }
-    }
-    if os.path.exists(cf):
-        with open(cf) as ifp:
-            dcf = yaml.load(ifp)
-    v = os.environ.get('PPM_URL')
-    if v:
-        dcf['repository']['url'] = v
-    v = os.environ.get('PPM_USERNAME')
-    if v:
-        dcf['repository']['username'] = v
-    v = os.environ.get('PPM_PASSWORD')
-    if v:
-        dcf['repository']['password'] = v
+    with open(cf) as ifp:
+        dcf = yaml.load(ifp)
     return dcf
 
 
@@ -591,22 +624,33 @@ def _main(argv=None):
             description='''ARGOS-LABS Plugin Package Manager
 
 This manager use private PyPI repository.
-set {home}{sep}.argos-rpa.conf
+set {home}{sep}.argos-rpa.conf as follows:
 
-repository: http://pypi.argos-labs.com:8080
-username: user
-password: pass
+---
+repository:
+  url: http://pypi.argos-labs.com:8080
+private-repositories:
+  - name: internal
+    url: http://10.211.55.2:48080
+    username: user
+    password: pass
+  - name: external
+    url: http://pypi.argos-labs.com:8080
+    username: user
+    password: pass
 
-Or 
-set environmental variables
-PPM_REPOSITORY=http://pypi.argos-labs.com:8080
-PPM_USERNAME=user
-PPM_PASSWORD=pass
 
-Or use argument options
---repository http://pypi.argos-labs.com:8080
---username user
---password pass
+* repository is the main plugin modules's store
+  * url is the url of ARGOS RPA+ main pypi module
+  NB) ARGOS RPA+ main module is not allowed to upload directly
+      but submit first and then ARGOS team to decide 
+* private-repositories are the list of user's private plugin modules's store
+  * name is the name of private repository (for example "internal", "external") 
+  * url is the url of pypi module
+  * username is the user name at pypi repository
+  * password is the user password at pypi repository
+  NB) username and password is only needed for upload
+      upload is only valid for private repositories
 '''.format(home=str(Path.home()), sep=os.path.sep),
             formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument('--new-py', action='store_true',
@@ -616,12 +660,13 @@ Or use argument options
                             help='if set use package top py.%s for virtual env.'
                                  ' If not set. Use system python instead.'
                                  % sys.platform)
-        parser.add_argument('--repository', '-r', nargs='?',
-                            help='set url for private repository')
-        parser.add_argument('--username', nargs='?',
-                            help='user name for private repository')
-        parser.add_argument('--password', nargs='?',
-                            help='password for private repository')
+        # .argos-rpa.conf 로면 설정하도록 수정
+        # parser.add_argument('--repository', '-r', nargs='?',
+        #                     help='set url for private repository')
+        # parser.add_argument('--username', nargs='?',
+        #                     help='user name for private repository')
+        # parser.add_argument('--password', nargs='?',
+        #                     help='password for private repository')
         parser.add_argument('--clean', '-c', action='store_true',
                             help='clean all temporary folders, etc.')
         parser.add_argument('--verbose', '-v', action='count', default=0,
@@ -631,8 +676,15 @@ Or use argument options
         # ppm functions
         _ = subps.add_parser('test', help='test this module')
         _ = subps.add_parser('build', help='build this module')
-        _ = subps.add_parser('register', help='register to upload server')
-        _ = subps.add_parser('upload', help='upload this module to server')
+        sp = subps.add_parser('submit', help='submit to upload server')
+        sp.add_argument('repository_name',
+                        help="repository name from the list of private repositories")
+        sp.add_argument('submit_key',
+                        help="token key to submit")
+        sp = subps.add_parser('upload', help='upload this module to pypi server')
+        sp.add_argument('repository_name', nargs='?',
+                        help="repository name from the list of private repositories. "
+                             "If not specified then first item from private-repositories list.")
         _ = subps.add_parser('clear', help='clear all temporary folders')
         _ = subps.add_parser('clear-py',
                              help='clear py.%s virtual environment'
@@ -692,14 +744,8 @@ Or use argument options
             parser.print_help()
             return False
         else:
-            if not args.repository:
-                args.repository = dcf['repository']['url']
-            if not args.username:
-                args.username = dcf['repository'].get('username')
-            if not args.password:
-                args.password = dcf['repository'].get('password')
             venv = VEnv(args)
-            ppm = PPM(venv, args)
+            ppm = PPM(venv, args, dcf)
             return ppm.do()
     finally:
         os.chdir(cwd)
@@ -708,7 +754,8 @@ Or use argument options
 ################################################################################
 def main(argv=None):
     try:
-        _main(argv)
+        r = _main(argv)
+        sys.exit(r)
     except Exception as err:
         _exc_info = sys.exc_info()
         _out = traceback.format_exception(*_exc_info)
