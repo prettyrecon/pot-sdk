@@ -83,6 +83,7 @@ class Ping(Resource):
 # End-Point: http://{address}/api/variables/v1.0/var
 # Parameters: path
 
+
 variables_parser = reqparse.RequestParser()
 variables_parser.add_argument('path', type=str)
 ###############################################################################
@@ -98,9 +99,9 @@ class Variables(Resource):
     @api.expect(variables_parser, validate=True)
     @api.response(200, 'API Success/Failure')
     def post(self):
-        args = variables_parser.parse_args()
         json_data = request.get_json()
-        value = variables.set_by_argos_variable(args['path'], json_data['data'])
+        value = variables.set_by_argos_variable(json_data['path'],
+                                                json_data['data'])
         return value
 
 converter_parser = reqparse.RequestParser()

@@ -21,22 +21,22 @@ python app/routes.py
 ### End-Point
 ```bash
 # 변수 쓰기, 읽기
-http://localhost:8011/api/v1.0/variables
+http://localhost:8011/api/v1.0/var/variables
 # Parameters
 path # 변수 위치. ex) path={{ABC.DEF}}
 
 # 문장 치환
-http://localhost:8011/api/v1.0/convert
+http://localhost:8011/api/v1.0/var/convert
 # Parameters
 data # 치환시킬 문장 ex) Hello {{ABC.DEF}}
 ```
 ### POST
 ```bash
 curl -X POST -g \
-  'http://localhost:8011/api/v1.0/variables?path={{ABC.DEF}}' \
+  'http://localhost:8011/api/v1.0/var/variables' \
   -H 'Cache-Control: no-cache' \
   -H 'Content-Type: application/json' \
-  -d '{"data": "World"}'
+  -d '{"path": "{{ABC.DEF}}", "data": "World"}'
   
 true
 ```
@@ -44,7 +44,7 @@ true
 ### GET
 ```bash
 curl -X GET -g \
-  'http://localhost:8011/api/v1.0/variables?path={{ABC}}' \
+  'http://localhost:8011/api/v1.0/var/variables?path={{ABC}}' \
   -H 'Cache-Control: no-cache' 
 
 {"DEF": "World"}
@@ -52,7 +52,7 @@ curl -X GET -g \
 
 ```bash
 curl -X GET -g \
-  'http://localhost:8011/api/v1.0/convert?data=Hello%20{{ABC.DEF}}' \
+  'http://localhost:8011/api/v1.0/var/convert?data=Hello%20{{ABC.DEF}}' \
   -H 'Cache-Control: no-cache'
 ```
 
