@@ -11,7 +11,7 @@
 import os
 import time
 from alabs.common.util.vvargs import ArgsError, ArgsExit
-from alabs.rpa.desktop.delay import main as _main
+from alabs.rpa.ha.desktop.delay import main as _main
 from unittest import TestCase
 
 
