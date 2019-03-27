@@ -28,4 +28,4 @@ setup:
   package_data:
     alabs.ppm: ['icon.*']
   url: https://www.argos-labs.com
-  version: 1.327.1502
+  version: 1.327.2123

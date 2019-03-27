@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/03/27]
+#     - search 에서는 --extra-index-url 등이 지원 안되는 문제
 #  * [2019/03/22~2019/03/26]
 #     - PPM.do 에서 return 값을 실제 프로세스 returncode를 리턴 0-정상
 #     - submit 에서 upload 서버로 올림
@@ -40,6 +42,7 @@ import sys
 # noinspection PyPackageRequirements
 import yaml
 import glob
+import copy
 import shutil
 import argparse
 import datetime
@@ -373,9 +376,16 @@ class PPM(object):
                 subargs.insert(0, 'uninstall')
                 return self.venv.venv_pip(*subargs)
             elif self.args.command == 'search':
-                subargs.insert(0, 'search')
-                subargs.extend(self.ndx_param)
-                return self.venv.venv_pip(*subargs, getstdout=True)
+                for ndx in self.indices:
+                    sargs = copy.copy(subargs)
+                    sargs.insert(0, 'search')
+                    # subargs.extend(self.ndx_param)
+                    sargs.append('--index')
+                    sargs.append(ndx)
+                    sargs.append('--trusted-host')
+                    sargs.append(self._get_host_from_index(ndx))
+                    r = self.venv.venv_pip(*sargs, getstdout=True)
+                return r
             elif self.args.command == 'list':
                 return self.venv.venv_pip('list', getstdout=True)
 

@@ -69,8 +69,8 @@ class SimpleDownUpload(object):
     # ==========================================================================
     @staticmethod
     def safe_basename(f):
-        f = clean_filename(f)
-        return quote_plus(os.path.basename(f))
+        f = clean_filename(os.path.basename(f))
+        return quote_plus(f)
 
     # ==========================================================================
     def upload(self, file, saved_filename=None):

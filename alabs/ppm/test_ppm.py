@@ -209,6 +209,14 @@ class TU(TestCase):
         self.assertFalse(stdout.find('alabs.ppm') > 0)
 
     # ==========================================================================
+    def test_0300_uninstall(self):
+        with captured_output() as (out, err):
+            r = _main(['-vv', 'search', 'argoslabs'])
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        self.assertFalse(stdout.find('alabs.ppm') > 0)
+
+    # ==========================================================================
     def test_9980_install_last(self):
         r = _main(['-vv', 'install', 'alabs.ppm'])
         self.assertTrue(r == 0)
