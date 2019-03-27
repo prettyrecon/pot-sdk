@@ -175,7 +175,7 @@ class Variables(dict):
         return form.format(*arg)
 
     # ==========================================================================
-    def get_by_argos_variable(self, variable):
+    def get_by_argos_variable(self, variable, raise_exception=False):
         """
         ARGOS 변수형태로 위치 값을 찾아서 값 반환
         :param variable: {{ABC.DEF[1]}}
@@ -190,7 +190,7 @@ class Variables(dict):
 
         t = split(variables[0])
         t = self.parse(t)
-        value = self.get_by_xpath(t['xpath'], t['sign'])
+        value = self.get_by_xpath(t['xpath'], t['sign'], raise_exception)
         return value
 
     # ==========================================================================
@@ -210,8 +210,7 @@ class Variables(dict):
 
         t = split(variables[0])
         t = self.parse(t)
-        self.set_by_xpath(t['xpath'], value, t['sign'])
-        return True
+        return self.set_by_xpath(t['xpath'], value, t['sign'])
 
     # ==========================================================================
     def set_by_xpath(self, xpath:str, value:object, sign:str)->None:
@@ -221,12 +220,12 @@ class Variables(dict):
             self._local_set_by_xpath(xpath, value)
 
     # ==========================================================================
-    def get_by_xpath(self, xpath:str, sign:str):
+    def get_by_xpath(self, xpath:str, sign:str, raise_exception=False):
 
         if sign == Sign.GLOBAL.name:
             value = self._global_get_by_xpath(xpath)
         else:
-            value = self._local_get_by_xpath(xpath)
+            value = self._local_get_by_xpath(xpath, raise_exception)
         return value
 
     # ==========================================================================
@@ -239,17 +238,15 @@ class Variables(dict):
         """
         set_xpath(self, xpath, value)
 
+
     # ==========================================================================
-    def _local_get_by_xpath(self, xpath:str):
+    def _local_get_by_xpath(self, xpath:str, raise_exception=False):
         """
         :param xpath: 'a/b/e/f/g'
         :return: object
         """
-        try:
-            return get_xpath(self, xpath)
-        except KeyError as e:
-            print(e)
-            raise
+        return get_xpath(self, xpath, raise_exception=raise_exception)
+
 
     # ==========================================================================
     def _global_set_by_xpath(self, xpath: str, value: object) -> None:

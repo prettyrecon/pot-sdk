@@ -1,5 +1,4 @@
 import os
-
 ################################################################################
 __author__ = "Duk Kyu Lim <hong18s@gmail.com>"
 __date__ = "2019/03/15"
@@ -7,7 +6,9 @@ __version__ = "1.0.0"
 __version_info__ = (1, 0, 0)
 __license__ = "MIT"
 
-
+from requests import Response
+from alabs.common.util.vvjson import convert_str
+import json
 
 # REST API Port
 VM_API_PORT = os.environ.get('VM_API_PORT', '8011')
@@ -16,6 +17,28 @@ VM_API_PORT = os.environ.get('VM_API_PORT', '8011')
 EXTERNAL_STORE_ADDRESS_PORT = os.environ.get('EXTERNAL_STORE_ADDRESS_PORT')
 EXTERNAL_STORE_TOKEN = os.environ.get('EXTERNAL_STORE_TOKEN')
 EXTERNAL_STORE_NAME = os.environ.get('EXTERNAL_STORE_NAME', '') + '/variables'
+
+################################################################################
+class RequestData(dict):
+    def __init__(self, data):
+        dict.__init__(self)
+        self['data'] = data
+
+################################################################################
+class ResponseData(dict):
+    def __init__(self, resp:Response):
+        dict.__init__(self)
+        self['code'] = resp.status_code
+        self['data'] = convert_str(json.loads(resp.text))
+
+################################################################################
+class ResponseErrorData(dict):
+    def __init__(self, resp:Response):
+        dict.__init__(self)
+        self['code'] = resp.status_code
+        self['message'] = convert_str(json.loads(resp.text))
+
+
 
 from alabs.pam.variable_manager.variable_manager import Variables
 variables = Variables()
@@ -64,8 +87,3 @@ except Exception as err:
 
 ################################################################################
 
-
-api_port = VM_API_PORT
-if not api_port:
-    raise RuntimeError('API_PORT environment variable is not set!')
-app.run(host="0.0.0.0", port=int(api_port))

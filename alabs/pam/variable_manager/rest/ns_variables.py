@@ -30,6 +30,8 @@
 from flask_restplus import Namespace, Resource, reqparse
 from flask import request
 from alabs.pam.variable_manager import variables
+from alabs.pam.variable_manager import ResponseData, \
+    ResponseErrorData
 
 
 ################################################################################
@@ -90,30 +92,38 @@ variables_parser.add_argument('path', type=str)
 class Variables(Resource):
     @api.expect(variables_parser, validate=True)
     @api.response(200, 'API Success/Failure')
+    @api.response(500, 'Internal Server Error')
     def get(self):
-        args = variables_parser.parse_args()
-        value = variables.get_by_argos_variable(args['path'])
-        return value
+        json_data = request.get_json()
+        print(json_data)
+        try:
+            retv = variables.get_by_argos_variable(
+                json_data['data']['path'], raise_exception=True)
+            return retv
+        except ReferenceError as e:
+            api.abort(404, str(e))
 
     # ==========================================================================
     @api.expect(variables_parser, validate=True)
     @api.response(200, 'API Success/Failure')
+    @api.response(500, 'API Success/Failure')
     def post(self):
         json_data = request.get_json()
-        value = variables.set_by_argos_variable(json_data['path'],
-                                                json_data['data'])
+        value = variables.set_by_argos_variable(
+            json_data['data']['path'], json_data['data']['value'])
         return value
 
 converter_parser = reqparse.RequestParser()
-converter_parser.add_argument('data', type=str)
+converter_parser.add_argument('value', type=str)
 ###############################################################################
 class Converter(Resource):
     @api.expect(converter_parser, validate=True)
     @api.response(200, 'API Success/Failure')
     def get(self):
-        args = converter_parser.parse_args()
-        value = variables.convert(args['data'])
+        json_data = request.get_json()
+        value = variables.convert(json_data['data']['value'])
         return value
+
 
 api.add_resource(Variables, '/variables')
 api.add_resource(Converter, '/convert')

@@ -9,23 +9,45 @@
 """
 
 
-from alabs.pam.variable_manager.rest import RestClient, \
-    REST_API_NAME, REST_API_VERSION, REST_API_PREFIX
-import json
+from alabs.pam.variable_manager.rest import RestClient
+from alabs.pam.variable_manager import \
+    REST_API_NAME, REST_API_VERSION, REST_API_PREFIX, RequestData, \
+    ResponseErrorData
+
 
 class VariableManagerAPI:
     # ==========================================================================
-    def __init__(self, ip="127.0.0.1", port="5000"):
-        self.rc_api = RestClient(ip, port,"foos",
-            # "127.0.0.1", "38800", 'foos',
-            url_prefix=REST_API_PREFIX,
-            api_name=REST_API_NAME,
-            api_version=REST_API_VERSION)
+    def __init__(self, ip="127.0.0.1", port="8011"):
+        self.rc_api = RestClient(ip, port, "",
+                                 url_prefix=REST_API_PREFIX,
+                                 api_version=REST_API_NAME,
+                                 api_name=REST_API_VERSION)
 
-    def post(self, _type="scenarios", name=None, value:dict=None):
-        # self.rc_api.set_api_url('mouse', _type)
-        rc, rj = self.rc_api.update("metadata.name::=%s" % name, value)
-        if not (rc == 200 and rj['success']):
-            return False
-        return True
+    # ==========================================================================
+    def create(self, path, value):
+        self.rc_api.set_resource('variables')
+        data = {"path": path,"value": value}
+        data = RequestData(data)
+        response = self.rc_api.do_http(
+            "POST", self.rc_api.url_path, data, use_param_url=None)
+        return response
+
+    # ==========================================================================
+    def get(self, path):
+        self.rc_api.set_resource('variables')
+        data = {"path": path }
+        data = RequestData(data)
+        response = self.rc_api.do_http(
+            "GET", self.rc_api.url_path, data, use_param_url=None)
+        return response
+
+
+    # ==========================================================================
+    def convert(self, value):
+        self.rc_api.set_resource('convert')
+        data = {"value": value }
+        data = RequestData(data)
+        response = self.rc_api.do_http(
+            "GET", self.rc_api.url_path, data, use_param_url=None)
+        return response
 
