@@ -27,8 +27,8 @@ Change Log
 import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.rpa.autogui.click import  ClickMotionType, ClickType, to_int
-from alabs.rpa.autogui.find_image_location import find_image_loacation
+from alabs.rpa.ha.autogui.click import  ClickMotionType, ClickType, to_int
+from alabs.rpa.ha.autogui.find_image_location import find_image_loacation
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)

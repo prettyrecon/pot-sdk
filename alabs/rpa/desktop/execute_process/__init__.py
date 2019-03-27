@@ -44,6 +44,7 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+import os
 
 ################################################################################
 @func_log
@@ -55,13 +56,12 @@ def execute_process(mcxt, argspec):
     :return: True
     """
     mcxt.logger.info('>>>starting...')
-    with Popen(
-        '{}'.format(argspec.command), shell=True, stdout=PIPE) as proc:
-        ret = proc.stdout.read()
-        mcxt.logger.info(ret)
-
+    proc = Popen('{}'.format(argspec.command), shell=True, stdout=PIPE)
+    ret = proc.stdout.read()
+    mcxt.logger.info(ret)
+    ret = {'PID': proc.pid, 'PROC': proc, 'NAME': argspec.command.split()[0]}
     mcxt.logger.info('>>>end...')
-    return ret
+    return ret[argspec.ret]
 
 
 ################################################################################
@@ -161,6 +161,10 @@ def _main(*args):
     ) as mcxt:
         ###################################### for app dependent parameters
         mcxt.add_argument('command', help='Command to execute')
+        mcxt.add_argument('--ret', choices=['PROC', 'PID', 'NAME'], type=str,
+                          default='PID',
+                          help='Command to execute')
+
         argspec = mcxt.parse_args(args)
         return execute_process(mcxt, argspec)
 

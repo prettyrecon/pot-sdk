@@ -7,7 +7,7 @@ import os
 import glob
 from alabs.common.util.vvargs import ArgsError, ArgsExit, ModuleContext,\
     func_log, str2bool
-from alabs.rpa.desktop.execute_process import main as _main
+from alabs.rpa.ha.desktop.execute_process import main as _main
 from unittest import TestCase
 
 
