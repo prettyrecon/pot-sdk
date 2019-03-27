@@ -126,11 +126,11 @@ class TU(TestCase):
     # ==========================================================================
     def test_0050_submit(self):
         try:
-            _main(['submit', 'submit_key'])
-            self.assertTrue(False)
+            _main(['submit'])
+            self.assertTrue(True)
         except Exception as e:
             print(e)
-            self.assertTrue(True)
+            self.assertTrue(False)
 
     # ==========================================================================
     def test_0060_upload(self):
