@@ -1,6 +1,5 @@
 # pip dependent packages
 
 # default for alabs.ppm
-PyYAML>=3.13
-
-# ...
+PyYAML
+requests

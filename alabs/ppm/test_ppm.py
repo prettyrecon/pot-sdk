@@ -126,11 +126,11 @@ class TU(TestCase):
     # ==========================================================================
     def test_0050_submit(self):
         try:
-            _main(['submit', 'submit_key'])
-            self.assertTrue(False)
+            _main(['submit'])
+            self.assertTrue(True)
         except Exception as e:
             print(e)
-            self.assertTrue(True)
+            self.assertTrue(False)
 
     # ==========================================================================
     def test_0060_upload(self):
@@ -204,6 +204,14 @@ class TU(TestCase):
         # check uninstall
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        self.assertFalse(stdout.find('alabs.ppm') > 0)
+
+    # ==========================================================================
+    def test_0300_uninstall(self):
+        with captured_output() as (out, err):
+            r = _main(['-vv', 'search', 'argoslabs'])
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         self.assertFalse(stdout.find('alabs.ppm') > 0)

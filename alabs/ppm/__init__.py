@@ -18,7 +18,9 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
-#  * [2019/03/22]
+#  * [2019/03/27]
+#     - search 에서는 --extra-index-url 등이 지원 안되는 문제
+#  * [2019/03/22~2019/03/26]
 #     - PPM.do 에서 return 값을 실제 프로세스 returncode를 리턴 0-정상
 #     - submit 에서 upload 서버로 올림
 #  * [2019/03/20]
@@ -40,12 +42,14 @@ import sys
 # noinspection PyPackageRequirements
 import yaml
 import glob
+import copy
 import shutil
 import argparse
 import datetime
 import traceback
 import subprocess
 from alabs.common.util.vvjson import get_xpath
+from alabs.common.util.vvupdown import SimpleDownUpload
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
@@ -217,6 +221,7 @@ class PPM(object):
         self.pkgname = None
         self.pkgpath = None
         self.basepath = None
+        self.setup_config = None
         self.indices = []
         self.ndx_param = []
 
@@ -301,9 +306,21 @@ class PPM(object):
         return self.venv.clear()
 
     # ==========================================================================
+    def _get_setup_config(self):
+        yamlpath = os.path.join(self.pkgpath, 'setup.yaml')
+        if not os.path.exists(yamlpath):
+            raise IOError('Cannot find "%s" for setup' % yamlpath)
+        with open(yamlpath) as ifp:
+            yaml_config = yaml.load(ifp)
+            if 'setup' not in yaml_config:
+                raise RuntimeError('"setup" attribute must be '
+                                   'exists in setup.yaml')
+            self.setup_config = yaml_config['setup']
+
+    # ==========================================================================
     def _get_indices(self):
         self.indices = []
-        self.nex_param = []
+        self.ndx_param = []
         url = get_xpath(self.config, '/repository/url')
         if not url:
             raise RuntimeError('Invalid repository.url from .argos-rpa.conf')
@@ -359,18 +376,26 @@ class PPM(object):
                 subargs.insert(0, 'uninstall')
                 return self.venv.venv_pip(*subargs)
             elif self.args.command == 'search':
-                subargs.insert(0, 'search')
-                subargs.extend(self.ndx_param)
-                return self.venv.venv_pip(*subargs, getstdout=True)
+                for ndx in self.indices:
+                    sargs = copy.copy(subargs)
+                    sargs.insert(0, 'search')
+                    # subargs.extend(self.ndx_param)
+                    sargs.append('--index')
+                    sargs.append(ndx)
+                    sargs.append('--trusted-host')
+                    sargs.append(self._get_host_from_index(ndx))
+                    r = self.venv.venv_pip(*sargs, getstdout=True)
+                return r
             elif self.args.command == 'list':
                 return self.venv.venv_pip('list', getstdout=True)
 
             # 만약 clear* 명령이면 venv를 강제로 true 시킴
             if self.args.command in ('clear', 'clear-py',
-                                     'clear-all', 'dumpspec') \
+                                     'clear-all', 'dumpspec', 'submit') \
                     and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
+            self._get_setup_config()
             # ppm functions
             if self.args.command == 'clear':
                 return self._clear()
@@ -388,9 +413,32 @@ class PPM(object):
                     self.venv.venv_pip('install', pkg, *self.ndx_param)
                 return self.setup('bdist_wheel')
             elif self.args.command == 'submit':
-                raise NotImplementedError('TODO:submit into '
-                                          'module upload server '
-                                          '(Not yet implemented)')
+                zf = None
+                try:
+                    current_wd = os.path.abspath(getattr(self.args, '_cwd_'))
+                    parent_wd = os.path.abspath(os.path.join(getattr(self.args, '_cwd_'), '..'))
+                    if not os.path.exists(parent_wd):
+                        raise RuntimeError('Cannot access parent directory')
+                    zf = os.path.join(parent_wd, '%s.zip' % self.pkgname)
+                    shutil.make_archive(zf[:-4], 'zip',
+                                        root_dir=os.path.dirname(current_wd),
+                                        base_dir=os.path.basename(current_wd))
+                    if not os.path.exists(zf):
+                        raise RuntimeError('Cannot build zip file "%s" to submit' % zf)
+                    sdu = SimpleDownUpload(host=self.ndx_param[3], token=SimpleDownUpload.static_token)
+                    sfl = list()
+                    sfl.append(self.pkgname)
+                    emstr = self.setup_config.get('author_email', 'unknown email')
+                    sfl.append(emstr.replace('@', '-'))
+                    sfl.append(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+                    r = sdu.upload(zf, saved_filename='%s.zip' % ' '.join(sfl))
+                    if not r:
+                        raise RuntimeError('Cannot upload "%s"' % zf)
+                    print('Succesfully submitted "%s"' % zf)
+                    return 0
+                finally:
+                    if zf and os.path.exists(zf):
+                        os.remove(zf)
             elif self.args.command == 'upload':
                 for pkg in self.UPLOAD_PKGS:
                     self.venv.venv_pip('install', pkg, *self.ndx_param)
@@ -478,17 +526,8 @@ class PPM(object):
 
     # ==========================================================================
     def setup(self, *args):
-        yamlpath = os.path.join(self.pkgpath, 'setup.yaml')
-        if not os.path.exists(yamlpath):
-            raise IOError('Cannot find "%s" for setup' % yamlpath)
-        with open(yamlpath) as ifp:
-            yaml_config = yaml.load(ifp)
-            if 'setup' not in yaml_config:
-                raise RuntimeError('"setup" attribute must be '
-                                   'exists in setup.yaml')
-            setup_config = yaml_config['setup']
         supath = 'setup.py'
-        keywords = setup_config.get('keywords', [])
+        keywords = self.setup_config.get('keywords', [])
         for kw in self.pkgname.split('.'):
             if kw not in keywords:
                 keywords.append(kw)
@@ -505,7 +544,7 @@ class PPM(object):
         for i in range(len(eles)):
             pkghistory.append("'%s'" % '.'.join(eles[0:i+1]))
         # pkghistory.append(self.pkgname)
-        classifiers = setup_config.get('classifiers', [])
+        classifiers = self.setup_config.get('classifiers', [])
         for c in self.CLASSIFIERS:
             if c not in classifiers:
                 classifiers.append(c)
@@ -571,15 +610,15 @@ setup(
                 pkghistory=','.join(pkghistory),
                 requirements_txt=requirements_txt,
                 pkgname=self.pkgname,
-                version=setup_config.get('version', '0.1.0'),
-                description=setup_config.get('description', 'description'),
-                author=setup_config.get('author', 'author'),
-                author_email=setup_config.get('author_email', 'author_email'),
-                url=setup_config.get('url', 'url'),
-                license=setup_config.get('license', 'Proprietary License'),
+                version=self.setup_config.get('version', '0.1.0'),
+                description=self.setup_config.get('description', 'description'),
+                author=self.setup_config.get('author', 'author'),
+                author_email=self.setup_config.get('author_email', 'author_email'),
+                url=self.setup_config.get('url', 'url'),
+                license=self.setup_config.get('license', 'Proprietary License'),
                 keywords=keywords,
-                platforms=str(setup_config.get('platforms', [])),
-                package_data=setup_config.get('package_data', '{}'),
+                platforms=str(self.setup_config.get('platforms', [])),
+                package_data=self.setup_config.get('package_data', '{}'),
                 classifiers=classifiers_str,
             ))
         # for setup.cfg
@@ -676,11 +715,10 @@ private-repositories:
         # ppm functions
         _ = subps.add_parser('test', help='test this module')
         _ = subps.add_parser('build', help='build this module')
-        sp = subps.add_parser('submit', help='submit to upload server')
-        sp.add_argument('repository_name',
-                        help="repository name from the list of private repositories")
-        sp.add_argument('submit_key',
-                        help="token key to submit")
+        _ = subps.add_parser('submit', help='submit to upload server')
+        # TODO : 현재는 붙박이로 키를 넣어서 가져오지만 나중에는 vault 서비스에서 가져오도록 수정
+        #  sp.add_argument('submit_key',
+        #                 help="token key to submit")
         sp = subps.add_parser('upload', help='upload this module to pypi server')
         sp.add_argument('repository_name', nargs='?',
                         help="repository name from the list of private repositories. "
@@ -737,6 +775,7 @@ private-repositories:
                              'use pass first)')
 
         args = parser.parse_args(args=argv)
+        setattr(args, '_cwd_', cwd)
         if args.verbose > 0:
             print(str(args).replace('Namespace', 'Arguments'))
         if not args.command:
