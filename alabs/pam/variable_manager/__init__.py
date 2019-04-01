@@ -64,26 +64,32 @@ else:
     print('>>>WITH AAA')
 
 ################################################################################
-app = None
-try:
-    # Flask app
-    app = Flask(__name__)
-    api = Api(
-        title='ARGOS VARIABLES-REST-Server',
-        version='1.0',
-        description='VARIABLES RESTful Server',
-    )
-    # TODO: 환경변수로 버전 정보를 가지고 있어야 함
-    api.add_namespace(ns_variables, path='/%s/%s/%s' % (REST_API_PREFIX,
-                                                        REST_API_VERSION,
-                                                        REST_API_NAME))
+def main(*args):
+    app = None
+    try:
+        # Flask app
+        app = Flask(__name__)
+        api = Api(
+            title='ARGOS VARIABLES-REST-Server',
+            version='1.0',
+            description='VARIABLES RESTful Server',
+        )
+        # TODO: 환경변수로 버전 정보를 가지고 있어야 함
+        api.add_namespace(ns_variables, path='/%s/%s/%s' % (REST_API_PREFIX,
+                                                            REST_API_VERSION,
+                                                            REST_API_NAME))
 
-    app.logger.info("Start RestAPI from [%s]..." % __name__)
-    api.init_app(app)
-except Exception as err:
-    if app and app.logger:
-        app.logger.error('Error: %s' % str(err))
-    raise
+        app.logger.info("Start RestAPI from [%s]..." % __name__)
+        api.init_app(app)
+    except Exception as err:
+        if app and app.logger:
+            app.logger.error('Error: %s' % str(err))
+        raise
+
+    api_port = VM_API_PORT
+    if not api_port:
+        raise RuntimeError('API_PORT environment variable is not set!')
+    app.run(host="0.0.0.0", port=int(api_port), debug=True)
 
 ################################################################################
 

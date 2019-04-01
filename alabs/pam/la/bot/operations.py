@@ -289,15 +289,19 @@ class TypeText(Items):
         if "Text" == _type:
             value = self['typeText']['keyValue']
         elif "UserVariable" == _type:
-            value = ""  # TODO: 변수 매니져 필요
+            variable_name = "{{%s.%s}}" % (
+                self['typeText']['userVariableGroup'],
+                self['typeText']['userVariableName'])
+            value = self._scenario._variables.get(variable_name)
         else:
-            # print(_type)
-            return tuple()
-            raise ValueError("Not Supported Yet")
+            # Saved Data
+            print(_type)
+            value = ""
+            # raise ValueError("Not Supported Yet")
         return value,
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return type_text(self.arguments)
+        return type_text(self.arguments[0])
 
 
 ################################################################################
@@ -465,12 +469,13 @@ class SetVariable(Items):
 
     @property
     def arguments(self):
-        variable_name = "{}.{}".format(
+        variable_name = "{{%s.%s}}" % (
             self['setVariable']['GroupName'],
             self['setVariable']['VariableName'])
         return variable_name
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self._scenario._variables.create(self.arguments, self['textValue'])
         return
 
 ################################################################################

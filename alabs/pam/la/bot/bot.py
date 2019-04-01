@@ -1,8 +1,8 @@
 import codecs
 import json
 
-
-
+from alabs.pam.variable_manager.rc_api_variable_manager import \
+    VariableManagerAPI
 
 ITEM_DIVISION_TYPE = {
     "SystemCall": "systemCallType",
@@ -11,10 +11,19 @@ ITEM_DIVISION_TYPE = {
 
 ################################################################################
 class Scenario(dict):
-    def __init__(self, filename):
+    def __init__(self, filename, logger):
         dict.__init__(self)
-        self.update(self.load_scenario_file(filename))
+        self.logger = logger
 
+        # 시나리오 불러오기
+        self.logger.info('>>>Start Loading the scenario file...{filename}'\
+            .format(filename=filename))
+        self.update(self.load_scenario_file(filename))
+        self.logger.info('>>>End Loading the scenario file...{filename}'.format(
+            filename=filename))
+
+        # 현재 STEP과 ITEM INDEX
+        # 절대 직접 접근하여 값을 바꾸지 말것
         self._current_step_index= 0
         self._current_item_index = 0
 
@@ -22,16 +31,31 @@ class Scenario(dict):
         self._repeat_item = None
 
         # 변수 선언
+        self._variables = None
         self.init_variables()
+
+        self.logger.info('>>>Start Initializing')
+
 
     # ==========================================================================
     def init_variables(self):
+        """
+        변수매니져와 연결 및 변수 선언
+        :return:
+        """
+        self.logger.info('>>>Start Initializing variables')
+        self._variables = VariableManagerAPI()
+
+        # 봇 필수 변수 선언
+        self._variables.create('{{rp.index}}', None)  # Loop Index
+        self._variables.create('{{saved_data}}', None)  # Saved Data
+
+        # 사용자 변수 선언
         variable_list = self['userVariableList']
-        print(variable_list)
-        # self.variables = variable_parser.VariableForLa()
-        # self.variables.create('rp', 'index')
-        # for var in variable_list:
-        #     self.variables.create(var['GroupName'], var['VariableName'])
+        for var in variable_list:
+            variable = "{{%s.%s}}" % (var['GroupName'], var['VariableName'])
+            self._variables.create(variable, None)
+        self.logger.info('>>>End Initializing variables')
 
     # ==========================================================================
     @staticmethod
@@ -48,12 +72,6 @@ class Scenario(dict):
             except Exception as e:
                 raise TypeError('The Scenario File is Something Wrong')
         return scn
-
-
-
-    # ==========================================================================
-
-
 
     # ==========================================================================
     @property
@@ -79,6 +97,7 @@ class Scenario(dict):
         :return:
         """
         if len(self.steps) < order + 1:
+            self.logger.error('Out of the step order number')
             raise ValueError('Out of the step order number')
         self._current_step_index = order
         self._current_item_index = 0

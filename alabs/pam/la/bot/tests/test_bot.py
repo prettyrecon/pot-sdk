@@ -2,7 +2,8 @@ import unittest
 import pathlib
 from alabs.pam.la.bot.bot import Scenario
 from alabs.pam.la.bot.operations import Items, SetVariable, ExecuteProcess, \
-    ImageMatch, TypeText, TypeKeys, Scenario, SearchImage, Repeat, Delay
+    ImageMatch, TypeText, TypeKeys, SearchImage, Repeat, Delay
+from alabs.common.util import vvlogger
 
 SCENARIO_1 = pathlib.Path('./scenarios/LA-Scenario0010/LA-Scenario0010.json')
 SCENARIO_2 = pathlib.Path('./scenarios/LA-Scenario0020/LA-Scenario0020.json')
@@ -11,8 +12,9 @@ NOT_SCN = pathlib.Path('./scenarios/LA-Scenario0010/TestRunScenario_0010.py')
 class TestUnit(unittest.TestCase):
     # ==========================================================================
     def setUp(self):
+        logger = vvlogger.get_logger("test_log.log")
         p = pathlib.Path(SCENARIO_2)
-        self.scenario = Scenario(str(p))
+        self.scenario = Scenario(str(p), logger)
 
     # ==========================================================================
     def tearDown(self):
@@ -39,6 +41,11 @@ class TestUnit(unittest.TestCase):
 
     # ==========================================================================
     def test_scenario_2_iteration(self):
+        """
+        Scenario 객체의 Iteration 기능 검사
+        * Loop 문 포함
+        :return:
+        """
         expected_order = (
             # Step 1
             SetVariable, ExecuteProcess, ImageMatch,
@@ -63,7 +70,3 @@ class TestUnit(unittest.TestCase):
         # 기대한 아이템 타입과 맞는지 비교
         for o, e in zip(output_items, expected_order):
             self.assertEqual(o, e)
-        
-
-        
-
