@@ -11,16 +11,9 @@ ITEM_DIVISION_TYPE = {
 
 ################################################################################
 class Scenario(dict):
-    def __init__(self, filename, logger):
+    def __init__(self):
         dict.__init__(self)
-        self.logger = logger
-
-        # 시나리오 불러오기
-        self.logger.info('>>>Start Loading the scenario file...{filename}'\
-            .format(filename=filename))
-        self.update(self.load_scenario_file(filename))
-        self.logger.info('>>>End Loading the scenario file...{filename}'.format(
-            filename=filename))
+        self.logger = None
 
         # 현재 STEP과 ITEM INDEX
         # 절대 직접 접근하여 값을 바꾸지 말것
@@ -32,10 +25,24 @@ class Scenario(dict):
 
         # 변수 선언
         self._variables = None
+
+        # self.logger.info('>>>Start Initializing')
+
+    # ==========================================================================
+    def set_logger(self, logger):
+        self.logger = logger
+        print(self.logger)
+        self.logger.info('>>>Set the logger')
+
+    # ==========================================================================
+    def load_scenario(self, scn_filename):
+        # 시나리오 불러오기
+        self.logger.info('>>>Start Loading the scenario file...{filename}' \
+                         .format(filename=scn_filename))
+        self.update(self.load_scenario_file(scn_filename))
+        self.logger.info('>>>End Loading the scenario file...{filename}'.format(
+            filename=scn_filename))
         self.init_variables()
-
-        self.logger.info('>>>Start Initializing')
-
 
     # ==========================================================================
     def init_variables(self):
@@ -43,7 +50,7 @@ class Scenario(dict):
         변수매니져와 연결 및 변수 선언
         :return:
         """
-        self.logger.info('>>>Start Initializing variables')
+        # self.logger.info('>>>Start Initializing variables')
         self._variables = VariableManagerAPI()
 
         # 봇 필수 변수 선언
@@ -55,7 +62,7 @@ class Scenario(dict):
         for var in variable_list:
             variable = "{{%s.%s}}" % (var['GroupName'], var['VariableName'])
             self._variables.create(variable, None)
-        self.logger.info('>>>End Initializing variables')
+        # self.logger.info('>>>End Initializing variables')
 
     # ==========================================================================
     @staticmethod
@@ -71,7 +78,18 @@ class Scenario(dict):
                 scn = json.load(f)
             except Exception as e:
                 raise TypeError('The Scenario File is Something Wrong')
+
         return scn
+
+    # ==========================================================================
+    @property
+    def current_step_index(self)->int:
+        return self._current_step_index
+
+    # ==========================================================================
+    @property
+    def current_item_index(self) -> int:
+        return self._current_item_index
 
     # ==========================================================================
     @property
@@ -190,4 +208,4 @@ class Scenario(dict):
 
 from alabs.pam.la.bot.operations import ExecuteProcess, Delay, SearchImage, \
     ImageMatch, MouseClick, MouseScroll, TypeKeys, TypeText, ReadImageText, \
-    Repeat, SetVariable
+    Repeat, SetVariable, StopProcess

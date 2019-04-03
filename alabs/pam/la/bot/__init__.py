@@ -23,11 +23,16 @@ Change Log
     - starting
 """
 
+
 ################################################################################
 import sys
+import time
+import threading
+from flask import Flask
+from flask_restplus import Api
+from alabs.pam.la.bot.scenario import Scenario
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.pam.la.bot.bot import Scenario
 
 ################################################################################
 # Version
@@ -38,9 +43,111 @@ __version__ = VERSION
 OWNER = 'ARGOS-LABS'
 GROUP = 'Pam'
 PLATFORM = ['windows', 'darwin', 'linux']
-OUTPUT_TYPE = 'None'
+OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+################################################################################
+class Bot(threading.Thread):
+    def __init__(self):
+        super(Bot, self).__init__()
+        self.scenario = Scenario()
+        self.scenario_filename = None
+        self.status = True
+        self.cmd = None
+        self._pause = True
+
+        self._start_step = 0
+        self._start_index = 0
+
+        self._debug_step_over = False
+
+        # Break Point
+        self._breakpoints = [(0, 0), (2,2)]
+        # self._breakpoints = set()
+
+    # ==========================================================================
+    def __del__(self):
+        self.status = False
+
+
+    # ==========================================================================
+    @property
+    def pause(self):
+        return self._pause
+    # ==========================================================================
+    @property
+    def break_points(self)->tuple:
+        return tuple(self._breakpoints)
+    @break_points.setter
+    def break_points(self, bp:list):
+        # 같은 값이 또 들어오면 삭제, 없는 값이면 추가
+        self._breakpoints ^= set(bp)
+
+    # ==========================================================================
+    def is_breakpoint(self, cur:tuple, bp_list:tuple):
+        cur = hash(cur)
+        for bp in bp_list:
+            if hash(bp) == cur:
+                return True
+        return False
+    # ==========================================================================
+    def load_scenario(self, filename):
+        try:
+            self.scenario.load_scenario(filename)
+            self.scenario.__iter__()
+        except Exception as e:
+            print(e)
+            return False
+        return True
+
+    # ==========================================================================
+    def stop(self):
+        # TODO: 계속 현재 `Thread`를 사용할 것인지, 새로 생성할 것인지 고려가 필요
+        # 현재 진행 중이던 시나리오를 멈추고 새로 돌 수 있게 준비
+        # iterator 방식으로 시나리오가 진행되기 때문에 다시 불러옴
+        self.load_scenario(self.scenario_filename)
+        self._pause = True
+
+    # ==========================================================================
+    def run(self):
+        while self.status:
+            try:
+                # 일반적인 디버그모드의 `스텝오버` 기능
+                if self._debug_step_over:
+                    self._pause = True
+                # 브레이크 포인트
+                cur_idx = (self.scenario.current_step_index,
+                           self.scenario.current_item_index)
+                if self.is_breakpoint(cur_idx, self.break_points):
+                    self._pause = True
+
+                # 위의 어떠한 조건이라도 만족한 경우 `멈춤`
+                # 탈출 조건은 `시작` 요청에 의한 self._pause의 False 전환
+                while self._pause:
+                    time.sleep(0.1)
+                    continue
+
+                item = self.scenario.__next__()
+
+                # 액션 실행 전 딜레이
+                tm = int(item['beforeDelayTime'])
+                time.sleep(tm * 0.001)
+
+                # 아이템 실행
+                print(cur_idx)
+                print(item.__class__)
+
+            except StopIteration:
+                # 모든 아이템 수행, 시나리오 종료
+                self.load_scenario(self.scenario_filename)
+                self._pause = True
+            time.sleep(0.1)
+
+
+################################################################################
+bot_th = Bot()
+bot_th.daemon = True
+from alabs.pam.la.bot.app.status import api as api_status
 
 ################################################################################
 @func_log
@@ -52,9 +159,30 @@ def bot(mcxt, argspec):
     :return: True
     """
     mcxt.logger.info('>>>starting...')
-    with Scenario(argspec.filename, mcxt.logger) as sc:
-        for item in sc:
-            sc(item)
+    global bot_th
+    bot_th.scenario.set_logger(mcxt.logger)
+
+    app = None
+    try:
+        # Flask app
+        app = Flask(__name__)
+        api = Api(
+            title='ARGOS BOT-REST-Server',
+            version='1.0',
+            description='BOT RESTful Server',
+        )
+        api.add_namespace(api_status, path='/%s/%s' % ('api', 'v1.0'))
+
+        app.logger.info("Start RestAPI from [%s]..." % __name__)
+        api.init_app(app)
+    except Exception as err:
+        if app and app.logger:
+            app.logger.error('Error: %s' % str(err))
+        raise
+    app.run(host=argspec.ip, port=int(argspec.port))
+
+    bot_th.stop()
+    bot_th.join()
     mcxt.logger.info('>>>end...')
     return True
 
@@ -155,9 +283,9 @@ def _main(*args):
         description=DESCRIPTION,
     ) as mcxt:
         # ##################################### for app dependent parameters
-        mcxt.add_argument('filename', metavar='Scenario Filename')
-        mcxt.add_argument('--server', type=int, default=-1,
-                          description='server port')
+        mcxt.add_argument('--ip', type=str, default="0.0.0.0")
+        mcxt.add_argument('port', type=int, default=8082)
+
 
         argspec = mcxt.parse_args(args)
         return bot(mcxt, argspec)

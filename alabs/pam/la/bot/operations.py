@@ -1,6 +1,6 @@
 import pathlib
 import enum
-from alabs.pam.la.bot.bot import Scenario
+from alabs.pam.la.bot.scenario import Scenario
 from alabs.rpa.desktop.execute_process import main as execute_process
 from alabs.rpa.desktop.delay import main as delay
 from alabs.rpa.autogui.locate_image import main as locate_image
@@ -329,7 +329,7 @@ class TypeKeys(Items):
 
 
 ################################################################################
-class KillProcess(Items):
+class StopProcess(Items):
     references = ('stopProcess',)
     # 'mouseScroll': {'scrollX': '0', 'scrollY': '0', 'scrollLines': '40'}
     # ==========================================================================

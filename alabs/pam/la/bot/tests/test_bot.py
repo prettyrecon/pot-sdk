@@ -1,6 +1,6 @@
 import unittest
 import pathlib
-from alabs.pam.la.bot.bot import Scenario
+from alabs.pam.la.bot.scenario import Scenario
 from alabs.pam.la.bot.operations import Items, SetVariable, ExecuteProcess, \
     ImageMatch, TypeText, TypeKeys, SearchImage, Repeat, Delay
 from alabs.common.util import vvlogger

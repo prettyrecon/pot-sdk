@@ -9,7 +9,9 @@ __license__ = "MIT"
 from flask import Flask
 from flask_restplus import Api
 
-from alabs.pam.la.bot.app.status.status import api as api_status
+from alabs.pam.la.bot import Scenario
+from alabs.pam.la.bot.app.status import api as api_status
+
 ################################################################################
 
 def main(api_port=8082, *args):
@@ -32,10 +34,4 @@ def main(api_port=8082, *args):
         raise
     app.run(host="0.0.0.0", port=int(api_port))
 
-################################################################################
-if __name__ == "__main__":
-    # api_port = os.environ.get('VM_API_PORT')
-    api_port = 8082
-    if not api_port:
-        raise RuntimeError('API_PORT environment variable is not set!')
-    main()
+
