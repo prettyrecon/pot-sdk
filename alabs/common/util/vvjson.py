@@ -356,6 +356,8 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
                                  % type(d))
         return default_value
     try:
+        if xpath.strip() == '/':
+            return d
         xeles = re.split(r'/|\[', xpath.strip('/'))
         for xele in xeles:
             xele = xele.strip()

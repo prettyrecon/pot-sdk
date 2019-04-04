@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/04/03]
+#     - check empty 'private-repositories'
 #  * [2019/03/27]
 #     - search 에서는 --extra-index-url 등이 지원 안되는 문제
 #  * [2019/03/22~2019/03/26]
@@ -329,7 +331,12 @@ class PPM(object):
         self.ndx_param.append(url)
         self.ndx_param.append('--trusted-host')
         self.ndx_param.append(self._get_host_from_index(url))
-        for rep in self.config.get('private-repositories', []):
+        pr = None
+        if 'private-repositories' in self.config:
+            pr = self.config.get('private-repositories', [])
+        if not pr:
+            pr = []
+        for rep in pr:
             url = rep.get('url')
             if not url:
                 continue
@@ -418,7 +425,7 @@ class PPM(object):
                     current_wd = os.path.abspath(getattr(self.args, '_cwd_'))
                     parent_wd = os.path.abspath(os.path.join(getattr(self.args, '_cwd_'), '..'))
                     if not os.path.exists(parent_wd):
-                        raise RuntimeError('Cannot access parent directory')
+                        raise RuntimeError('Cannot access parent monitor')
                     zf = os.path.join(parent_wd, '%s.zip' % self.pkgname)
                     shutil.make_archive(zf[:-4], 'zip',
                                         root_dir=os.path.dirname(current_wd),
