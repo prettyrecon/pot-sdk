@@ -72,11 +72,8 @@ def touch(mcxt, argspec):
     motion = TapMotionType[argspec.motion]
     finger = TapType[argspec.finger]
 
-    wda_url = "http://localhost"
-    # 얻어와야 함 (포트매니저 필요)
-    wda_port = 8100
-
-    client = wda.Client(url='{url}:{port}'.format(url=wda_url, port=wda_port))
+    client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
+                                                  port=argspec.wda_port))
     session = client.session()
 
     if motion == TapMotionType.TAP:
@@ -130,6 +127,8 @@ def _main(*args):
                             choices=[
                                 TapType.ONEFINGER.name, ],
                             help='')
+        mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
+        mcxt.add_argument('--wda_port', type=str, default='8100', help='')
         ########################################################################
         mcxt.add_argument('coordinates', nargs='+', type=int, default=None,
                           metavar='COORDINATE', help='X Y [X2] [Y2]')
