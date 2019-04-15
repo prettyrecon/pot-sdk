@@ -11,8 +11,8 @@
 import os
 import glob
 from alabs.common.util.vvargs import ArgsError
-from alabs.rpa.ha.autogui.click import main as _main
-from alabs.rpa.ha.autogui.click import ClickType, ClickMotionType
+from alabs.rpa.autogui.click import main as _main
+from alabs.rpa.autogui.click import ClickType, ClickMotionType
 from unittest import TestCase
 
 

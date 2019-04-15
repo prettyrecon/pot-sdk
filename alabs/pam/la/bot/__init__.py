@@ -62,8 +62,9 @@ class Bot(threading.Thread):
         self._debug_step_over = False
 
         # Break Point
-        self._breakpoints = [(0, 0), (2,2)]
-        # self._breakpoints = set()
+        # self._breakpoints = [(0, 0), (2,2)]
+        # self._breakpoints = [(0, 0), (2,2)]
+        self._breakpoints = set()
 
     # ==========================================================================
     def __del__(self):
@@ -136,6 +137,8 @@ class Bot(threading.Thread):
                 # 아이템 실행
                 print(cur_idx)
                 print(item.__class__)
+                item()
+
 
             except StopIteration:
                 # 모든 아이템 수행, 시나리오 종료

@@ -11,7 +11,7 @@
 import os
 import time
 from alabs.common.util.vvargs import ArgsError, ArgsExit
-from alabs.rpa.ha.desktop.delete_file import main as _main
+from alabs.rpa.desktop.delete_file import main as _main
 from unittest import TestCase
 from pathlib import Path
 

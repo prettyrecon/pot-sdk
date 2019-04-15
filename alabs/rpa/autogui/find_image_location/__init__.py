@@ -52,6 +52,8 @@ def find_image_loacation(mcxt, argspec):
     """
     mcxt.logger.info('>>>starting...')
     location = pyautogui.locateOnScreen(argspec.filename, region=argspec.region)
+    if not location:
+        raise ValueError("Can't find image location")
     mcxt.logger.info('>>>end...')
     if argspec.verbose:
         print(location)

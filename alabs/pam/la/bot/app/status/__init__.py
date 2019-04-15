@@ -1,8 +1,8 @@
 import json
-from flask import request, jsonify
+from flask import request, jsonify, send_from_directory
 from flask_restplus import Namespace, Resource, reqparse
 from alabs.pam.la.bot import bot_th
-
+from .parser import scenario_parser
 
 ################################################################################
 class ReturnValue(dict):
@@ -12,28 +12,33 @@ class ReturnValue(dict):
 
     @property
     def json(self):
-        return json.dumps(self)
+        print(self)
+        return json.dumps(self, indent=4)
 
 ################################################################################
 api = Namespace('status', description="Bot Rest API")
 
 
+
+
 ################################################################################
-scenario_parser = reqparse.RequestParser()
-scenario_parser.add_argument('filename', type=str)
 @api.route('/')
 class BotScenario(Resource):
     def get(self):
         global bot_th
         data = bot_th.scenario
-        return ReturnValue(data).json
+        # return ReturnValue(data).json
+        return jsonify(ReturnValue(dict(data)))
 
     @api.expect(scenario_parser, validate=True)
-    @api.doc('bot_status')
     def post(self):
+        """
+        form-data 형식으로 시나리오 filename(path)를 받는다.
+        :return:
+        """
         global bot_th
-        json_data = request.get_json()
-        filename = json_data['data']['filename']
+        argspec = scenario_parser.parse_args()
+        filename = argspec['filename']
         bot_th.scenario_filename = filename
         bot_th.load_scenario(filename)
         return jsonify(ReturnValue(dict(bot_th.scenario)))
@@ -45,7 +50,7 @@ class BotStart(Resource):
     @api.doc('bot_status')
     def post(self):
         global bot_th
-        json_data = request.get_json()
+        # json_data = request.get_json()
         bot_th._debug_step_over = False
         bot_th._pause = False
         if not bot_th.isAlive():
