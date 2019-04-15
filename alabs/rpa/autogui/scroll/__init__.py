@@ -53,10 +53,11 @@ def scroll(mcxt, argspec):
     mcxt.logger.info('>>>starting...')
     x = argspec.horizon
     y = argspec.vertical
-    if not all([x, y]):
+    if not any([x, y]):
         raise ArgsError
     if y:
-        pyautogui.vscroll(y)
+        # Mac에서는 음수로 작동
+        pyautogui.vscroll(y * -1)
     if x:
         pyautogui.hscroll(x)
     mcxt.logger.info('>>>end...')

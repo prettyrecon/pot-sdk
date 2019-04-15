@@ -10,7 +10,7 @@
 ################################################################################
 import os
 from alabs.common.util.vvargs import ArgsError
-from alabs.rpa.ha.autogui.type_text import main as _main
+from alabs.rpa.autogui.type_text import main as _main
 from unittest import TestCase
 
 

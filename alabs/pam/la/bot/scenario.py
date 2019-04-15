@@ -1,6 +1,6 @@
 import codecs
 import json
-
+import pathlib
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 
@@ -26,7 +26,10 @@ class Scenario(dict):
         # 변수 선언
         self._variables = None
 
+        self._scenario_filename = ""
         # self.logger.info('>>>Start Initializing')
+
+        self._scenario_image_dir = ""
 
     # ==========================================================================
     def set_logger(self, logger):
@@ -36,12 +39,16 @@ class Scenario(dict):
 
     # ==========================================================================
     def load_scenario(self, scn_filename):
+        self._scenario_filename = scn_filename
+
         # 시나리오 불러오기
         self.logger.info('>>>Start Loading the scenario file...{filename}' \
                          .format(filename=scn_filename))
         self.update(self.load_scenario_file(scn_filename))
         self.logger.info('>>>End Loading the scenario file...{filename}'.format(
             filename=scn_filename))
+
+        self._scenario_image_dir = str(pathlib.Path(scn_filename).parent)
         self.init_variables()
 
     # ==========================================================================

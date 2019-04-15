@@ -27,8 +27,8 @@ Change Log
 import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.rpa.ha.autogui.click import  ClickMotionType, ClickType, to_int
-from alabs.rpa.ha.autogui.find_image_location import find_image_loacation
+from alabs.rpa.autogui.click import  ClickMotionType, ClickType, to_int
+from alabs.rpa.autogui.find_image_location import find_image_loacation
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -54,7 +54,7 @@ def locate_image(mcxt, argspec):
     # 이미지 좌표 구하기
     location = find_image_loacation(mcxt, argspec)
     if not location:
-        return None
+        raise ValueError("COULDN'T FIND LOCATION")
     x, y, *_ = location
 
     # 버튼
@@ -62,8 +62,10 @@ def locate_image(mcxt, argspec):
     button = ClickType[argspec.button].value
 
     cx, cy = argspec.coordinates
+    print(cx, cy, x, y)
     x += cx; y += cy
 
+    print("action: ", motion, button, x, y)
     action = getattr(pyautogui, motion)
     action(button=button, x=x, y=y)
 
@@ -121,11 +123,12 @@ def _main(*args):
                               ClickType.LEFT.name,
                               ClickType.NONE.name, ],
                           help='')
-
+        print("ARGS: ", args)
         argspec = mcxt.parse_args(args)
         return locate_image(mcxt, argspec)
 
 ################################################################################
 def main(*args):
+    print("MAIN_ARGS: ", args)
     return _main(*args)
 

@@ -37,6 +37,7 @@ def get_image_path(path):
     path = pathlib.Path(path)
     scenario_filename = pathlib.Path(path.parts[-1])
     images = pathlib.Path('Images')
+    # root_path = pathlib.Path('/Users/limdeokyu/naswork/raven/Work/argos-rpa/alabs-common/alabs/pam/la/bot/tests/scenarios/MacOS/LA-Scenario0010/Images/LA-Scenario0010.json')
     path = path.parent / images / scenario_filename
     return str(path)
 
@@ -114,7 +115,7 @@ class Delay(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return delay(self.arguments)
+        return delay(self.arguments[0])
 
 
 ################################################################################
@@ -141,7 +142,13 @@ class SearchImage(Items):
     def arguments(self) -> tuple:
         cmd = list()
         # filename
-        cmd.append(get_image_path(self['imageMatch']['cropImageFileName']))
+        import pathlib
+        parent = pathlib.Path(self._scenario._scenario_image_dir)
+        filename = get_image_path(self._scenario._scenario_filename) + '/' + \
+                   self['imageMatch']['cropImageFileName']
+        cmd.append(filename)
+        # cmd.append(parent / pathlib.Path(self['imageMatch']['cropImageFileName']))
+        # cmd.append(get_image_path(self['imageMatch']['cropImageFileName']))
 
         # region
         cmd.append('--region')
@@ -150,7 +157,7 @@ class SearchImage(Items):
         # coordinates
         cmd.append('--coordinates')
         cmd += separate_coord(self['imageMatch']['clickPoint'])
-
+        print(cmd)
         # button
         b = self['imageMatch']['clickType']
         b = vars(ClickType)['_value2member_map_'][b].name
@@ -168,11 +175,12 @@ class SearchImage(Items):
 
         cmd.append('--motion')
         cmd.append(m)
+        print("-" * 30, cmd)
         return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return locate_image(self.arguments)
+        return locate_image(*self.arguments)
 
 ################################################################################
 class ImageMatch(Items):
@@ -204,7 +212,9 @@ class ImageMatch(Items):
     def arguments(self) -> tuple:
         cmd = list()
         # filename
-        cmd.append(get_image_path(self['imageMatch']['cropImageFileName']))
+        filename = get_image_path(self._scenario._scenario_filename) + '/' + \
+                   self['imageMatch']['cropImageFileName']
+        cmd.append(filename)
 
         # region
         cmd.append('--region')
@@ -213,7 +223,7 @@ class ImageMatch(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return image_match(self.arguments)
+        return image_match(*self.arguments)
 
 
 ################################################################################
@@ -230,7 +240,7 @@ class MouseScroll(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         v = int(self['mouseScroll']['scrollLines'])
-        return scroll(self.arguments)
+        return scroll(*self.arguments)
 
 
 ################################################################################
@@ -270,7 +280,8 @@ class MouseClick(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return click(self.arguments)
+        print(self.arguments)
+        return click(*self.arguments)
 
 ################################################################################
 class TypeText(Items):
@@ -299,9 +310,10 @@ class TypeText(Items):
             value = ""
             # raise ValueError("Not Supported Yet")
         return value,
+
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return type_text(self.arguments[0])
+        return type_text(*self.arguments)
 
 
 ################################################################################
@@ -320,11 +332,14 @@ class TypeKeys(Items):
         value = list()
         for k in self['keycodes']:
             value.append(('--txt', k['txt']))
+
         return tuple(value)
+
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        print(self.arguments)
         for arg in self.arguments:
-            send_short_cut(arg)
+            send_short_cut(*arg)
         return True
 
 

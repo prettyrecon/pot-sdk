@@ -13,7 +13,7 @@ ARGOS LABS plugin module sample
 ################################################################################
 import sys
 from alabs.common.util.vvargs import ArgsError, ArgsExit
-from alabs.rpa.ha.autogui.type_text import main
+from alabs.rpa.autogui.type_text import main
 
 
 ################################################################################
