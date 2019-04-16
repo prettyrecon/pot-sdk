@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:`alabs.pam.la.bot2py
+ :mod:`alabs.rpa.autogui.find_image_location.ios
 ====================================
 .. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
 .. note:: VIVANS License
@@ -19,19 +19,16 @@ Authors
 Change Log
 --------
 
- * [2019/03/29]
+ * [2019/04/12]
     - starting
 """
 
 ################################################################################
-import sys
-import enum
 import wda
-from argparse import Namespace
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-
-
+from alabs.rpa.autogui.touch import TapType, TapMotionType
+from alabs.rpa.autogui.find_image_location.ios import find_image_loacation
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -45,51 +42,32 @@ OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
-class TapMotionType(enum.Enum):
-    TAP = 'touch'
-    DRAG = 'drag'
-
-
-################################################################################
-class TapType(enum.Enum):
-    ONEFINGER = 'one'
-    TWOFINGER = 'two'
-    THREEFINGER = 'three'
-
-################################################################################
 @func_log
-def touch(mcxt, argspec):
+def locate_image(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: True
+    :return: x, y
     """
-
     mcxt.logger.info('>>>starting...')
-
-    points: [] = argspec.coordinates
-    motion = TapMotionType[argspec.motion]
-    finger = TapType[argspec.finger]
+    # 이미지 좌표 구하기
+    location = find_image_loacation(mcxt, argspec)
+    if not location:
+        return None
+    x, y, *_ = location
+    cx, cy = argspec.coordinates
+    x += cx; y += cy
 
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
     session = client.session()
-
-    if motion == TapMotionType.TAP:
-        if len(points) >= 2:
-            x, y = points[0], points[1]
-        else:
-            raise ArgsError('Need more args')
-        session.tap(x=x, y=y)
-    elif motion == TapMotionType.DRAG:
-        if len(points) >= 4:
-            x, y, x2, y2 = points[0], points[1], points[2], points[3]
-        else:
-            raise ArgsError('Need more args')
-        session.swipe(x1=x, y1=y, x2=x2, y2=y2)
-
+    scale = session.scale
+    session.tap(x=x/scale, y=y/scale)
     mcxt.logger.info('>>>end...')
+    if argspec.verbose:
+        print(x, y)
+    return location
 
 ################################################################################
 def _main(*args):
@@ -103,7 +81,7 @@ def _main(*args):
     owner='ARGOS-LABS',
     group='pam',
     version='1.0',
-    platform=['darwin'],
+    platform=['windows', 'darwin', 'linux'],
     output_type='text',
     description='HA Bot for LA',
     test_class=TU,
@@ -116,26 +94,33 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
+        # 필수 입력 항목
+        mcxt.add_argument('filename', re_match='.*[.](png|PNG).*$',
+                          metavar='image_filename.png',  help='')
+        mcxt.add_argument('--region', nargs=4, type=int, default=None,
+                          metavar='0', help='')
+        mcxt.add_argument('--similarity', type=int, metavar='50',
+                          default=50, min_value=0, max_value=100, help='')
+        mcxt.add_argument('--coordinates', type=int, nargs=2, default=[0, 0],
+                          metavar='0', help='')
         mcxt.add_argument('--motion',
-                            default=TapMotionType.TAP.name,
-                            choices=[
-                                TapMotionType.TAP.name,
-                                TapMotionType.DRAG.name, ],
-                            help='')
+                          default=TapMotionType.TAP.name,
+                          choices=[
+                              TapMotionType.TAP.name,
+                              TapMotionType.DRAG.name, ],
+                          help='')
         mcxt.add_argument('--finger',
-                            default=TapType.ONEFINGER.name,
-                            choices=[
-                                TapType.ONEFINGER.name, ],
-                            help='')
+                          default=TapType.ONEFINGER.name,
+                          choices=[
+                              TapType.ONEFINGER.name, ],
+                          help='')
         mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
         mcxt.add_argument('--wda_port', type=str, default='8100', help='')
-        ########################################################################
-        mcxt.add_argument('coordinates', nargs='+', type=int, default=None,
-                          metavar='COORDINATE', help='X Y [X2] [Y2]')
 
         argspec = mcxt.parse_args(args)
-        return touch(mcxt, argspec)
+        return locate_image(mcxt, argspec)
 
 ################################################################################
 def main(*args):
     return _main(*args)
+

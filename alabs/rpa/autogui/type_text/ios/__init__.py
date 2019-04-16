@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:`alabs.pam.la.bot2py
+ :mod:`alabs.rpa.autogui.type_text.ios
 ====================================
 .. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
 .. note:: VIVANS License
@@ -19,15 +19,12 @@ Authors
 Change Log
 --------
 
- * [2019/03/29]
+ * [2019/04/12]
     - starting
 """
 
 ################################################################################
-import sys
-import enum
 import wda
-from argparse import Namespace
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -44,52 +41,25 @@ PLATFORM = ['darwin']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
-################################################################################
-class TapMotionType(enum.Enum):
-    TAP = 'touch'
-    DRAG = 'drag'
-
-
-################################################################################
-class TapType(enum.Enum):
-    ONEFINGER = 'one'
-    TWOFINGER = 'two'
-    THREEFINGER = 'three'
 
 ################################################################################
 @func_log
-def touch(mcxt, argspec):
+def type_text(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
     :return: True
     """
-
     mcxt.logger.info('>>>starting...')
-
-    points: [] = argspec.coordinates
-    motion = TapMotionType[argspec.motion]
-    finger = TapType[argspec.finger]
-
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
     session = client.session()
-
-    if motion == TapMotionType.TAP:
-        if len(points) >= 2:
-            x, y = points[0], points[1]
-        else:
-            raise ArgsError('Need more args')
-        session.tap(x=x, y=y)
-    elif motion == TapMotionType.DRAG:
-        if len(points) >= 4:
-            x, y, x2, y2 = points[0], points[1], points[2], points[3]
-        else:
-            raise ArgsError('Need more args')
-        session.swipe(x1=x, y1=y, x2=x2, y2=y2)
-
+    session.send_keys(argspec.text)
     mcxt.logger.info('>>>end...')
+
+    return True
+
 
 ################################################################################
 def _main(*args):
@@ -103,7 +73,7 @@ def _main(*args):
     owner='ARGOS-LABS',
     group='pam',
     version='1.0',
-    platform=['darwin'],
+    platform=['windows', 'darwin', 'linux'],
     output_type='text',
     description='HA Bot for LA',
     test_class=TU,
@@ -116,26 +86,16 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('--motion',
-                            default=TapMotionType.TAP.name,
-                            choices=[
-                                TapMotionType.TAP.name,
-                                TapMotionType.DRAG.name, ],
-                            help='')
-        mcxt.add_argument('--finger',
-                            default=TapType.ONEFINGER.name,
-                            choices=[
-                                TapType.ONEFINGER.name, ],
-                            help='')
+        ########################################################################
+        mcxt.add_argument('text', type=str,
+                          help='Text to type on an application')
         mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
         mcxt.add_argument('--wda_port', type=str, default='8100', help='')
-        ########################################################################
-        mcxt.add_argument('coordinates', nargs='+', type=int, default=None,
-                          metavar='COORDINATE', help='X Y [X2] [Y2]')
 
         argspec = mcxt.parse_args(args)
-        return touch(mcxt, argspec)
+        return type_text(mcxt, argspec)
 
 ################################################################################
 def main(*args):
     return _main(*args)
+
