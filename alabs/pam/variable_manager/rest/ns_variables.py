@@ -87,18 +87,18 @@ class Ping(Resource):
 
 
 variables_parser = reqparse.RequestParser()
-variables_parser.add_argument('path', type=str)
+variables_parser.add_argument('path', type=str, location=['form', 'args'])
+variables_parser.add_argument('value', type=str, location='form')
 ###############################################################################
 class Variables(Resource):
     @api.expect(variables_parser, validate=True)
     @api.response(200, 'API Success/Failure')
     @api.response(500, 'Internal Server Error')
     def get(self):
-        json_data = request.get_json()
-        print(json_data)
+        args = variables_parser.parse_args()
         try:
             retv = variables.get_by_argos_variable(
-                json_data['data']['path'], raise_exception=True)
+                args['path'], raise_exception=True)
             return retv
         except ReferenceError as e:
             api.abort(404, str(e))
@@ -113,13 +113,11 @@ class Variables(Resource):
             json_data['data']['path'], json_data['data']['value'])
         return value
 
-converter_parser = reqparse.RequestParser()
-converter_parser.add_argument('value', type=str)
+
 ###############################################################################
 class Converter(Resource):
-    @api.expect(converter_parser, validate=True)
     @api.response(200, 'API Success/Failure')
-    def get(self):
+    def post(self):
         json_data = request.get_json()
         value = variables.convert(json_data['data']['value'])
         return value

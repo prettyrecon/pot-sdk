@@ -36,7 +36,7 @@ curl -X POST -g \
   'http://localhost:8011/api/v1.0/var/variables' \
   -H 'Cache-Control: no-cache' \
   -H 'Content-Type: application/json' \
-  -d '{"path": "{{ABC.DEF}}", "data": "World"}'
+  -d '{"path": "{{ABC.DEF}}", "value": "World"}'
   
 true
 ```
@@ -51,9 +51,14 @@ curl -X GET -g \
 ```
 
 ```bash
-curl -X GET -g \
-  'http://localhost:8011/api/v1.0/var/convert?data=Hello%20{{ABC.DEF}}' \
-  -H 'Cache-Control: no-cache'
+curl -X POST \
+  http://localhost:8011/api/v1.0/var/convert \
+  -H 'Content-Type: application/json' \
+  -H 'cache-control: no-cache' \
+  -d '{"data":{
+    "value": "Hello {{ABC.DEF}}"}}'
+    
+Hello World
 ```
 
 
