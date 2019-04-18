@@ -8,12 +8,10 @@ __license__ = "MIT"
 
 from flask import Flask
 from flask_restplus import Api
-
-from alabs.pam.la.bot import Scenario
 from alabs.pam.la.bot.app.status import api as api_status
 
-################################################################################
 
+################################################################################
 def main(api_port=8082, *args):
     app = None
     try:
@@ -24,7 +22,7 @@ def main(api_port=8082, *args):
             version='1.0',
             description='BOT RESTful Server',
         )
-        api.add_namespace(api_status, path='/%s/%s'% ('api','v1.0'))
+        api.add_namespace(api_status, path='/%s/%s/%s' % ('api','v1.0', 'pam'))
 
         app.logger.info("Start RestAPI from [%s]..." % __name__)
         api.init_app(app)

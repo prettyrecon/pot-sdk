@@ -95,6 +95,37 @@ class BotStatus(Resource):
 
 
 ################################################################################
+class PamRequestAvailableOperator(Resource):
+    """
+    현재 Platform 에서 사용 가능한 PAM 목록 제공
+    """
+    def get(self):
+        # TODO: 현재는 더미 데이터를 반환.
+        ret = {
+            "data": [
+                {"name": "SearchImage"},
+                {"name": "MouseClick"},
+                {"name": "MouseScroll"},
+                {"name": "TypeText"},
+                {"name": "Delay"},
+                {"name": "Repeat"},
+                {"name": "TypeKeys"},
+                {"name": "EndScenario"},
+                {"name": "EndStep"},
+                {"name": "SetVariable"},
+                {"name": "CompareText"},
+                {"name": "DeleteFile"},
+                {"name": "ExecuteProcess"},
+                {"name": "StopProcess"},
+                {"name": "StopProcess"},
+            ]
+        }
+        return ret
+
+
+################################################################################
+api.add_resource(PamRequestAvailableOperator, '/operators')
+
 api.add_resource(BotScenario, '/scenario')
 api.add_resource(BotStatus, '/scenario/status')
 api.add_resource(BotStart, '/scenario/start')
