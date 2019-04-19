@@ -1,8 +1,10 @@
 import json
-from flask import request, jsonify, send_from_directory
+from flask import jsonify, send_file
 from flask_restplus import Namespace, Resource, reqparse
 from alabs.pam.la.bot import bot_th
 from .parser import scenario_parser
+from PIL import ImageGrab
+import io
 
 ################################################################################
 class ReturnValue(dict):
@@ -17,8 +19,6 @@ class ReturnValue(dict):
 
 ################################################################################
 api = Namespace('status', description="Bot Rest API")
-
-
 
 
 ################################################################################
@@ -124,7 +124,23 @@ class PamRequestAvailableOperator(Resource):
 
 
 ################################################################################
+class PamRequestScreenShot(Resource):
+    """
+    현재 화면을 캡쳐하여 반환
+    """
+    def get(self):
+        # TODO: 플랫폼 판별은 환경변수를 사용하도록 변경해야 함
+        img = ImageGrab.grab()
+        buffer = io.BytesIO()
+        img.save(buffer, 'PNG')
+        buffer.seek(0)
+        return send_file(
+            buffer, attachment_filename='a.png', mimetype='image/png')
+
+
+################################################################################
 api.add_resource(PamRequestAvailableOperator, '/operators')
+api.add_resource(PamRequestScreenShot, '/screenshot')
 
 api.add_resource(BotScenario, '/scenario')
 api.add_resource(BotStatus, '/scenario/status')
