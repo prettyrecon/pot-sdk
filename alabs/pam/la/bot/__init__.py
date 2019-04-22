@@ -28,11 +28,14 @@ Change Log
 import sys
 import time
 import threading
+import enum
 from flask import Flask
 from flask_restplus import Api
 from alabs.pam.la.bot.scenario import Scenario
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+
+
 
 ################################################################################
 # Version
@@ -46,10 +49,51 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+
+class Status(enum.Enum):
+    IDLE = 'Idle'
+    PREPARING = 'Preparing'
+    RUNNING = 'Running'
+    PAUSING = 'Pausing'
+    STOPPING = 'Stopping'
+
+class Code(enum.Enum):
+    NORMAL = "Normal"
+    ERROR = "Error"
+
+
+
+################################################################################
+class StatusMessage(dict):
+    # ==========================================================================
+    def __init__(self, **kwargs):
+        dict.__init__(self, **kwargs)
+        self.time = time.time()
+        self['time'] = self.time
+
+    def set_status(self, code, status, info: dict, message):
+        self['code'] = code
+        self['status'] = status
+        print(info)
+        self.update(info)
+        self['message'] = message
+
+
+################################################################################
+class PamStatusMessage(StatusMessage):
+    def __init__(self, **kwargs):
+        StatusMessage.__init__(self, **kwargs)
+
+
+
+
+
 ################################################################################
 class Bot(threading.Thread):
     def __init__(self):
         super(Bot, self).__init__()
+        self.status_message = PamStatusMessage()
+
         self.scenario = Scenario()
         self.scenario_filename = None
         self.status = True
@@ -65,6 +109,9 @@ class Bot(threading.Thread):
         # self._breakpoints = [(0, 0), (2,2)]
         # self._breakpoints = [(0, 0), (2,2)]
         self._breakpoints = set()
+        self.status_message.set_status(
+            Code.NORMAL.value, Status.PREPARING.value,
+            self.scenario.info, "Preparing to run")
 
     # ==========================================================================
     def __del__(self):
@@ -114,6 +161,10 @@ class Bot(threading.Thread):
         while self.status:
             try:
                 # 일반적인 디버그모드의 `스텝오버` 기능
+                self.status_message.set_status(
+                    Code.NORMAL.value, Status.PREPARING.value,
+                    self.scenario.info, "Preparing to run")
+
                 if self._debug_step_over:
                     self._pause = True
                 # 브레이크 포인트
@@ -174,7 +225,7 @@ def bot(mcxt, argspec):
             version='1.0',
             description='BOT RESTful Server',
         )
-        api.add_namespace(api_status, path='/%s/%s' % ('api', 'v1.0'))
+        api.add_namespace(api_status, path='/%s/%s/%s' % ('api', 'v1.0', 'pam'))
 
         app.logger.info("Start RestAPI from [%s]..." % __name__)
         api.init_app(app)

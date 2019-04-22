@@ -32,6 +32,24 @@ class Scenario(dict):
         self._scenario_image_dir = ""
 
     # ==========================================================================
+    @property
+    def info(self):
+        info = dict()
+        if not self:
+            return info
+        info['scenario'] = self['name']
+        info['step'] = "[{:d}] {}".format(
+            self.current_step_index, self.step['name'])
+
+        data = self.items[self._current_item_index]
+        class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        info['operator'] = "[{:d}] {} - {}".format(
+            self.current_item_index,
+            class_name,
+            self.item['itemName'])
+        return info
+
+    # ==========================================================================
     def set_logger(self, logger):
         self.logger = logger
         print(self.logger)

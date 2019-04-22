@@ -3,8 +3,16 @@ from flask import jsonify, send_file
 from flask_restplus import Namespace, Resource, reqparse
 from alabs.pam.la.bot import bot_th
 from .parser import scenario_parser
-from PIL import ImageGrab
+import platform
+if 'Linux' == platform.system():
+    import pyscreenshot as ImageGrab
+else:
+    from PIL import ImageGrab
 import io
+import zipfile
+import pathlib
+
+from alabs.common.util.vvhash import get_file_md5
 
 ################################################################################
 class ReturnValue(dict):
@@ -21,8 +29,19 @@ class ReturnValue(dict):
 api = Namespace('status', description="Bot Rest API")
 
 
+
+import werkzeug
+from flask import request
+
+file_upload = reqparse.RequestParser()
+file_upload.add_argument('zip_file',
+                         type=werkzeug.datastructures.FileStorage,
+                         location='files',
+                         required=True,
+                         help='ZIP file')
+
+
 ################################################################################
-@api.route('/')
 class BotScenario(Resource):
     def get(self):
         global bot_th
@@ -30,25 +49,47 @@ class BotScenario(Resource):
         # return ReturnValue(data).json
         return jsonify(ReturnValue(dict(data)))
 
-    @api.expect(scenario_parser, validate=True)
+    @api.expect(file_upload)
     def post(self):
-        """
-        form-data 형식으로 시나리오 filename(path)를 받는다.
-        :return:
-        """
-        global bot_th
-        argspec = scenario_parser.parse_args()
-        filename = argspec['filename']
-        bot_th.scenario_filename = filename
-        bot_th.load_scenario(filename)
+        try:
+            file = request.files['file']
+            print(request)
+            # TODO: 윈도우 환경은 고려되어 있지 않음
+            filepath = '%s%s' % ('/tmp/', 'scenario.zip')
+            file.save(filepath)
+            scn_zip = zipfile.ZipFile(filepath)
+            # TODO: 설정으로 PATH를 설정할 수 있어야 함
+            extpath = str(pathlib.Path.home()) + \
+                      str(pathlib.PurePath('/Scenarios'))
+            scn_zip.extractall(extpath)
+            scn_zip.close()
+
+            filename = extpath + \
+                       str(pathlib.PurePath('/' + request.form['fileName']))
+
+            # HASH 검사
+            source_hash = request.form['md5'].lower()
+            target_hash = get_file_md5(filepath)
+            # if source_hash != target_hash:
+            #     raise Exception("The hash are not equal")
+
+            # 설정
+            bot_th.scenario_filename = filename
+            bot_th.load_scenario(filename)
+
+        except Exception as e:
+            print(e)
+            api.abort(400)
+
         return jsonify(ReturnValue(dict(bot_th.scenario)))
+
 
 
 ################################################################################
 class BotStart(Resource):
     @api.expect(scenario_parser, validate=True)
     @api.doc('bot_status')
-    def post(self):
+    def post(self, scn_number):
         global bot_th
         # json_data = request.get_json()
         bot_th._debug_step_over = False
@@ -60,14 +101,14 @@ class BotStart(Resource):
 ################################################################################
 class BotPause(Resource):
     @api.doc('bot_status')
-    def post(self):
+    def post(self, scn_number):
         global bot_th
         bot_th._pause = True
         return True
 
 ################################################################################
 class BotStop(Resource):
-    def post(self):
+    def post(self, scn_number):
         global bot_th
         bot_th.stop()
         return True
@@ -75,7 +116,7 @@ class BotStop(Resource):
 
 ################################################################################
 class BotNext(Resource):
-    def post(self):
+    def post(self, scn_number):
         global bot_th
         bot_th._debug_step_over = True
         bot_th._pause = False
@@ -86,12 +127,10 @@ class BotNext(Resource):
 class BotStatus(Resource):
     @api.expect(scenario_parser, validate=True)
     @api.doc('bot_status')
-    def get(self):
+    def post(self, scn_number):
         global bot_th
-        data = dict()
-        data['is_running'] = bot_th.is_running
-        data['current_item'] = bot_th.scenario.item
-        return data
+        print(repr(bot_th.status_message))
+        return bot_th.status_message
 
 
 ################################################################################
@@ -143,8 +182,9 @@ api.add_resource(PamRequestAvailableOperator, '/operators')
 api.add_resource(PamRequestScreenShot, '/screenshot')
 
 api.add_resource(BotScenario, '/scenario')
-api.add_resource(BotStatus, '/scenario/status')
-api.add_resource(BotStart, '/scenario/start')
-api.add_resource(BotPause, '/scenario/pause')
-api.add_resource(BotStop, '/scenario/stop')
-api.add_resource(BotNext, '/scenario/next')
+# api.add_resource(BotScenario, '/scenario/<int:scn_number>/')
+api.add_resource(BotStatus, '/scenario/<int:scn_number>/status')
+api.add_resource(BotStart, '/scenario/<int:scn_number>/run')
+api.add_resource(BotPause, '/scenario/<int:scn_number>/pause')
+api.add_resource(BotStop, '/scenario/<int:scn_number>/stop')
+api.add_resource(BotNext, '/scenario/<int:scn_number>/next')
