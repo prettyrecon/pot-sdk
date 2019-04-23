@@ -1,18 +1,21 @@
 import json
+import io
+import zipfile
+import pathlib
+import platform
+
 from flask import jsonify, send_file
 from flask_restplus import Namespace, Resource, reqparse
 from alabs.pam.la.bot import bot_th
 from .parser import scenario_parser
-import platform
+from alabs.common.util.vvhash import get_file_md5
+
+# The ImageGrab in PIL doesn't support for linux
 if 'Linux' == platform.system():
     import pyscreenshot as ImageGrab
 else:
     from PIL import ImageGrab
-import io
-import zipfile
-import pathlib
 
-from alabs.common.util.vvhash import get_file_md5
 
 ################################################################################
 class ReturnValue(dict):
@@ -22,13 +25,11 @@ class ReturnValue(dict):
 
     @property
     def json(self):
-        print(self)
         return json.dumps(self, indent=4)
 
 ################################################################################
+
 api = Namespace('status', description="Bot Rest API")
-
-
 
 import werkzeug
 from flask import request

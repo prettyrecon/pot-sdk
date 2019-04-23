@@ -57,8 +57,8 @@ def execute_process(mcxt, argspec):
     """
     mcxt.logger.info('>>>starting...')
     proc = Popen('{}'.format(argspec.command), shell=True, stdout=PIPE)
-    ret = proc.stdout.read()
-    mcxt.logger.info(ret)
+    # ret = proc.stdout.read()
+    # mcxt.logger.info(ret)
     ret = {'PID': proc.pid, 'PROC': proc, 'NAME': argspec.command.split()[0]}
     mcxt.logger.info('>>>end...')
     return ret[argspec.ret]

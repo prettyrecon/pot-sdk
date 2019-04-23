@@ -14,7 +14,7 @@ class Scenario(dict):
     def __init__(self):
         dict.__init__(self)
         self.logger = None
-
+        self._info = dict()
         # 현재 STEP과 ITEM INDEX
         # 절대 직접 접근하여 값을 바꾸지 말것
         self._current_step_index= 0
@@ -34,21 +34,10 @@ class Scenario(dict):
     # ==========================================================================
     @property
     def info(self):
-        info = dict()
-        if not self:
-            return info
-        info['scenario'] = self['name']
-        info['step'] = "[{:d}] {}".format(
-            self.current_step_index, self.step['name'])
-
-        data = self.items[self._current_item_index]
-        class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
-        info['operator'] = "[{:d}] {} - {}".format(
-            self.current_item_index,
-            class_name,
-            self.item['itemName'])
-        return info
-
+        return self._info
+    @info.setter
+    def info(self, v):
+        self._info.update(v)
     # ==========================================================================
     def set_logger(self, logger):
         self.logger = logger
@@ -197,10 +186,25 @@ class Scenario(dict):
             item = self._repeat_item()
         else:
             item = self.item
-        self._current_item_index += 1
 
+        # 현재 정보 저장
+        info = dict()
+        info['scenario'] = self['name']
+        info['step'] = "[{:d}] {}".format(
+            self.current_step_index, self.step['name'])
+        data = self.items[self._current_item_index]
+        class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        info['operator'] = "[{:d}] {} - {}".format(
+            self.current_item_index,
+            class_name,
+            self.item['itemName'])
+        self.info = info
+
+        self._current_item_index += 1
         if isinstance(item, Repeat):
             self._repeat_item = item
+
+
         return item
 
 
