@@ -7,8 +7,8 @@ import platform
 import unittest
 from alabs.common.util.vvargs import ArgsError, ArgsExit, ModuleContext,\
     func_log, str2bool
-from alabs.rpa.ha.desktop.stop_process import main as _main
-from alabs.rpa.ha.desktop.execute_process import main as execute_process
+from alabs.rpa.desktop.stop_process import main as _main
+from alabs.rpa.desktop.execute_process import main as execute_process
 from unittest import TestCase
 
 
@@ -70,7 +70,7 @@ class TU(TestCase):
     def test0020_stop_process_by_name(self):
         import time
 
-        cmd = 'python -m alabs.rpa.ha.desktop.execute_process python -c "import time;time.sleep(5)"'
+        cmd = 'python -m alabs.rpa.desktop.execute_process python -c "import time;time.sleep(5)"'
         pid = execute_process(cmd)
         time.sleep(1)
         print(_main('-p', pid))

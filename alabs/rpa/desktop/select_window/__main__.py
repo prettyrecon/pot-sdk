@@ -13,7 +13,7 @@ ARGOS LABS plugin module sample
 ################################################################################
 import sys
 from alabs.common.util.vvargs import ArgsError, ArgsExit
-from alabs.rpa.ha.desktop.delete_file import main
+from alabs.rpa.desktop.delete_file import main
 
 
 ################################################################################

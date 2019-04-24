@@ -28,6 +28,8 @@ import pyautogui
 from pyautogui import KEY_NAMES
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+import pathlib
+import yaml
 
 
 ################################################################################
@@ -45,6 +47,32 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 FILTER_CHAR = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", ]
 KEYS = list(filter(lambda x: x not in FILTER_CHAR, KEY_NAMES))
 
+
+CURRENT_PATH = pathlib.Path(pathlib.Path(__file__).resolve()).parent
+with open(str(CURRENT_PATH)+ '/keymap.yaml') as f:
+    KEYMAP_WINDOWS = yaml.load(f.read())['WINDOWS']
+WINDOWS_KEY_MAP_TO_PYAUTOGUI = {v: KEYMAP_WINDOWS[v] for v in KEYMAP_WINDOWS}
+
+################################################################################
+def get_key_from_text_for_window(text: str)->list:
+    """
+    LA STU에서 생성된 키시퀀스 텍스트
+
+    :param text: LCtrl + [A] 와 같은 형태로 입력
+    :return: ['ctrlleft', 'a']
+    """
+    text = text.replace(' ', '')
+    text = text.split('+')
+    ret = list()
+    for t in text:
+        if t[0] == '[' and t[-1] == ']':
+            t = t[1:-1]
+        t = t.upper()
+        if not t in WINDOWS_KEY_MAP_TO_PYAUTOGUI:
+            continue
+        ret.append(WINDOWS_KEY_MAP_TO_PYAUTOGUI[t].lower())
+    return ret
+
 ################################################################################
 @func_log
 def send_shortcut(mcxt, argspec):
@@ -56,12 +84,17 @@ def send_shortcut(mcxt, argspec):
     """
     # --txt는 LA Stu에서 생성한 키시퀀스 하위호환
     mcxt.logger.info('>>>starting...')
-    if not argspec.keys:
-        raise ArgsError
-    for key in argspec.keys:
-        if key not in KEYS:
-            raise ArgsError("{} is not valid. Please check the help message.")
-    pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
+
+    # --txt는 LA Stu에서 생성한 키시퀀스 하위호환
+    keys = get_key_from_text_for_window(argspec.txt)
+
+    # if not argspec.keys:
+    #     raise ArgsError
+    # for key in argspec.keys:
+    #     if key not in KEYS:
+    #         raise ArgsError("{} is not valid. Please check the help message.")
+    pyautogui.hotkey(*keys, interval=argspec.interval)
+    # pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
     mcxt.logger.info('>>>end...')
 
     return argspec.keys
@@ -92,7 +125,8 @@ def _main(*args):
         description=DESCRIPTION,
     ) as mcxt:
         k = ' '.join([str(v) for v in KEYS])
-        mcxt.add_argument('keys', nargs='+', help=k)
+        mcxt.add_argument('--txt', type=str, help='')  # : LCtrl + [C]
+        # mcxt.add_argument('keys', nargs='+', help=k)
         mcxt.add_argument('--interval', type=float, default=0.05, help='')
         argspec = mcxt.parse_args(args)
 
