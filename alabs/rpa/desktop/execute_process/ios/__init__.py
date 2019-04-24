@@ -52,7 +52,7 @@ def execute_process(mcxt, argspec):
     mcxt.logger.info('>>>starting...')
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
-    session = client.session(bundle_id=argspec.bundleid,
+    session = client.session(bundle_id=argspec.bundle_id,
                              arguments=argspec.args)
     mcxt.logger.info(session.bundle_id)
     mcxt.logger.info('>>>end...')
@@ -85,7 +85,7 @@ def _main(*args):
         description=DESCRIPTION,
     ) as mcxt:
         ###################################### for app dependent parameters
-        mcxt.add_argument('bundleid', help='Application bundle id')
+        mcxt.add_argument('bundle_id', help='Application bundle id')
         mcxt.add_argument('--args', type=str, nargs='+',
                           help='-u https://www.google.com/ncr', default=None)
         mcxt.add_argument('--wda_url', type=str,
