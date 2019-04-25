@@ -3,7 +3,7 @@ import io
 import zipfile
 import pathlib
 import platform
-
+import time
 from flask import jsonify, send_file
 from flask_restplus import Namespace, Resource, reqparse
 from alabs.pam.la.bot import bot_th
@@ -54,7 +54,6 @@ class BotScenario(Resource):
     def post(self):
         try:
             file = request.files['file']
-            print(request)
             # TODO: 윈도우 환경은 고려되어 있지 않음
             filepath = '%s%s' % ('/tmp/', 'scenario.zip')
             file.save(filepath)
@@ -76,13 +75,13 @@ class BotScenario(Resource):
 
             # 설정
             bot_th.scenario_filename = filename
-            bot_th.load_scenario(filename)
-
+            bot_th.command_q.put(('_load_scenario', filename))
+            time.sleep(1)
         except Exception as e:
             print(e)
             api.abort(400)
 
-        return jsonify(ReturnValue(dict(bot_th.scenario)))
+        # return jsonify(ReturnValue(dict(bot_th.scenario)))
 
 
 
@@ -95,8 +94,8 @@ class BotStart(Resource):
         # json_data = request.get_json()
         bot_th._debug_step_over = False
         bot_th._pause = False
-        if not bot_th.isAlive():
-            bot_th.start()
+        # if not bot_th.isAlive():
+        #     bot_th.start()
         return bot_th._pause
 
 ################################################################################
@@ -111,7 +110,7 @@ class BotPause(Resource):
 class BotStop(Resource):
     def post(self, scn_number):
         global bot_th
-        bot_th.stop()
+        bot_th.command_q.put(('stop',))
         return True
 
 
@@ -144,6 +143,7 @@ class PamRequestAvailableOperator(Resource):
         ret = {
             "data": [
                 {"name": "SearchImage"},
+                {"name": "ImageMatch"},
                 {"name": "MouseClick"},
                 {"name": "MouseScroll"},
                 {"name": "TypeText"},
