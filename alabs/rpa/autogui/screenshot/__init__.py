@@ -19,7 +19,7 @@ Authors
 Change Log
 --------
 
- * [2019/03/29]
+ * [2019/04/24]
     - starting
 """
 
@@ -27,7 +27,6 @@ Change Log
 import sys
 import enum
 import wda
-from argparse import Namespace
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -52,7 +51,7 @@ class TapType(enum.Enum):
 
 ################################################################################
 @func_log
-def touch(mcxt, argspec):
+def screenshot(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
@@ -65,10 +64,7 @@ def touch(mcxt, argspec):
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
     session = client.session()
-    scale = session.scale
-    points: [] = list(map(lambda i: i / scale, argspec.coordinates))
-    x, y = points[0], points[1]
-    session.tap(x=x, y=y)
+    session.screenshot().save(argspec.screenshot_path)
 
     mcxt.logger.info('>>>end...')
 
@@ -97,19 +93,15 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('--finger',
-                            default=TapType.ONEFINGER.name,
-                            choices=[
-                                TapType.ONEFINGER.name, ],
-                            help='')
-        mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
+        mcxt.add_argument('screenshot_path', re_match='.*[.](png|PNG).*$',
+                          type=str, default=None, metavar='screenshot_path',
+                          help='screenshot path')
+        mcxt.add_argument('--wda_url', type=str, default='http://localhost',
+                          help='')
         mcxt.add_argument('--wda_port', type=str, default='8100', help='')
-        ########################################################################
-        mcxt.add_argument('coordinates', nargs=2, type=int, default=None,
-                          metavar='COORDINATE', help='X Y')
 
         argspec = mcxt.parse_args(args)
-        return touch(mcxt, argspec)
+        return screenshot(mcxt, argspec)
 
 ################################################################################
 def main(*args):
