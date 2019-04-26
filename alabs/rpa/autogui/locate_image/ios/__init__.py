@@ -62,8 +62,7 @@ def locate_image(mcxt, argspec):
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
     session = client.session()
-    scale = session.scale
-    session.tap(x=x/scale, y=y/scale)
+    session.tap(x=x, y=y)
     mcxt.logger.info('>>>end...')
     if argspec.verbose:
         print(x, y)
@@ -103,17 +102,6 @@ def _main(*args):
                           default=50, min_value=0, max_value=100, help='')
         mcxt.add_argument('--coordinates', type=int, nargs=2, default=[0, 0],
                           metavar='0', help='')
-        mcxt.add_argument('--motion',
-                          default=TapMotionType.TAP.name,
-                          choices=[
-                              TapMotionType.TAP.name,
-                              TapMotionType.DRAG.name, ],
-                          help='')
-        mcxt.add_argument('--finger',
-                          default=TapType.ONEFINGER.name,
-                          choices=[
-                              TapType.ONEFINGER.name, ],
-                          help='')
         mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
         mcxt.add_argument('--wda_port', type=str, default='8100', help='')
 
