@@ -17,6 +17,9 @@ EXAMPLE_21 = '{{ABC.DEF({{DEF.GHI}})}}'
 EXAMPLE_22 = '{{ABC.DEF(1,2)}}'
 EXAMPLE_23 = '{{ABC.DEF(1,2,3)}}'
 EXAMPLE_24 = '{{ABC.DEF(1,2,{{DEF.GHI}})}}'
+EXAMPLE_25 = '{{ABC.DEF(COUNT)}}'
+EXAMPLE_26 = '{{ABC.DEF(APPEND)}}'
+EXAMPLE_27 = '{{ABC.DEF(LAST)}}'
 
 EXAMPLE_30 = """Hello {{ABC.DEF}} World"""
 EXAMPLE_31 = """Hello {{ABC.DEF}} World Hi {{DEF.GHI}} Jo"""
@@ -114,6 +117,21 @@ class TestUnit(unittest.TestCase):
         self.assertListEqual(expected, idx)
 
         # ----------------------------------------------------------------------
+        idx = get_delimiter_index(EXAMPLE_25)
+        expected = [0, 2, 9, 10, 15, 16, 18]
+        self.assertListEqual(expected, idx)
+
+        # ----------------------------------------------------------------------
+        idx = get_delimiter_index(EXAMPLE_26)
+        expected = [0, 2, 9, 10, 16, 17, 19]
+        self.assertListEqual(expected, idx)
+
+        # ----------------------------------------------------------------------
+        idx = get_delimiter_index(EXAMPLE_27)
+        expected = [0, 2, 9, 10, 14, 15, 17]
+        self.assertListEqual(expected, idx)
+
+        # ----------------------------------------------------------------------
         idx = get_delimiter_index(EXAMPLE_30)
         expected = [0, 6, 8, 15, 17, 23]
         self.assertListEqual(expected, idx)
@@ -185,6 +203,12 @@ class TestUnit(unittest.TestCase):
         test_split_string_variables(EXAMPLE_23, ('{{ABC.DEF(1,2,3)}}',))
         test_split_string_variables(EXAMPLE_24,
                                     ('{{ABC.DEF(1,2,{{DEF.GHI}})}}',))
+        test_split_string_variables(EXAMPLE_25,
+                                    ('{{ABC.DEF(COUNT)}}',))
+        test_split_string_variables(EXAMPLE_26,
+                                    ('{{ABC.DEF(APPEND)}}',))
+        test_split_string_variables(EXAMPLE_27,
+                                    ('{{ABC.DEF(LAST)}}',))
         test_split_string_variables(EXAMPLE_30, ('{{ABC.DEF}}',))
         test_split_string_variables(EXAMPLE_31, ('{{ABC.DEF}}', '{{DEF.GHI}}'))
         test_split_string_variables(EXAMPLE_32, ('{{ABC.DEF}}', '{{DEF.GHI}}'))
@@ -231,6 +255,9 @@ class TestUnit(unittest.TestCase):
         test_split(EXAMPLE_24,
                    ['{{', 'ABC.DEF', '(', '1',',','2',',',
                     '{{', 'DEF.GHI', '}}', ')', '}}'])
+        test_split(EXAMPLE_25, ['{{', 'ABC.DEF', '(', 'COUNT', ')', '}}'])
+        test_split(EXAMPLE_26, ['{{', 'ABC.DEF', '(', 'APPEND', ')', '}}'])
+        test_split(EXAMPLE_27, ['{{', 'ABC.DEF', '(', 'LAST', ')', '}}'])
 
         # ----------------------------------------------------------------------
         idx = get_delimiter_index(EXAMPLE_30)
@@ -376,6 +403,25 @@ class TestUnit(unittest.TestCase):
                          [1, [1, 2, [1, 2, 3, 4, value], 'World']], 'LOCAL')
         var.set_by_xpath('DEF/GHI', 4, 'LOCAL')
         self.assertEqual(value, var.convert(EXAMPLE_24))
+
+        # ----------------------------------------------------------------------
+        var = Variables()
+        value = 'Hello'
+        var.set_by_xpath('ABC/DEF', [10, value], 'LOCAL')
+        self.assertEqual('2', var.convert(EXAMPLE_25))
+
+        # ----------------------------------------------------------------------
+        var = Variables()
+        value = 'Hello'
+        var.set_by_xpath('ABC/DEF', [10, value], 'LOCAL')
+        with self.assertRaises(ValueError) as cm:
+            var.convert(EXAMPLE_26)
+
+        # ----------------------------------------------------------------------
+        var = Variables()
+        value = 'Hello'
+        var.set_by_xpath('ABC/DEF', [10, value], 'LOCAL')
+        self.assertEqual(value, var.convert(EXAMPLE_27))
 
         # ----------------------------------------------------------------------
         var = Variables()
@@ -546,4 +592,21 @@ class TestUnit(unittest.TestCase):
                                   [1, [1, 2, [1, 2, 3, 4, value], 'World']])
         var.set_by_argos_variable('{{DEF.GHI}}', 4)
         self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_24))
+
+        # ----------------------------------------------------------------------
+        # ARRAY APPEND 처리
+        var = Variables()
+        value = 'World'
+        var.set_by_argos_variable('{{ABC.DEF}}', ['Hello'])
+        var.set_by_argos_variable(EXAMPLE_26, value)
+        self.assertEqual(value, var.get_by_argos_variable('{{ABC.DEF}}')[1])
+
+        # ----------------------------------------------------------------------
+        # ARRAY LAST 처리
+        var = Variables()
+        value = 'World'
+        var.set_by_argos_variable('{{ABC.DEF}}', ['Hello'])
+        var.set_by_argos_variable(EXAMPLE_27, value)
+        self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_27))
+
 

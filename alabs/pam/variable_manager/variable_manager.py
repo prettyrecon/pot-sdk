@@ -23,8 +23,16 @@ class Sign(enum.Enum):
 
 
 ################################################################################
+class ArrayFunction(enum.Enum):
+    COUNT = 'COUNT'
+    APPEND = 'APPEND'
+    LAST = 'LAST'
+
+
+################################################################################
 class ParsingError(Exception):
     pass
+
 
 class Client:
     def __init__(self, url='http://localhost:8200', token=None,
@@ -60,6 +68,12 @@ def get_delimiter_index(pattern):
     """
     idx = [(v.start(), v.end()) for v in
            re.finditer(DELIMITERS_PATTERN, pattern)]
+    # re.finditer 는 주어진 패턴에 해당된 문자의 시작과 끝을 반환
+    # >>> list(re.finditer(DELIMITERS_PATTERN, "{{ABC.DEF}}"))
+    # [<re.Match object; span=(0, 2), match='{{'>,
+    # <re.Match object; span=(9, 11), match='}}'>]
+
+    print(idx)
     idx = [i for sub in idx for i in sub]
     if not idx:
         idx = [0, len(pattern)]
@@ -72,6 +86,7 @@ def get_delimiter_index(pattern):
     idx = list(set(idx))
     idx.sort()
     return idx
+
 
 ################################################################################
 def split(text:str)->list:
@@ -98,10 +113,11 @@ def split(text:str)->list:
     value = separate(text, index)
     return value
 
+
 ################################################################################
 def split_string_variables(data:str, idx, stack=None, value='', variables=''):
     """
-    * 서식(Format) 문자열과 문자열 변수를 분
+    * 서식(Format) 문자열과 문자열 변수를 분리
     * 지정된 구분자를 찾을때 까지 문자열을 탐색
     * 일반 문자열은 value에 저장
     * 변수 문자열은 varialbes에 저장
@@ -121,7 +137,8 @@ def split_string_variables(data:str, idx, stack=None, value='', variables=''):
         return value, tuple(variables)
 
     t = data[idx[0]:idx[1]]
-
+    # print("t:{}\ndata:{}\nidx:{}\nstack:{}\nvalue:{}\nvariables:{}".format(t, data, idx, stack, value, variables))
+    # print()
     if stack:
         variables += t
     elif not stack and t not in ('{{', '}}'):
@@ -133,6 +150,7 @@ def split_string_variables(data:str, idx, stack=None, value='', variables=''):
 
     if t == '{{':
         if not stack:
+
             value += '{}'
             variables += t
         stack.append(t)
@@ -145,6 +163,7 @@ def split_string_variables(data:str, idx, stack=None, value='', variables=''):
     elif t == '}}':
         stack.pop()
         if not stack:
+            # 값은 문자열로 합치고 구분자로 `|` 사용
             variables += '|'
 
     idx.pop(0)
@@ -168,10 +187,17 @@ class Variables(dict):
             return text
 
         arg = list()
+        option = dict(store='LOCAL', array_function=None)
         for v in variables:
             t = split(v)
-            t = self.parse(t)['value']
-            arg.append(t)
+            value, path, *_ = self.parse(t, option=option)
+            array_function = option.setdefault('array_function', None)
+            if array_function == ArrayFunction.APPEND.value:
+                # TODO: 전용 Exception Class 를 만들기
+                # APPEND는 값을 가져올 때는 사용하지 못함
+                raise ValueError("Array Function - "
+                                 "'APPEND' IS FOR SETTING ONLY")
+            arg.append(value)
         return form.format(*arg)
 
     # ==========================================================================
@@ -189,8 +215,15 @@ class Variables(dict):
             raise ValueError
 
         t = split(variables[0])
-        t = self.parse(t)
-        value = self.get_by_xpath(t['xpath'], t['sign'], raise_exception)
+        value, path, option = self.parse(t)
+        array_function = option.setdefault('array_function', None)
+        if array_function == ArrayFunction.APPEND.value:
+            # TODO: 전용 Exception Class 를 만들기
+            # APPEND는 값을 가져올 때는 사용하지 못함
+            raise ValueError("Array Function - "
+                             "'APPEND' IS FOR SETTING ONLY")
+
+        value = self.get_by_xpath(path, option['store'], raise_exception)
         return value
 
     # ==========================================================================
@@ -209,8 +242,8 @@ class Variables(dict):
             raise ValueError
 
         t = split(variables[0])
-        t = self.parse(t)
-        return self.set_by_xpath(t['xpath'], value, t['sign'])
+        _, path, option = self.parse(t)
+        return self.set_by_xpath(path,  value, option['store'])
 
     # ==========================================================================
     def set_by_xpath(self, xpath:str, value:object, sign:str)->None:
@@ -299,98 +332,75 @@ class Variables(dict):
             raise
 
     # ==========================================================================
-    def _parse(self, data: list, stack=None, parsed='', sign='LOCAL'):
+    def parse(self, data: list, stack=None, parsed='', option=None):
         """
         :param data:
             Example: Hello World, {{abc.def.ghi}}
         :param stack:
         :param parsed:
-        :param sign:
+        :param option:
         :return:
         """
+
         if stack is None and parsed == '':
             stack = list()
             parsed = str()
-
-        # 탈출
-        if not data:
-            if stack:
-                raise ParsingError("{}".format(str(stack)))
-            ret = self.get_by_xpath(parsed.replace('.', '/'), sign)
-            return ret
-
-        t = data.pop(0)
-        if t == '{{':
-            stack.append(t)
-        elif t == '(':
-            stack.append(t)
-            result = self.parse(data, stack)
-            parsed += ''.join(["[{}]".format(x) for x in result.split(",")])
-
-        # Sign
-        elif t == Sign.GLOBAL.value:
-            sign = Sign.GLOBAL.name
-
-        elif t == ',':
-            parsed += ','
-            parsed += self.parse(data, stack)
-            return parsed
-
-        # t의 값이 '}}', 값을 요청하여 리턴
-        # 조건: 스택 마지막이 '{{' 이거나 ')'일 경우
-        elif t == ')' and stack[-1] == '(':
-            stack.pop()
-            return parsed
-        elif t == '}}':
-            stack.pop()
-            if stack:
-                parsed = str(self.get_by_xpath(parsed.replace('.', '/'), sign))
-                return self.parse(data, stack, parsed, sign='LOCAL')
-        else:
-            parsed = t
-            return self.parse(data, stack, parsed, sign)
-
-        # 가장 깊이 중첩되어 있는 값 부터 처리
-        return self.parse(data, stack, parsed, sign)
-
-    # ==========================================================================
-    def parse(self, data: list, stack=None, parsed='', sign='LOCAL',):
-        """
-        :param data:
-            Example: Hello World, {{abc.def.ghi}}
-        :param stack:
-        :param parsed:
-        :param sign:
-        :return:
-        """
-        if stack is None and parsed == '':
-            stack = list()
-            parsed = str()
+        if not option:
+            option = dict(store='LOCAL')
 
         # 탈출
         if not data:
             if stack:
                 raise ParsingError("{}".format(str(stack)))
             path = parsed.replace('.', '/')
-            value = self.get_by_xpath(path, sign)
-            return dict(zip(['value', 'xpath', 'sign'], (value, path, sign)))
+
+            store = option.setdefault('store', 'LOCAL')
+            array_function = option.setdefault('array_function', None)
+
+            if not array_function:
+                value = self.get_by_xpath(path, store)
+
+            elif array_function == 'COUNT':
+                value = len(self.get_by_xpath(path[:-2], store))
+
+            elif array_function == 'LAST':
+                # TODO: OUT OF INDEX 처리 필요
+                temporary_value = self.get_by_xpath(path[:-2], store)
+                value = temporary_value[-1]
+                path = path[:-2] + "[{}]".format(len(temporary_value) - 1)
+
+            elif array_function == 'APPEND':
+                # TODO: OUT OF INDEX 처리 필요
+                temporary_value = self.get_by_xpath(path[:-2], store)
+                value = temporary_value[-1]
+                path = path[:-2] + "[{}]".format(len(temporary_value))
+
+            else:
+                raise ParsingError(
+                    "Array Function - {} is not a supported function")
+
+            return value, path, option
 
         t = data.pop(0)
         if t == '{{':
             stack.append(t)
         elif t == '(':
             stack.append(t)
-            result = self.parse(data, stack)
+            result = self.parse(data, stack, option=option)
             parsed += ''.join(["[{}]".format(x) for x in result.split(",")])
 
         # Sign
         elif t == Sign.GLOBAL.value:
-            sign = Sign.GLOBAL.name
+            option['store'] = Sign.GLOBAL.name
 
+        # List 처리
         elif t == ',':
             parsed += ','
-            parsed += self.parse(data, stack)
+            parsed += self.parse(data, stack, option=option)
             return parsed
+
+        elif t.upper() in tuple(map(lambda n: n.name, ArrayFunction)):
+            option['array_function'] = t.upper()
 
         # t의 값이 '}}', 값을 요청하여 리턴
         # 조건: 스택 마지막이 '{{' 이거나 ')'일 경우
@@ -400,15 +410,14 @@ class Variables(dict):
         elif t == '}}':
             stack.pop()
             if stack:
-                parsed = str(
-                    self.get_by_xpath(parsed.replace('.', '/'), sign))
-                return self.parse(data, stack, parsed, sign='LOCAL')
+                v = self.get_by_xpath(parsed.replace('.', '/'), option['store'])
+                return self.parse(data, stack, str(v), option)
         else:
             parsed = t
-            return self.parse(data, stack, parsed, sign)
+            return self.parse(data, stack, parsed, option)
 
         # 가장 깊이 중첩되어 있는 값 부터 처리
-        return self.parse(data, stack, parsed, sign)
+        return self.parse(data, stack, parsed, option)
 
 
 
