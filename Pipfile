@@ -135,3 +135,4 @@ python_version = "3.7"
 
 [scripts]
 startpam = "python -m alabs.pam.la.bot 8081"
+startvm = "python -m alabs.pam.variable_manager 8011"

@@ -73,7 +73,6 @@ def get_delimiter_index(pattern):
     # [<re.Match object; span=(0, 2), match='{{'>,
     # <re.Match object; span=(9, 11), match='}}'>]
 
-    print(idx)
     idx = [i for sub in idx for i in sub]
     if not idx:
         idx = [0, len(pattern)]
@@ -176,6 +175,11 @@ class Variables(dict):
     변수 관리 매니져
     xpath를 이용해서 값 가져오고나 넣기 가능
     """
+
+    # ==========================================================================
+    def __init__(self, base_index=0, **kwargs):
+        self.based_index = base_index
+        dict.__init__(self, **kwargs)
 
     # ==========================================================================
     def convert(self, text):
@@ -361,19 +365,19 @@ class Variables(dict):
                 value = self.get_by_xpath(path, store)
 
             elif array_function == 'COUNT':
-                value = len(self.get_by_xpath(path[:-2], store))
+                value = len(self.get_by_xpath(path, store))
 
             elif array_function == 'LAST':
                 # TODO: OUT OF INDEX 처리 필요
-                temporary_value = self.get_by_xpath(path[:-2], store)
+                temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
-                path = path[:-2] + "[{}]".format(len(temporary_value) - 1)
+                path += "[{}]".format(len(temporary_value) - 1)
 
             elif array_function == 'APPEND':
                 # TODO: OUT OF INDEX 처리 필요
-                temporary_value = self.get_by_xpath(path[:-2], store)
+                temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
-                path = path[:-2] + "[{}]".format(len(temporary_value))
+                path += "[{}]".format(len(temporary_value))
 
             else:
                 raise ParsingError(
@@ -387,7 +391,12 @@ class Variables(dict):
         elif t == '(':
             stack.append(t)
             result = self.parse(data, stack, option=option)
-            parsed += ''.join(["[{}]".format(x) for x in result.split(",")])
+            if result:
+                # 인덱스의 시작이 무엇이냐에 따라 값을 바꿔주는 코드
+                # "1,2,3" -> ['0', '1', '2']
+                result = [str(int(x) - self.based_index)
+                          for x in result.split(",")]
+                parsed += ''.join(["[{}]".format(x) for x in result])
 
         # Sign
         elif t == Sign.GLOBAL.value:

@@ -41,7 +41,7 @@ class ResponseErrorData(dict):
 
 
 from alabs.pam.variable_manager.variable_manager import Variables
-variables = Variables()
+variables = Variables(base_index=1)
 
 import os
 from flask import Flask
