@@ -609,4 +609,26 @@ class TestUnit(unittest.TestCase):
         var.set_by_argos_variable(EXAMPLE_27, value)
         self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_27))
 
+    def test_index_one_based(self):
+        """
+        RPA-251
+        인덱스 시작 값 설정 가능
+        :return:
+        """
+
+        var = Variables(base_index=1)
+        value_1 = "Hello"
+        value_2 = "World"
+        var.set_by_argos_variable('{{ABC.DEF(1)}}', value_1)
+        self.assertEqual(value_1, var.get_by_argos_variable('{{ABC.DEF(1)}}'))
+        self.assertEqual('1', var.convert('{{ABC.DEF(COUNT)}}'))
+
+        var.set_by_argos_variable('{{ABC.DEF(APPEND)}}', value_2)
+        self.assertEqual(value_2, var.get_by_argos_variable('{{ABC.DEF(2)}}'))
+        self.assertEqual('2', var.convert('{{ABC.DEF(COUNT)}}'))
+
+
+
+
+
 
