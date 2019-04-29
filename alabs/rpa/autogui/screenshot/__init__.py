@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:`alabs.rpa.autogui.find_image_location.ios
+ :mod:`alabs.pam.la.bot2py
 ====================================
 .. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
 .. note:: VIVANS License
@@ -19,16 +19,18 @@ Authors
 Change Log
 --------
 
- * [2019/04/12]
+ * [2019/04/24]
     - starting
 """
 
 ################################################################################
+import sys
+import enum
 import wda
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.rpa.autogui.touch import TapType, TapMotionType
-from alabs.rpa.autogui.find_image_location.ios import find_image_loacation
+
+
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -42,31 +44,29 @@ OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
+class TapType(enum.Enum):
+    ONEFINGER = 'one'
+    TWOFINGER = 'two'
+    THREEFINGER = 'three'
+
+################################################################################
 @func_log
-def locate_image(mcxt, argspec):
+def screenshot(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: x, y
+    :return: True
     """
+
     mcxt.logger.info('>>>starting...')
-    # 이미지 좌표 구하기
-    location = find_image_loacation(mcxt, argspec)
-    if not location:
-        return None
-    x, y, *_ = location
-    cx, cy = argspec.coordinates
-    x += cx; y += cy
 
     client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
                                                   port=argspec.wda_port))
     session = client.session()
-    session.tap(x=x, y=y)
+    session.screenshot().save(argspec.screenshot_path)
+
     mcxt.logger.info('>>>end...')
-    if argspec.verbose:
-        print(x, y)
-    return location
 
 ################################################################################
 def _main(*args):
@@ -80,7 +80,7 @@ def _main(*args):
     owner='ARGOS-LABS',
     group='pam',
     version='1.0',
-    platform=['windows', 'darwin', 'linux'],
+    platform=['darwin'],
     output_type='text',
     description='HA Bot for LA',
     test_class=TU,
@@ -93,22 +93,16 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        # 필수 입력 항목
-        mcxt.add_argument('filename', re_match='.*[.](png|PNG).*$',
-                          metavar='image_filename.png',  help='')
-        mcxt.add_argument('--region', nargs=4, type=int, default=None,
-                          metavar='0', help='')
-        mcxt.add_argument('--similarity', type=int, metavar='50',
-                          default=50, min_value=0, max_value=100, help='')
-        mcxt.add_argument('--coordinates', type=int, nargs=2, default=[0, 0],
-                          metavar='0', help='')
-        mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
+        mcxt.add_argument('screenshot_path', re_match='.*[.](png|PNG).*$',
+                          type=str, default=None, metavar='screenshot_path',
+                          help='screenshot path')
+        mcxt.add_argument('--wda_url', type=str, default='http://localhost',
+                          help='')
         mcxt.add_argument('--wda_port', type=str, default='8100', help='')
 
         argspec = mcxt.parse_args(args)
-        return locate_image(mcxt, argspec)
+        return screenshot(mcxt, argspec)
 
 ################################################################################
 def main(*args):
     return _main(*args)
-
