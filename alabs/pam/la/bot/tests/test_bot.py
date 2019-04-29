@@ -70,3 +70,73 @@ class TestUnit(unittest.TestCase):
         # 기대한 아이템 타입과 맞는지 비교
         for o, e in zip(output_items, expected_order):
             self.assertEqual(o, e)
+
+    # ==========================================================================
+    def test_request_available_operators(self):
+        # # [StringValue("LocateImage")]
+        # SearchImage,
+        # # [StringValue("Click and Focus")]
+        # MouseClick,
+        # # [StringValue("Scroll")]
+        # MouseScroll,
+        # # [StringValue("TextInput")]
+        # TypeText, SelectWindow, HTMLAction,
+        # # [StringValue("JavaScript")]
+        # BrowserScript,
+        # # [StringValue("Delay")]
+        # Delay, ReadMessage,
+        # # [StringValue("OCR")]
+        # ReadImageText, Repeat,
+        # # [StringValue("ShortcutKeys")]
+        # TypeKeys,
+        # # [StringValue("CTCDemo")]
+        # RunModule,
+        # SendEmail,
+        # ClearCache,
+        # # [StringValue("End of Scenario")]
+        # EndScenario,
+        # # [StringValue("End of Step")]
+        # EndStep,
+        # # [StringValue("SetVariables")]
+        # SetVariable,
+        # UserModule,
+        # # [StringValue("ExcelBasics")]
+        # Excel,
+        # CSV,
+        # # [StringValue("OpenBrowser")]
+        # Navigate,
+        # UserInputPopup,
+        # WindowObject
+        #
+        # # [StringValue("OnloadEvent")]
+        # Document, Frame,
+        # [StringValue("WebElement")]
+        # Component, ImageMatch, WaitingPopup, TextMatch,
+        # [StringValue("CompareValue")]
+        # CompareText
+        # DeleteFile,
+        # [StringValue("RunProgram")]
+        # ExecuteProcess,
+        # [StringValue("KillProcess")]
+        # StopProcess, ClosePopup
+        #
+        # Beep,
+        # [StringValue("Dialogue")]
+        # PopupInteraction,
+        # UserParams
+        data = {
+            "data": [
+                {"name": "SearchImage"},
+                {"name": "MouseClick"},
+                {"name": "TypeKeys"},
+            ]
+        }
+        return data
+
+    def test_set_scenario(self):
+        data = {
+            "data": {
+                "file":
+            }
+        }
+        return data

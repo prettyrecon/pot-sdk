@@ -28,11 +28,16 @@ Change Log
 import sys
 import time
 import threading
+import queue
+
+import enum
 from flask import Flask
 from flask_restplus import Api
 from alabs.pam.la.bot.scenario import Scenario
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+
+
 
 ################################################################################
 # Version
@@ -46,14 +51,58 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+
+class Status(enum.Enum):
+    IDLE = 'Idle'
+    PREPARING = 'Preparing'
+    RUNNING = 'Running'
+    PAUSING = 'Pausing'
+    STOPPING = 'Stopping'
+
+class Code(enum.Enum):
+    NORMAL = "Normal"
+    ERROR = "Error"
+
+
+
+################################################################################
+class StatusMessage(dict):
+    # ==========================================================================
+    def __init__(self, **kwargs):
+        dict.__init__(self, **kwargs)
+        self.time = time.time()
+        self['time'] = self.time
+
+    def set_status(self, code, status, info: dict, message):
+        self['code'] = code
+        self['status'] = status
+        self.update(info)
+        self['message'] = message
+
+
+################################################################################
+class PamStatusMessage(StatusMessage):
+    def __init__(self, **kwargs):
+        StatusMessage.__init__(self, **kwargs)
+
+
 ################################################################################
 class Bot(threading.Thread):
-    def __init__(self):
+    def __init__(self, event: dict, cmd_q: queue.Queue):
         super(Bot, self).__init__()
-        self.scenario = Scenario()
+        self.logger = None
+        # 이벤트 선언
+        self.event_run: threading.Event = event['run']
+
+        # 커맨드 큐
+        self.command_q = cmd_q
+
+        # 상태 정보
+        self.status_message = PamStatusMessage()
+
+        # self.scenario = Scenario()
+        self.scenario = None
         self.scenario_filename = None
-        self.status = True
-        self.cmd = None
         self._pause = True
 
         self._start_step = 0
@@ -65,10 +114,14 @@ class Bot(threading.Thread):
         # self._breakpoints = [(0, 0), (2,2)]
         # self._breakpoints = [(0, 0), (2,2)]
         self._breakpoints = set()
+        self.status_message.set_status(
+            Code.NORMAL.value, Status.PREPARING.value,
+            {}, "Preparing to run")
 
     # ==========================================================================
     def __del__(self):
-        self.status = False
+        self.event_run.set()
+        self.event_run.wait(1)
 
 
     # ==========================================================================
@@ -91,65 +144,104 @@ class Bot(threading.Thread):
             if hash(bp) == cur:
                 return True
         return False
+
     # ==========================================================================
-    def load_scenario(self, filename):
+    def _load_scenario(self, filename):
         try:
+            self.scenario = Scenario()
+            self.scenario.set_logger(self.logger)
             self.scenario.load_scenario(filename)
-            self.scenario.__iter__()
+            print(self.scenario)
+            print(self.scenario.__iter__())
         except Exception as e:
             print(e)
-            return False
+
         return True
 
     # ==========================================================================
-    def stop(self):
-        # TODO: 계속 현재 `Thread`를 사용할 것인지, 새로 생성할 것인지 고려가 필요
+    def stop(self, *args):
         # 현재 진행 중이던 시나리오를 멈추고 새로 돌 수 있게 준비
-        # iterator 방식으로 시나리오가 진행되기 때문에 다시 불러옴
-        self.load_scenario(self.scenario_filename)
+        # iterator 방식으로 시나리오가 진행되기 때문에 새로운 시나리오 인스턴스 생성
+        self._load_scenario(self.scenario_filename)
+        time.sleep(0.1)
         self._pause = True
 
     # ==========================================================================
+    def _call_item(self, item):
+        info = "{step} / {operator} "
+        # Status Message
+        self.status_message.set_status(
+            Code.NORMAL.value, Status.RUNNING.value,
+            self.scenario.info,
+            "Running... " + info.format(**self.scenario.info))
+
+        # 액션 실행 전 딜레이
+        tm = int(item['beforeDelayTime'])
+        time.sleep(tm * 0.001)
+
+        # 아이템 실행
+        return item()
+
+    # ==========================================================================
     def run(self):
-        while self.status:
+        while not self.event_run.is_set():
+            # 명령어 우선 처리
+            if self.command_q.qsize():
+                cmd, *args = self.command_q.get()
+                ret = getattr(self, cmd)(*args)
+                continue
+
+            if not self.scenario:
+                time.sleep(0.1)
+                continue
+
+            # 일반적인 디버그모드의 `스텝오버` 기능
+            if self._debug_step_over:
+                self._pause = True
+            # 브레이크 포인트
+            cur_idx = (self.scenario.current_step_index,
+                       self.scenario.current_item_index)
+            if self.is_breakpoint(cur_idx, self.break_points):
+                self._pause = True
+
+            # 위의 어떠한 조건이라도 만족한 경우 `멈춤`
+            # 탈출 조건은 `시작` 요청에 의한 self._pause의 False 전환
+            while self._pause:
+                # Status Message
+                self.status_message.set_status(
+                    Code.NORMAL.value, Status.PAUSING.value,
+                    self.scenario.info, "Pausing")
+                time.sleep(0.1)
+                continue
+
             try:
-                # 일반적인 디버그모드의 `스텝오버` 기능
-                if self._debug_step_over:
-                    self._pause = True
-                # 브레이크 포인트
-                cur_idx = (self.scenario.current_step_index,
-                           self.scenario.current_item_index)
-                if self.is_breakpoint(cur_idx, self.break_points):
-                    self._pause = True
-
-                # 위의 어떠한 조건이라도 만족한 경우 `멈춤`
-                # 탈출 조건은 `시작` 요청에 의한 self._pause의 False 전환
-                while self._pause:
-                    time.sleep(0.1)
-                    continue
-
-                item = self.scenario.__next__()
-
-                # 액션 실행 전 딜레이
-                tm = int(item['beforeDelayTime'])
-                time.sleep(tm * 0.001)
-
                 # 아이템 실행
-                print(cur_idx)
-                print(item.__class__)
-                item()
-
-
+                item = self.scenario.__next__()
+                self._call_item(item)
             except StopIteration:
                 # 모든 아이템 수행, 시나리오 종료
-                self.load_scenario(self.scenario_filename)
-                self._pause = True
+                print("*"*30, "End of Scenario")
+                self.stop()
+                # Status Message
+                self.status_message.set_status(
+                    Code.NORMAL.value, Status.STOPPING.value,
+                    self.scenario.info, "The scenario is done.")
+
             time.sleep(0.1)
 
 
 ################################################################################
-bot_th = Bot()
+
+command_q = queue.Queue()
+
+
+events = dict()
+events['run'] = threading.Event()
+
+bot_th = Bot(events, command_q)
 bot_th.daemon = True
+
+
 from alabs.pam.la.bot.app.status import api as api_status
 
 ################################################################################
@@ -163,7 +255,8 @@ def bot(mcxt, argspec):
     """
     mcxt.logger.info('>>>starting...')
     global bot_th
-    bot_th.scenario.set_logger(mcxt.logger)
+    bot_th.logger = mcxt.logger
+    # bot_th.scenario.set_logger(mcxt.logger)
 
     app = None
     try:
@@ -174,7 +267,7 @@ def bot(mcxt, argspec):
             version='1.0',
             description='BOT RESTful Server',
         )
-        api.add_namespace(api_status, path='/%s/%s' % ('api', 'v1.0'))
+        api.add_namespace(api_status, path='/%s/%s/%s' % ('api', 'v1.0', 'pam'))
 
         app.logger.info("Start RestAPI from [%s]..." % __name__)
         api.init_app(app)
@@ -182,6 +275,7 @@ def bot(mcxt, argspec):
         if app and app.logger:
             app.logger.error('Error: %s' % str(err))
         raise
+    bot_th.start()
     app.run(host=argspec.ip, port=int(argspec.port))
 
     bot_th.stop()

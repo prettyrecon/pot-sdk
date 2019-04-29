@@ -97,7 +97,7 @@ def send_shortcut(mcxt, argspec):
     # pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
     mcxt.logger.info('>>>end...')
 
-    return argspec.keys
+    return argspec.txt
 
 ################################################################################
 def _main(*args):
