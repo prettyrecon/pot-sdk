@@ -132,11 +132,3 @@ class TestUnit(unittest.TestCase):
             ]
         }
         return data
-
-    def test_set_scenario(self):
-        data = {
-            "data": {
-                "file":
-            }
-        }
-        return data
