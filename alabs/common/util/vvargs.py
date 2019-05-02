@@ -17,6 +17,14 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/04/25]
+#     - argument에 display_name을 넣도록 함
+#     - argument에 show_default 추가
+#     - last_modify_datetime 추가
+#  * [2019/04/24]
+#     - owner 등 제대로 안들어가는 문제 해결
+#  * [2019/04/23]
+#     - dumpspec 에서 help를 넣어 -h 결과를 넣도록 함
 #  * [2019/03/18]
 #     - --outfile, --errfile을 모두 utf-8 인코딩 방식으로 열기
 #  * [2019/03/13]
@@ -37,14 +45,18 @@ import os
 import re
 import sys
 import glob
+import json
 import base64
-import datetime
-import traceback
 import logging
 import hashlib
+import datetime
+import traceback
+import subprocess
+import yaml
 from copy import copy
 from json import dumps as json_dumps
 from yaml import dump as yaml_dump
+from yaml import load as yaml_load
 # noinspection PyProtectedMember
 from functools import wraps
 # noinspection PyProtectedMember
@@ -52,6 +64,7 @@ from argparse import ArgumentParser, _HelpAction
 from io import StringIO
 from alabs.common.util.vvlogger import get_logger
 from pprint import pformat
+from tempfile import gettempdir
 
 
 ################################################################################
@@ -77,6 +90,12 @@ def get_file_hash(f):
                 break
             sha256.update(data)
     return sha256.hexdigest()
+
+
+################################################################################
+def get_json_hash(js):
+    hash_object = hashlib.sha256(json.dumps(js).encode('utf-8'))
+    return hash_object.hexdigest()
 
 
 ################################################################################
@@ -137,17 +156,24 @@ class ModuleContext(ArgumentParser):
     # ==========================================================================
     PLATFORMS = ("windows", "darwin", "linux")
     OUTPUT_TYPES = ("text", "json", "csv")
-    VALID_RE1 = re.compile(r"^[a-zA-Z0-9_\-.]+")
+    VALID_RE1 = re.compile(r"[^a-zA-Z0-9_\-.]+")
 
     # 각 패러미터에 대한 부가 속성 : 주로 사용자 입력 UI 관련
     ETC_ATTRS = {
-        # 1) 해당 패러미터의 입력 그룹 (디폴트는 None)
+        # 1) input_group: 해당 패러미터의 입력 그룹 (디폴트는 None)
         'input_group': None,
-        # 2) 해당 패러미터의 특정 UI 입력 방법 (디폴트는 None)
+        # 2) input_method: 해당 패러미터의 특정 UI 입력 방법 (디폴트는 None)
         # 2.1) "password" : Stu에서 암호표시
         # 2.2) "fileread" : Stu에서 읽을 파일을 지정
         # 2.3) "filewrite" : Stu에서 쓸 파일을 지정
+        # 2.4) "folderread" : Stu에서 읽을 파일을 지정
+        # 2.5) "folderwrite" : Stu에서 쓸 파일을 지정
         'input_method': None,
+        # 3) display_name: Stu에서 보여줄 내용
+        'display_name': None,
+        # 4) show_default: 패러미터는 디폴트로 보이고 옵션은 'Advanced'로 보이는데
+        #                  이를 개별로 조종할 수 있도록 함
+        'show_default': False,
     }
     # argparse 에 더붙이는 자체 검증 모듈
     EXTENDED_ATTRS = {
@@ -198,6 +224,35 @@ class ModuleContext(ArgumentParser):
         return list(s)
 
     # ==========================================================================
+    # noinspection PyUnresolvedReferences,PyMethodMayBeStatic
+    def _get_module_name(self):
+        import __main__
+        abspath = os.path.dirname(os.path.abspath(__main__.__file__))
+        pkglist = []
+        abs_list = abspath.split(os.path.sep)
+        while True:
+            if len(abs_list) <= 1:
+                raise RuntimeError('Cannot find package (__init__.py)')
+            pkglist.append(abs_list[-1])
+            abs_list = abs_list[0:-1]
+            ppath = os.path.sep.join(abs_list)
+            if not os.path.exists(os.path.join(ppath, '__init__.py')):
+                break
+        pkglist.reverse()
+        return '.'.join(pkglist)
+
+    # ==========================================================================
+    # noinspection PyUnresolvedReferences,PyMethodMayBeStatic
+    def _get_init_mtime(self):
+        import __main__
+        md = os.path.dirname(os.path.abspath(__main__.__file__))
+        init_f = os.path.join(md, '__init__.py')
+        if not os.path.exists(init_f):
+            return None
+        mtime = os.path.getmtime(init_f)
+        return datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+
+    # ==========================================================================
     def __init__(self,
                  owner=None,
                  group=None,
@@ -228,6 +283,7 @@ class ModuleContext(ArgumentParser):
         self.icon_path = icon_path
         kwargs['add_help'] = False
         ArgumentParser.__init__(self, *args, **kwargs)
+        self.name = self._get_module_name()
         self._add_common_args()
         self._args = None
         self._isopened = False
@@ -250,7 +306,7 @@ class ModuleContext(ArgumentParser):
         _d = {
             'owner': self.owner,
             'group': self.group,
-            'prog': self.prog,
+            'name': self.name,
             'version': self.version,
             'description': self.description,
             'platform': self.platform,
@@ -296,7 +352,7 @@ class ModuleContext(ArgumentParser):
                           help='for status (default is stdout)')
         argc.add_argument('--logfile', nargs='?',
                           help='for log file to logging, default is %s.log '
-                               '(500K size, rotate 4)' % self.prog)
+                               '(500K size, rotate 4)' % self.name)
         argc.add_argument('--loglevel', nargs='?',
                           choices=['debug', 'info', 'warning',
                                    'error', 'critical'],
@@ -335,6 +391,29 @@ class ModuleContext(ArgumentParser):
         return icon.decode('ascii')
 
     # ==========================================================================
+    # noinspection PyUnresolvedReferences
+    @staticmethod
+    def _get_help():
+        import __main__
+        helpfile = '%s%s%s.help' % (gettempdir(), os.path.sep,
+                                    os.path.basename(__main__.__file__))
+        try:
+            cmd = [
+                sys.executable,
+                __main__.__file__,
+                '--help',
+                '--outfile', helpfile
+            ]
+            po = subprocess.Popen(cmd)
+            po.wait()
+            if os.path.exists(helpfile):
+                with open(helpfile) as ifp:
+                    return ifp.read()
+        finally:
+            if os.path.exists(helpfile):
+                os.remove(helpfile)
+
+    # ==========================================================================
     def _module_spec(self):
         common_names = (
             'help', 'infile', 'outfile', 'errfile', 'statfile', 'logfile',
@@ -344,10 +423,11 @@ class ModuleContext(ArgumentParser):
             # module accessed owner/name/
             'owner': self.owner,  # module owner
             'group': self.group,  # group name
-            'name': self.prog,
-            'plugin_version': get_pip_version(self.prog),
+            'name': self.name,
+            'plugin_version': get_pip_version(self.name),
+            'last_modify_datetime': self._get_init_mtime(),
             'version': self.version,  # module version
-            'sha256': get_file_hash(self.prog),
+            'sha256': None,
             'type': 'embeded-exe',
             'platform': self.platform,
             'description': self.description,
@@ -355,9 +435,10 @@ class ModuleContext(ArgumentParser):
             'parameters': [],
             'mutually_exclusive_group': [],
             'output_type': self.output_type,
-            'display_name': self.display_name if self.display_name else self.prog,
+            'display_name': self.display_name if self.display_name else self.name,
             'icon_path': self.icon_path,
-            'icon': self._get_icon(self.icon_path)
+            'icon': self._get_icon(self.icon_path),
+            'help': self._get_help(),
         }
         for a in self._actions:
             if isinstance(a, _HelpAction):
@@ -385,9 +466,15 @@ class ModuleContext(ArgumentParser):
             if a.dest in self._etc_argspec:
                 for ea, ev in self._etc_argspec[a.dest].items():
                     action_spec[ea] = ev
+            if 'display_name' not in action_spec:
+                action_spec['display_name'] = action_spec['name']
             if a.option_strings:
+                if 'show_default' not in action_spec:
+                    action_spec['show_default'] = False
                 mod_spec['options'].append(action_spec)
             else:
+                if 'show_default' not in action_spec:
+                    action_spec['show_default'] = True
                 mod_spec['parameters'].append(action_spec)
         # print("_mutually_exclusive_groups")
         for mg in self._mutually_exclusive_groups:
@@ -405,7 +492,7 @@ class ModuleContext(ArgumentParser):
                 else:
                     meg_spec['parameters'].append(ma.dest)
             mod_spec['mutually_exclusive_group'].append(meg_spec)
-
+        mod_spec['sha256'] = get_json_hash(mod_spec)
         return mod_spec
 
     # ==========================================================================
@@ -522,7 +609,7 @@ class ModuleContext(ArgumentParser):
             self._stderr = sys.stderr
         self._get_loglevel()
         if not self._args.logfile:
-            self._args.logfile = '%s.log' % self.prog
+            self._args.logfile = '%s.log' % self.name
         self.logger = get_logger(self._args.logfile, loglevel=self._loglevel)
         if self._args.verbose > 0:
             self._verbose = self._args.verbose
@@ -541,12 +628,6 @@ class ModuleContext(ArgumentParser):
             # noinspection PyTypeChecker
             self._stdout.write('%s' % ss)
             raise ArgsExit('generate yaml module spec')
-        # if self._args.unittest:
-        #     suite = unittest.TestLoader().
-        # loadTestsFromTestCase(self.test_class)
-        #     result = unittest.TextTestRunner(verbosity=2).run(suite)
-        #     ret = not result.wasSuccessful()
-        #     raise ArgsExit('unittest running: result is %s' % ret)
 
         self._isopened = True
         return self._isopened
@@ -643,7 +724,18 @@ def get_all_pip_version():
 
 
 ################################################################################
+# noinspection PyUnresolvedReferences
 def get_pip_version(modname):
+    # read setup.yaml from module directory
+    import __main__
+    setup_yaml = os.path.join(os.path.dirname(__main__.__file__), 'setup.yaml')
+    if os.path.exists(setup_yaml):
+        with open(setup_yaml) as ifp:
+            if yaml.__version__ >= '5.1':
+                yd = yaml_load(ifp, Loader=yaml.FullLoader)
+            else:
+                yd = yaml_load(ifp)
+            return yd.get('setup',{}).get('version', None)
     _d = get_all_pip_version()
     if modname not in _d:
         return None

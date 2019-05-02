@@ -30,5 +30,9 @@ obj
 venv
 Cache
 py.*
-dirty.txt
+_jb_unittest_runner.py.log
 *.log
+*.log.*
+dirty.txt
+apidoc
+Thumbs.db

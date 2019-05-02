@@ -18,6 +18,19 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/05/01]
+#     - 사용자 별 dumpspec 기능 추가
+#  * [2019/04/29]
+#     - plugin venv command 추가
+#     - plugin command 에서 버전 목록을 가장 최신 버전부터 소팅
+#  * [2019/04/24]
+#     - plugin commands 추가
+#  * [2019/04/22]
+#     - dumpspec.json 을 alabs.ppm build 에서 wheel을 만들기 전에 포함되도록
+#     - 이후 해당 dumpspec을 가져오는 것은
+#     pip download argoslabs.terminal.sshexp --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com --dest=C:\tmp\pkg --no-deps
+#     pip download argoslabs.demo.helloworld==1.327.1731 --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com --dest=C:\tmp\pkg --no-deps
+#     위의 명령어로 해당 패키지만 다운받아 unzip 하여 dumpspec.json 을 추출하여 특정 dumpspec.json 뽑도록
 #  * [2019/04/03]
 #     - check empty 'private-repositories'
 #  * [2019/03/27]
@@ -45,13 +58,23 @@ import sys
 import yaml
 import glob
 import copy
+import json
 import shutil
+import logging
+import zipfile
+import requests
 import argparse
 import datetime
+import tempfile
 import traceback
 import subprocess
+import requirements
+from urllib.parse import quote
 from alabs.common.util.vvjson import get_xpath
+from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvupdown import SimpleDownUpload
+from functools import cmp_to_key
+# from tempfile import gettempdir
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
@@ -61,7 +84,39 @@ else:
 
 
 ################################################################################
+CONF_NAME = '.argos-rpa.conf'
+CONF_PATH = os.path.join(str(Path.home()), CONF_NAME)
+LOG_NAME = '.argos-rpa.log'
+LOG_PATH = os.path.join(str(Path.home()), LOG_NAME)
+OUT_NAME = '.argos-rpa.out'
+OUT_PATH = os.path.join(str(Path.home()), OUT_NAME)
+ERR_NAME = '.argos-rpa.err'
+ERR_PATH = os.path.join(str(Path.home()), ERR_NAME)
+
+################################################################################
 __all__ = ['main']
+
+
+################################################################################
+def ver_compare(a, b):
+    a_eles = a.split('.')
+    b_eles = b.split('.')
+    max_len = max(len(a_eles), len(b_eles))
+    for i in range(max_len):
+        if i >= len(a_eles):
+            return 1
+        elif i >= len(b_eles):
+            return -1
+        if int(a_eles[i]) > int(b_eles[i]):
+            return 1
+        elif int(a_eles[i]) < int(b_eles[i]):
+            return -1
+    return 0
+
+
+################################################################################
+def version_compare(a, b):
+    return ver_compare(a['version'], b['version'])
 
 
 ################################################################################
@@ -77,21 +132,29 @@ class ArgumentParser(argparse.ArgumentParser):
 ################################################################################
 class VEnv(object):
     # ==========================================================================
-    def __init__(self, args, root='py.%s' % sys.platform):
+    def __init__(self, args, root='py.%s' % sys.platform, logger=None):
         self.args = args
         # home 폴더 아래에 py.win32, py.darwin, py.linux 처럼 만듦
-        self.root = os.path.join(str(Path.home()), root)
+        if os.path.basename(root) == root:  # basename만 왔을 경우 ~/ HOME 아래에
+            self.root = os.path.join(str(Path.home()), root)
+        else:
+            self.root = root
         self.use = args.venv
+        if logger is None:
+            logger = get_logger(LOG_PATH)
+        self.logger = logger
         # for internal
         self.py = None
         self.check_environments()
 
     # ==========================================================================
-    @staticmethod
-    def check_python():
-        if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
-            raise EnvironmentError('Python Version must greater then "3.3" '
-                                   'which support venv')
+    def check_python(self):
+        pyver = '%s.%s' % (sys.version_info.major, sys.version_info.minor)
+        if pyver < '3.3':
+            msg = 'Python Version must greater then "3.3" but "%s"' % pyver
+            self.logger.error(msg)
+            raise EnvironmentError(msg)
+        self.logger.debug('VEnv.check_python: python version is "%s"' % pyver)
         return 0
 
     # ==========================================================================
@@ -102,6 +165,7 @@ class VEnv(object):
     def clear(self):
         if os.path.isdir(self.root):
             shutil.rmtree(self.root)
+        self.logger.debug('VEnv.clear: "%s" is removed' % self.root)
         return 0
 
     # ==========================================================================
@@ -111,7 +175,7 @@ class VEnv(object):
         if os.path.isdir(self.root) and isdelete:
             shutil.rmtree(self.root)
 
-        print("Now making venv %s ..." % self.root)
+        self.logger.info("Now making venv %s ..." % self.root)
         cmd = [
             '"%s"' % os.path.abspath(sys.executable),
             '-m',
@@ -119,15 +183,18 @@ class VEnv(object):
             self.root
         ]
         # python -m venv ... 명령은 shell 에서 해야 정상 동작함
-        po = subprocess.Popen(' '.join(cmd), shell=True,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        sys.stdout.write('%s\n' % po.stdout.read().decode('utf8'))
-        sys.stderr.write('%s\n' % po.stderr.read().decode('utf8'))
-        po.wait()
+        with open(OUT_PATH, 'w', encoding='utf-8') as out_fp, \
+                open(ERR_PATH, 'w', encoding='utf-8') as err_fp:
+            po = subprocess.Popen(' '.join(cmd), shell=True,
+                                  stdout=out_fp, stderr=err_fp)
+            po.wait()
+
         if po.returncode != 0:
-            raise RuntimeError('making venv %s: error %s'
-                               % (' '.join(cmd), po.returncode))
-        print("making venv %s success!" % self.root)
+            msg = 'VEnv.make_venv: making venv %s: error %s' % \
+                  (' '.join(cmd), po.returncode)
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+        self.logger.info("making venv %s success!" % self.root)
         return self.venv_pip('install', '--upgrade', 'pip')
 
     # ==========================================================================
@@ -135,18 +202,22 @@ class VEnv(object):
         if not self.use:
             py = os.path.abspath(sys.executable)
             self.py = py
+            self.logger.debug('VEnv.check_venv: use=%s, py=%s' % (self.use, self.py))
             return py
 
         if not os.path.isdir(self.root):
             self.make_venv()
         if sys.platform == 'win32':
-            py = os.path.abspath(os.path.join(self.root,
-                                              'Scripts', 'python.exe'))
+            py = os.path.abspath(os.path.join(self.root, 'Scripts', 'python.exe'))
         else:
             py = os.path.abspath(os.path.join(self.root, 'bin', 'python'))
         if not os.path.exists(py):
-            raise RuntimeError('Cannot find python "%s"' % py)
+            msg = 'VEnv.check_venv: Cannot find python "%s"' % py
+            self.logger.error(msg)
+            raise RuntimeError(msg)
         self.py = py
+        self.logger.debug(
+            'VEnv.check_venv: use=%s, py=%s' % (self.use, self.py))
         return py
 
     # ==========================================================================
@@ -155,36 +226,61 @@ class VEnv(object):
 
     # ==========================================================================
     def venv_py(self, *args, **kwargs):
-        raise_error = False
-        if 'raise_error' in kwargs:
-            raise_error = bool(kwargs['raise_error'])
-        getstdout = False
-        if 'getstdout' in kwargs:
-            getstdout = bool(kwargs['getstdout'])
-        cmd = [
-            self.get_venv(),
-        ]
-        cmd += args
-        if self.args.verbose >= 2:
-            print('%s venv_py cmd="%s"' % ('*'*50, ' '.join(cmd)))
-        # Windows의 python.exe -m 등의 명령어가 shell 모드에서 정상 동작함
-        if not getstdout:
-            po = subprocess.Popen(' '.join(cmd), shell=True)
-            po.wait()
-        else:
-            po = subprocess.Popen(' '.join(cmd), shell=True,
-                                  stdout=subprocess.PIPE)
-            if sys.platform == 'win32':
-                print(po.stdout.read().decode('cp949'))
-            else:
-                print(po.stdout.read().decode('utf-8'))
-            po.wait()
-        if po.returncode != 0 and raise_error:
-            raise RuntimeError('venv command "%s": error %s'
-                               % (' '.join(cmd), po.returncode))
-        if self.args.verbose >= 1:
-            print('%s venv_py return %s' % ('*'*50, po.returncode))
-        return po.returncode
+        tmpdir = None
+        try:
+            if 'raise_error' not in kwargs:
+                kwargs['raise_error'] = False
+            if 'getstdout' not in kwargs:
+                kwargs['getstdout'] = False
+            if 'outfile' not in kwargs:
+                kwargs['outfile'] = None
+            cmd = [
+                self.get_venv(),
+            ]
+            cmd += args
+            self.logger.debug('VEnv.venv_py: cmd="%s"' % ' '.join(cmd))
+            # Windows의 python.exe -m 등의 명령어가 shell 모드에서 정상 동작함
+
+            tmpdir = tempfile.mkdtemp(prefix='venv_py_')
+            out_path = os.path.join(tmpdir, 'stdout.txt')
+            err_path = os.path.join(tmpdir, 'stderr.txt')
+
+            with open(out_path, 'w', encoding='utf-8') as out_fp, \
+                    open(err_path, 'w', encoding='utf-8') as err_fp:
+
+                po = subprocess.Popen(' '.join(cmd), shell=True,
+                                      stdout=out_fp, stderr=err_fp)
+                po.wait()
+
+            if kwargs['outfile']:
+                shutil.copy2(out_path, kwargs['outfile'])
+            if kwargs['getstdout']:
+                with open(out_path) as ifp:
+                    print(ifp.read())
+
+            with open(out_path) as ifp:
+                try:
+                    out = ifp.read().encode('utf-8')
+                except UnicodeDecodeError as e:
+                    out = ifp.read().encode(e.encoding)
+                if out:
+                    self.logger.debug('VEnv.venv_py: stdout=<%s>' % out.decode('utf-8'))
+            with open(err_path) as ifp:
+                try:
+                    err = ifp.read().encode('utf-8')
+                except UnicodeDecodeError as e:
+                    err = ifp.read().encode(e.encoding)
+                if err:
+                    self.logger.debug('VEnv.venv_py: stderr=<%s>' % err.decode('utf-8'))
+            if po.returncode != 0 and kwargs['raise_error']:
+                msg = 'VEnv.venv_py: venv command "%s": error %s' % (' '.join(cmd), po.returncode)
+                self.logger.error(msg)
+                raise RuntimeError(msg)
+            self.logger.debug('VEnv.venv_py: returncode="%s"' % po.returncode)
+            return po.returncode
+        finally:
+            if tmpdir and os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
 
     # ==========================================================================
     def venv_pip(self, *args, **kwargs):
@@ -213,12 +309,17 @@ class PPM(object):
         'Build :: Date :: %s' %
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
+    DUMPSPEC_JSON = 'dumpspec.json'
+    EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common')
 
     # ==========================================================================
-    def __init__(self, venv, args, config):
+    def __init__(self, venv, args, config, logger=None):
         self.venv = venv
         self.args = args
         self.config = config    # .argos-rpa.conf (yaml)
+        if logger is None:
+            logger = get_logger(LOG_PATH)
+        self.logger = logger
         # for internal
         self.pkgname = None
         self.pkgpath = None
@@ -241,7 +342,7 @@ class PPM(object):
         abs_list = abspath.split(os.path.sep)
         while True:
             if len(abs_list) <= 1:
-                raise RuntimeError('Cannot find package (__init__.py)')
+                raise RuntimeError('PPM._get_pkgname: Cannot find package (__init__.py)')
             pkglist.append(abs_list[-1])
             abs_list = abs_list[0:-1]
             ppath = os.path.sep.join(abs_list)
@@ -257,9 +358,9 @@ class PPM(object):
     def _check_pkg(self):
         self.pkgname = self._get_pkgname()
         self.pkgpath = self.pkgname.replace('.', os.path.sep)
+
         if self.args.venv and not os.path.exists(self.pkgpath):
-            raise RuntimeError('Cannot find package path for "%s"'
-                               % self.pkgpath)
+            raise RuntimeError('PPM._check_pkg: Cannot find package path for "%s"' % self.pkgpath)
         if self.args.new_py:
             self.venv.make_venv()
         else:
@@ -311,12 +412,14 @@ class PPM(object):
     def _get_setup_config(self):
         yamlpath = os.path.join(self.pkgpath, 'setup.yaml')
         if not os.path.exists(yamlpath):
-            raise IOError('Cannot find "%s" for setup' % yamlpath)
+            raise IOError('PPM._get_setup_config: Cannot find "%s" for setup' % yamlpath)
         with open(yamlpath) as ifp:
-            yaml_config = yaml.load(ifp)
+            if yaml.__version__ >= '5.1':
+                yaml_config = yaml.load(ifp, Loader=yaml.FullLoader)
+            else:
+                yaml_config = yaml.load(ifp)
             if 'setup' not in yaml_config:
-                raise RuntimeError('"setup" attribute must be '
-                                   'exists in setup.yaml')
+                raise RuntimeError('PPM._get_setup_config: "setup" attribute must be exists in setup.yaml')
             self.setup_config = yaml_config['setup']
 
     # ==========================================================================
@@ -325,7 +428,7 @@ class PPM(object):
         self.ndx_param = []
         url = get_xpath(self.config, '/repository/url')
         if not url:
-            raise RuntimeError('Invalid repository.url from .argos-rpa.conf')
+            raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % CONF_NAME)
         self.indices.append(url)
         self.ndx_param.append('--index')
         self.ndx_param.append(url)
@@ -345,6 +448,8 @@ class PPM(object):
             self.ndx_param.append(url)
             self.ndx_param.append('--trusted-host')
             self.ndx_param.append(self._get_host_from_index(url))
+        self.logger.debug('PPM._get_indices: indices=%s, ndx_param=%s' %
+                          (self.indices, self.ndx_param))
         return self.indices
 
     # ==========================================================================
@@ -353,23 +458,438 @@ class PPM(object):
         return urlparse(url).netloc.split(':')[0]
 
     # ==========================================================================
+    def _dumpspec(self):
+        _ = self._install_requirements()
+        dumpspec_file = os.path.join(self.pkgpath, self.DUMPSPEC_JSON)
+        self.venv.venv_py('-m',
+                          self.pkgname, '--dumpspec',
+                          '--outfile', dumpspec_file,
+                          getstdout=True)
+
+    # ==========================================================================
+    def _list_modules(self, startswith='argoslabs.',
+                      official_only=False, private_only=False):
+        modlist = list()
+        for pkg in self.LIST_PKGS:
+            # self.venv.venv_pip('install', pkg, *self.ndx_param)
+            self.venv.venv_pip('install', pkg)
+        import urllib.request
+        import urllib.parse
+        # noinspection PyUnresolvedReferences,PyPackageRequirements
+        from bs4 import BeautifulSoup
+        for i, url in enumerate(self.indices):
+            if i == 0 and private_only:
+                continue
+            if i > 0 and official_only:
+                break
+            web_url = url + '/packages/'
+            with urllib.request.urlopen(web_url) as response:
+                html = response.read()
+                soup = BeautifulSoup(html, 'html.parser')
+            for x in soup.find_all('a'):
+                # pprint(x.text)
+                if startswith and not x.text.startswith(startswith):
+                    continue
+                is_exclude = False
+                for exc_pkg in self.EXCLUDE_PKGS:
+                    if x.text.startswith(exc_pkg):
+                        is_exclude = True
+                        break
+                if is_exclude:
+                    continue
+                if x.text not in modlist:
+                    modlist.append(x.text)
+        modlist.sort()
+        return modlist
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _dumpspec_json_clear_cache(self):
+        tmpdir = tempfile.gettempdir()
+        glob_filter = '%s%sdumpspec-*.json' % (tmpdir, os.path.sep)
+        for f in glob.glob(glob_filter):
+            os.remove(f)
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _dumpspec_json_save(self, modname, version, jd):
+        tmpdir = tempfile.gettempdir()
+        jsfile = '%s%sdumpspec-%s-%s.json' % (tmpdir, os.path.sep, modname, version)
+        if os.path.exists(jsfile):
+            return False
+        with open(jsfile, 'w') as ofp:
+            json.dump(jd, ofp)
+        self.logger.debug('PPM._dumpspec_json_save: save dumpspec cache "%s"' % jsfile)
+        return True
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _dumpspec_json_load(self, modname, version):
+        tmpdir = tempfile.gettempdir()
+        jsfile = '%s%sdumpspec-%s-%s.json' % (tmpdir, os.path.sep, modname, version)
+        if not os.path.exists(jsfile):
+            return None
+        with open(jsfile) as ifp:
+            r = json.load(ifp)
+        self.logger.debug('PPM._dumpspec_json_load: load dumpspec from "%s"' % jsfile)
+        return r
+
+    # ==========================================================================
+    def _dumpspec_json(self, modname, version=None):
+        # pip download argoslabs.demo.helloworld==1.327.1731
+        # --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com
+        # --dest=C:\tmp\pkg --no-deps
+        tmpdir = tempfile.gettempdir()
+        mname = modname
+        if version:
+            mname = '%s==%s' % (modname, version)
+            jd = self._dumpspec_json_load(modname, version)
+            if jd:
+                return jd
+        glob_filter = '%s%s%s-*.whl' % (tmpdir, os.path.sep, modname)
+        for f in glob.glob(glob_filter):
+            os.remove(f)
+        self.venv.venv_pip('download', mname,
+                           '--dest', tmpdir,
+                           '--no-deps',
+                           *self.ndx_param)
+        mfilename = None
+        for f in glob.glob(glob_filter):
+            mfilename = f
+            break
+        if not mfilename:
+            raise RuntimeError('PPM._dumpspec_json: Cannot get plugin wheel file "%s"' % mfilename)
+        eles = os.path.basename(mfilename).split('-')
+        jd = self._dumpspec_json_load(eles[0], eles[1])
+        if jd:
+            return jd
+        with zipfile.ZipFile(mfilename) as zf:
+            dsj = modname.replace('.', '/') + '%s%s' % ('/', self.DUMPSPEC_JSON)
+            with zf.open(dsj) as jfp:
+                jd = json.load(jfp)
+                self.logger.debug('PPM._dumpspec_json: get dumpspec.json from "%s"' % mfilename)
+                self._dumpspec_json_save(eles[0], eles[1], jd)
+                return jd
+
+    # ==========================================================================
+    def _dumpspec_user(self, ofp):
+        #  curl -X GET --header 'Accept: application/json' 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/seonme%40vivans.net/plugins'
+        url = 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/%s/plugins' \
+              % quote(self.args.user)
+        headers = {
+            #'Content-Type': 'application/json; charset=utf-8',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'
+            # 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
+        }
+        r = requests.get(url, headers=headers, verify=False)
+        if r.status_code // 10 != 20:
+            raise RuntimeError('PPM._dumpspec_user: API Error!')
+        md = json.loads(r.data)
+        print(md)
+
+    # ==========================================================================
+    def _get_venv(self, new_d):
+        self.args.venv = True
+        new_venv = VEnv(self.args, root=new_d, logger=self.logger)
+        new_venv.check_venv()
+        if self.args.requirements_txt:
+            requirements_txt = self.args.requirements_txt
+        else:
+            tmpdir = tempfile.mkdtemp(prefix='requirements_')
+            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(requirements_txt, 'w') as ofp:
+                ofp.write('# pip dependent packages\n')
+                for pm in self.args.plugin_module:
+                    ofp.write('%s\n' % pm)
+        r = new_venv.venv_pip('install', '-r', requirements_txt,
+                              *self.ndx_param)
+        if r == 0:
+            outfile = os.path.join(new_d, 'freeze.txt')
+            new_venv.venv_pip('freeze', outfile=outfile)
+            freeze_d = {}
+            with open(outfile) as ifp:
+                for line in ifp:
+                    eles = line.rstrip().split('==')
+                    if len(eles) != 2:
+                        raise RuntimeError('PPM._get_venv: freeze must module==version but "%s"' % line.rstrip())
+                    freeze_d[eles[0].strip().lower()] = eles[1].strip()
+            if os.path.exists(outfile):
+                os.remove(outfile)
+            freeze_f = os.path.join(new_d, 'freeze.json')
+            with open(freeze_f, 'w') as ofp:
+                json.dump(freeze_d, ofp)
+        return True
+
+    # ==========================================================================
+    def _get_modspec(self):
+        """
+docopt == 0.6.1             # Version Matching. Must be version 0.6.1
+keyring >= 4.1.1            # Minimum version 4.1.1
+coverage != 3.5             # Version Exclusion. Anything except version 3.5
+Mopidy-Dirble ~= 1.1        # Compatible release. Same as >= 1.1, == 1.*
+SomeProject
+SomeProject == 1.3
+SomeProject >=1.2,<2.0
+SomeProject[foo, bar]
+SomeProject~=1.4.2
+
+Django [('>=', '1.11'), ('<', '1.12')]
+six [('==', '1.10.0')]
+        """
+        modspec = {}
+        if self.args.requirements_txt:
+            requirements_txt = self.args.requirements_txt
+        else:
+            tmpdir = tempfile.mkdtemp(prefix='requirements_')
+            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(requirements_txt, 'w') as ofp:
+                ofp.write('# pip dependent packages\n')
+                for pm in self.args.plugin_module:
+                    ofp.write('%s\n' % pm)
+        with open(requirements_txt) as ifp:
+            for req in requirements.parse(ifp):
+                modspec[req.name.lower()] = req.specs
+        return modspec
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _is_conflict(self, freeze_d, modspec):
+        for modname, speclist in modspec.items():
+            if modname not in freeze_d:
+                continue
+            for op, ver in speclist:
+                cmp = ver_compare(freeze_d[modname], ver)
+                if op == '==':
+                    if cmp != 0:
+                        return True
+                elif op == '>':
+                    if cmp <= 0:
+                        return True
+                elif op == '>=':
+                    if cmp < 0:
+                        return True
+                elif op == '<':
+                    if cmp >= 0:
+                        return True
+                elif op == '<=':
+                    if cmp > 0:
+                        return True
+                elif op == '~=':  # '>=' and '=='
+                    f_v = '.'.join(freeze_d[modname].split('.')[:-1])
+                    s_v = '.'.join(ver.split('.')[:-1])
+                    cmp = ver_compare(f_v, s_v)
+                    if cmp < 0:
+                        return True
+        return False
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _count_satisfy(self, freeze_d, modspec):
+        match_cnt = 0
+        for modname, speclist in modspec.items():
+            if modname not in freeze_d:
+                continue
+            if not speclist:
+                # 만약 모듈이름만 나왔다면 무조건 하나 매칭된다고 가정하자
+                match_cnt += 1
+            for op, ver in speclist:
+                cmp = ver_compare(freeze_d[modname], ver)
+                if op == '==':
+                    if cmp == 0:
+                        match_cnt += 1
+                elif op == '>':
+                    if cmp > 0:
+                        match_cnt += 1
+                elif op == '>=':
+                    if cmp >= 0:
+                        match_cnt += 1
+                elif op == '<':
+                    if cmp < 0:
+                        match_cnt += 1
+                elif op == '<=':
+                    if cmp <= 0:
+                        match_cnt += 1
+                elif op == '~=':  # '>=' and '=='
+                    f_v = '.'.join(freeze_d[modname].split('.')[:-1])
+                    s_v = '.'.join(ver.split('.')[:-1])
+                    cmp = ver_compare(f_v, s_v)
+                    if cmp >= 0:
+                        match_cnt += 1
+        return match_cnt
+
+    # ==========================================================================
+    def do_plugin(self):
+        ofp = sys.stdout
+        modd = {}
+        dsd = {}
+        tmpdir = None
+        try:
+            self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
+            ####################################################################
+            # PAM용 환경설정 만들기
+            ####################################################################
+            if self.args.plugin_cmd == 'venv':
+                r = -1
+                if not (self.args.plugin_module or self.args.requirements_txt):
+                    raise RuntimeError('PPM.do_plugin: plugin-modules parameters or --requirements-txt option must be specifiyed.')
+                if self.args.requirements_txt and not os.path.exists(self.args.requirements_txt):
+                    raise RuntimeError('PPM.do_plugin: --requirements-txt "%s" file does not exists.' % self.args.requirements_txt)
+                # ~/.argos-rpa.venv/ 폴더 안에 YYYMMDD-HHMMSS 로 가상환경을 만듦
+                venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
+                if not os.path.exists(venv_d):
+                    os.makedirs(venv_d)
+                modspec = self._get_modspec()
+                get_venv = None
+                glob_f = os.path.join(venv_d, '**', 'freeze.json')
+                match_list = list()
+                for f in glob.glob(glob_f):
+                    with open(f) as ifp:
+                        freeze_d = json.load(ifp)
+                    if self._is_conflict(freeze_d, modspec):
+                        continue
+                    match_cnt = self._count_satisfy(freeze_d, modspec)
+                    get_venv = os.path.dirname(os.path.abspath(f))
+                    match_list.append((match_cnt, get_venv))
+                # 설치가능한 venv가 발견되지 않았다면, 새로 만듦
+                if not match_list:
+                    now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+                    get_venv = os.path.join(venv_d, now)
+                else:  # 아니면 가장 많이 매칭된 것을 찾아 이용
+                    match_list.sort(key=lambda x: x[0])
+                    get_venv = match_list[-1][1]
+                self._get_venv(get_venv)
+                print(get_venv)
+                return 0
+            # 나머지는 CHIEF, STU용
+            # 우선은 pypi 서버에서 해당 모듈 목록을 구해와서
+            # 해당 모듈(wheel)만 다운로드하여 포함되어 있는 dumpspec.json을
+            # 가져오는데 tempdir에 dumpspec-modulename-version.json 식으로 캐슁
+            if self.args.outfile:
+                ofp = open(self.args.outfile, 'w', encoding='utf-8')
+            if self.args.flush_cache:
+                self._dumpspec_json_clear_cache()
+            modlist = self._list_modules(startswith=self.args.startswith,
+                                         official_only=self.args.official_only,
+                                         private_only=self.args.private_only)
+            for mod in modlist:
+                eles = mod.rstrip('.whl').split('-')
+                if len(eles) not in (5,):
+                    raise RuntimeError('PPM.do_plugin: Invalid format for wheel file "%s"' % mod)
+                ved = {
+                    'version': eles[1],
+                    'python-tag': eles[2],
+                    'abi-tag': eles[3],
+                    'flatform-tag': eles[4],
+                }
+                dsj = self._dumpspec_json(eles[0], eles[1])
+                if eles[0] not in dsd:
+                    dsd[eles[0]] = dsj
+                else:
+                    # 가장 최후 버전을 가지고 있음
+                    if dsj['plugin_version'] > dsd[eles[0]]['plugin_version']:
+                        dsd[eles[0]] = dsj
+                ved['display_name'] = dsj.get('display_name')
+                ved['description'] = dsj.get('description')
+                ved['owner'] = dsj.get('owner')
+                ved['group'] = dsj.get('group')
+                ved['platform'] = dsj.get('platform')
+                ved['last_modify_datetime'] = dsj.get('last_modify_datetime')
+                ved['icon'] = dsj.get('icon')
+                ved['sha256'] = dsj.get('sha256')
+                if eles[0] not in modd:
+                    modd[eles[0]] = [ved]
+                else:
+                    b_found = False
+                    for ve in modd[eles[0]]:
+                        if ve['version'] == eles[1]:
+                            b_found = True
+                            break
+                    if not b_found:
+                        modd[eles[0]].append(ved)
+            # modd 에 있는 ved 목록에 대하여 내림차순 정렬
+            # cmp_items_py3 = cmp_to_key(version_compare)
+            for k, v in modd.items():
+                if len(v) <= 1:
+                    continue
+                modd[k] = sorted(v, key=cmp_to_key(version_compare), reverse=True)
+            pilist = self.args.plugin_module
+            if not pilist:
+                modod = modd
+            else:
+                modod = {}
+                for mod in pilist:
+                    if mod in modd:
+                        modod[mod] = modd[mod]
+            ####################################################################
+            # --user 옵션을 안주면 CHIEF에서 모든 플러그인 가져오기
+            # 예) alabs.ppm plugin get --official-only --outfile get-all.json
+            # --user 옵션을 주면 STU에서 해당 로그인 사용자의 플러그인 가져오기
+            # 예) alabs.ppm plugin get --user a@b.c.d --official-only --outfile get-user.json
+            # --official-only 는 공식사이트, --private-only는 자신의 private 만 (~/.argos-rpa.conf 에서)
+            # 예) alabs.ppm plugin get --user a@b.c.d --private-only --outfile get-user-private.json
+            ####################################################################
+            if self.args.plugin_cmd == 'get':
+                if not self.args.short_output:
+                    json.dump(modod, ofp)
+                else:
+                    for mod in sorted([x for x in modod.keys()]):
+                        for ved in modod[mod]:
+                            ofp.write(
+                                '%s,%s%s' % (mod, ved['version'], os.linesep))
+            ####################################################################
+            # --user 옵션을 안주면 CHIEF/STU에서 모든 플러그인 dumpspec 가져오기
+            # 예) alabs.ppm plugin dumpspec --official-only --outfile dumpspec.json
+            # --user 옵션을 주면 STU에서 해당 로그인 사용자의 플러그인 가져오기
+            # 예) alabs.ppm plugin dumpspec --user a@b.c.d --official-only --outfile dumpspec.json
+            # --official-only 는 공식사이트, --private-only는 자신의 private 만 (~/.argos-rpa.conf 에서)
+            # 예) alabs.ppm plugin dumpspec --private-only --outfile dumpspec.json
+            ####################################################################
+            elif self.args.plugin_cmd == 'dumpspec':
+                if self.args.user:
+                    return self._dumpspec_user(ofp)
+                dsout = {}
+                for mod in sorted([x for x in modod.keys()]):
+                    dsout[mod] = dsd[mod]
+                json.dump(dsout, ofp)
+            return 0
+        finally:
+            if self.args.outfile:
+                ofp.close()
+            if tmpdir and os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+            self.logger.info('PPM.do_plugin: end. %s' % self.args.plugin_cmd)
+
+    # ==========================================================================
     def do(self):
         try:
+            self.logger.info('PPM.do: starting... %s' % self.args.command)
             if hasattr(self.args, 'subargs'):
                 subargs = self._check_subargs(self.args.subargs)
             else:
                 subargs = []
             self._get_indices()
             # first do actions which do not need virtualenv
+            ####################################################################
             # get commond
+            ####################################################################
             if self.args.command == 'get':
-                if self.args.get_config == 'repository':
+                if self.args.get_cmd == 'repository':
                     print(self.indices[0])
-                elif self.args.get_config == 'trusted-host':
+                elif self.args.get_cmd == 'trusted-host':
                     print(self._get_host_from_index(self.indices[0]))
                 return 0
-            print('start %s ...' % self.args.command)
+            # print('start %s ...' % self.args.command)
+
+            ####################################################################
+            # plugin commond
+            ####################################################################
+            if self.args.command == 'plugin':
+                return self.do_plugin()
+
+            ####################################################################
             # pip commond
+            ####################################################################
             if self.args.command == 'install':
                 subargs.insert(0, 'install')
                 subargs.extend(self.ndx_param)
@@ -383,6 +903,7 @@ class PPM(object):
                 subargs.insert(0, 'uninstall')
                 return self.venv.venv_pip(*subargs)
             elif self.args.command == 'search':
+                r = 1
                 for ndx in self.indices:
                     sargs = copy.copy(subargs)
                     sargs.insert(0, 'search')
@@ -396,14 +917,20 @@ class PPM(object):
             elif self.args.command == 'list':
                 return self.venv.venv_pip('list', getstdout=True)
 
+            ####################################################################
             # 만약 clear* 명령이면 venv를 강제로 true 시킴
+            ####################################################################
             if self.args.command in ('clear', 'clear-py',
-                                     'clear-all', 'dumpspec', 'submit') \
+                                     'clear-all', 'dumpspec', 'submit',
+                                     'list-repository') \
                     and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
             self._get_setup_config()
+
+            ####################################################################
             # ppm functions
+            ####################################################################
             if self.args.command == 'clear':
                 return self._clear()
             elif self.args.command == 'clear-py':
@@ -414,24 +941,29 @@ class PPM(object):
             elif self.args.command == 'dumpspec':
                 pass
             elif self.args.command == 'test':
-                return self.setup('test')
+                r = self.setup('test')
+                print('test is done. success is %s' % (r == 0,))
+                return r
             elif self.args.command == 'build':
                 for pkg in self.BUILD_PKGS:
-                    self.venv.venv_pip('install', pkg, *self.ndx_param)
-                return self.setup('bdist_wheel')
+                    self.venv.venv_pip('install', pkg, *self.ndx_param, getstdout=True)
+                self._dumpspec()
+                r = self.setup('bdist_wheel')
+                print('build is done. success is %s' % (r == 0,))
+                return r
             elif self.args.command == 'submit':
                 zf = None
                 try:
                     current_wd = os.path.abspath(getattr(self.args, '_cwd_'))
                     parent_wd = os.path.abspath(os.path.join(getattr(self.args, '_cwd_'), '..'))
                     if not os.path.exists(parent_wd):
-                        raise RuntimeError('Cannot access parent monitor')
+                        raise RuntimeError('PPM.do: Cannot access parent monitor')
                     zf = os.path.join(parent_wd, '%s.zip' % self.pkgname)
                     shutil.make_archive(zf[:-4], 'zip',
                                         root_dir=os.path.dirname(current_wd),
                                         base_dir=os.path.basename(current_wd))
                     if not os.path.exists(zf):
-                        raise RuntimeError('Cannot build zip file "%s" to submit' % zf)
+                        raise RuntimeError('PPM.do: Cannot build zip file "%s" to submit' % zf)
                     sdu = SimpleDownUpload(host=self.ndx_param[3], token=SimpleDownUpload.static_token)
                     sfl = list()
                     sfl.append(self.pkgname)
@@ -440,8 +972,9 @@ class PPM(object):
                     sfl.append(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
                     r = sdu.upload(zf, saved_filename='%s.zip' % ' '.join(sfl))
                     if not r:
-                        raise RuntimeError('Cannot upload "%s"' % zf)
+                        raise RuntimeError('PPM.do: Cannot upload "%s"' % zf)
                     print('Succesfully submitted "%s"' % zf)
+                    print('submit is done. success is True')
                     return 0
                 finally:
                     if zf and os.path.exists(zf):
@@ -452,8 +985,8 @@ class PPM(object):
 
                 pri_reps = get_xpath(self.config, '/private-repositories')
                 if not pri_reps:
-                    raise RuntimeError('Private repository (private-repositories) '
-                                       'is not set at .argos-rpa.conf,')
+                    raise RuntimeError('PPM.do: Private repository (private-repositories) '
+                                       'is not set at %s' % CONF_NAME)
                 pri_rep = None
                 if not self.args.repository_name:
                     pri_rep = pri_reps[0]
@@ -463,31 +996,33 @@ class PPM(object):
                             pri_rep = pr
                             break
                 if not pri_reps:
-                    raise RuntimeError('Private repository "%s" is not exists '
-                                       'at .argos-rpa.conf,' % self.args.repository_name)
+                    raise RuntimeError('PPM.do: Private repository "%s" is not exists at %s'
+                                       % (self.args.repository_name, CONF_NAME))
 
                 pr_url = pri_rep.get('url')
                 pr_user = pri_rep.get('username')
                 pr_pass = pri_rep.get('password')
                 if not pr_url:
-                    raise RuntimeError('url of private repository is not set, please '
-                                       'check private-repositories at .argos-rpa.conf')
+                    raise RuntimeError('PPM.do: url of private repository is not set, please '
+                                       'check private-repositories at %s' % CONF_NAME)
                 if not pr_user:
-                    raise RuntimeError('username of private repository is not set, please '
-                                       'check private-repositories at .argos-rpa.conf')
+                    raise RuntimeError('PPM.do: username of private repository is not set, please '
+                                       'check private-repositories at %s' % CONF_NAME)
                 if not pr_pass:
-                    raise RuntimeError('password of private repository is not set, please '
-                                       'check private-repositories at .argos-rpa.conf')
+                    raise RuntimeError('PPM.do: password of private repository is not set, please '
+                                       'check private-repositories at %s' % CONF_NAME)
                 gl = glob.glob('dist/%s*.whl' % self.pkgname)
                 if not gl:
-                    raise RuntimeError('Cannot find wheel package file at "%s",'
+                    raise RuntimeError('PPM.do: Cannot find wheel package file at "%s",'
                                        ' please build first' %
                                        os.path.join(self.basepath, 'dist'))
-                return self.venv.venv_py('-m', 'twine', 'upload', 'dist/*',
-                                         '--repository-url', pr_url,
-                                         '--username', pr_user,
-                                         '--password', pr_pass,
-                                         stdout=True)
+                r = self.venv.venv_py('-m', 'twine', 'upload', 'dist/*',
+                                      '--repository-url', pr_url,
+                                      '--username', pr_user,
+                                      '--password', pr_pass,
+                                      stdout=True)
+                print('upload is done. success is %s' % (r == 0,))
+                return r
 
             # direct command for (pip, python, python setup.py)
             if self.args.command == 'pip':
@@ -497,29 +1032,29 @@ class PPM(object):
             elif self.args.command == 'setup':
                 return self.setup(*subargs)
             elif self.args.command == 'list-repository':
-                for pkg in self.LIST_PKGS:
-                    self.venv.venv_pip('install', pkg, *self.ndx_param)
-                import urllib.request
-                import urllib.parse
-                # noinspection PyUnresolvedReferences,PyPackageRequirements
-                from bs4 import BeautifulSoup
-                from pprint import pprint
-
-                web_url = self.args.repository + '/packages/'
-                with urllib.request.urlopen(web_url) as response:
-                    html = response.read()
-                    soup = BeautifulSoup(html, 'html.parser')
-                for x in soup.find_all('a'):
-                    pprint(x.text)
-                return 0
+                # noinspection PyTypeChecker
+                modlist = self._list_modules(startswith=None,
+                                             official_only=False,
+                                             private_only=False)
+                for mod in modlist:
+                    print(mod)
+                return 0 if bool(modlist) else 1
             else:
-                raise RuntimeError('Cannot support command "%s"'
+                raise RuntimeError('PPM.do: Cannot support command "%s"'
                                    % self.args.command)
+        except Exception as err:
+            _exc_info = sys.exc_info()
+            _out = traceback.format_exception(*_exc_info)
+            del _exc_info
+            self.logger.error(''.join(_out))
+            self.logger.error(str(err))
+            raise
         finally:
             if self.args.clean:
                 self._clear()
-            if self.args.command != 'get':
-                print('done.')
+            # if self.args.command != 'get':
+            #     print('done.')
+            self.logger.info('PPM.do: end. %s' % self.args.command)
 
     # ==========================================================================
     def append_pkg_history(self, pkghistory):
@@ -532,20 +1067,27 @@ class PPM(object):
                 pkghistory.append(d)
 
     # ==========================================================================
-    def setup(self, *args):
-        supath = 'setup.py'
-        keywords = self.setup_config.get('keywords', [])
-        for kw in self.pkgname.split('.'):
-            if kw not in keywords:
-                keywords.append(kw)
+    def _install_requirements(self):
         requirements_txt = os.path.join(self.pkgpath, 'requirements.txt')
         if not os.path.exists(requirements_txt):
             with open(requirements_txt, 'w') as ofp:
                 ofp.write('# pip dependent packages\n')
         r = self.venv.venv_pip('install', '-r', requirements_txt,
-                               *self.ndx_param)
+                               *self.ndx_param, getstdout=True)
         if r != 0:
-            raise RuntimeError('Error in installing "%s"' % requirements_txt)
+            raise RuntimeError('PPM._install_requirements: Error in installing "%s"' % requirements_txt)
+        return requirements_txt
+
+    # ==========================================================================
+    def setup(self, *args):
+        self.logger.info('PPM.setup: starting...')
+        supath = 'setup.py'
+        keywords = self.setup_config.get('keywords', [])
+        for kw in self.pkgname.split('.'):
+            if kw not in keywords:
+                keywords.append(kw)
+        requirements_txt = self._install_requirements()
+
         pkghistory = []
         eles = self.pkgname.split('.')
         for i in range(len(eles)):
@@ -560,8 +1102,13 @@ class PPM(object):
         self.append_pkg_history(pkghistory)
         if sys.platform == 'win32':
             requirements_txt = requirements_txt.replace('\\', '\\\\')
+        # for package_data
+        package_data = self.setup_config.get('package_data',
+                                             "{%s: ['icon.*']}" % self.pkgname)
+        if self.DUMPSPEC_JSON not in package_data[self.pkgname]:
+            package_data[self.pkgname].append(self.DUMPSPEC_JSON)
         with open(supath, 'w') as ofp:
-            ofp.write('''
+            setup_str = '''
 import unittest
 from setuptools import setup
 try: # for pip >= 10
@@ -625,9 +1172,11 @@ setup(
                 license=self.setup_config.get('license', 'Proprietary License'),
                 keywords=keywords,
                 platforms=str(self.setup_config.get('platforms', [])),
-                package_data=self.setup_config.get('package_data', '{}'),
+                package_data=package_data,
                 classifiers=classifiers_str,
-            ))
+            )
+            ofp.write(setup_str)
+            self.logger.debug('PPM.setup: %s=<%s>' % (supath, setup_str))
         # for setup.cfg
         sucpath = 'setup.cfg'
         _license = ''
@@ -639,25 +1188,38 @@ setup(
             readme = "description-file = %s%sREADME.md" \
                       % (self.pkgpath, os.path.sep)
         with open(sucpath, 'w') as ofp:
-            ofp.write('''
+            sucstr = '''
 [metadata]
 # license_files = LICENSE.txt
 {license}
 # description-file = README.md
 {readme}
-'''.format(license=_license, readme=readme))
+'''.format(license=_license, readme=readme)
+            ofp.write(sucstr)
+            self.logger.debug('PPM.setup: %s=<%s>' % (sucpath, sucstr))
         # instead use package_data
         # if os.path.exists(os.path.join(self.pkgpath, 'MANIFEST.in')):
         #     shutil.copy(os.path.join(self.pkgpath, 'MANIFEST.in'), supath)
 
-        return self.venv.venv_py(supath, *args)
+        r = self.venv.venv_py(supath, *args, getstdout=True)
+        self.logger.info('PPM.setup: end.')
+        return r
 
 
 ################################################################################
 def get_repository_env():
-    cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
+    cf = CONF_PATH
+    if not os.path.exists(cf):
+        with open(cf, 'w') as ofp:
+            ofp.write('''---
+repository:
+  url: http://pypi.argos-labs.com:8080
+''')
     with open(cf) as ifp:
-        dcf = yaml.load(ifp)
+        if yaml.__version__ >= '5.1':
+            dcf = yaml.load(ifp, Loader=yaml.FullLoader)
+        else:
+            dcf = yaml.load(ifp)
     return dcf
 
 
@@ -670,7 +1232,7 @@ def _main(argv=None):
             description='''ARGOS-LABS Plugin Package Manager
 
 This manager use private PyPI repository.
-set {home}{sep}.argos-rpa.conf as follows:
+set {conf_path} as follows:
 
 ---
 repository:
@@ -697,7 +1259,7 @@ private-repositories:
   * password is the user password at pypi repository
   NB) username and password is only needed for upload
       upload is only valid for private repositories
-'''.format(home=str(Path.home()), sep=os.path.sep),
+'''.format(conf_path=CONF_PATH),
             formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument('--new-py', action='store_true',
                             help='making new python venv environment at py.%s' %
@@ -706,20 +1268,15 @@ private-repositories:
                             help='if set use package top py.%s for virtual env.'
                                  ' If not set. Use system python instead.'
                                  % sys.platform)
-        # .argos-rpa.conf 로면 설정하도록 수정
-        # parser.add_argument('--repository', '-r', nargs='?',
-        #                     help='set url for private repository')
-        # parser.add_argument('--username', nargs='?',
-        #                     help='user name for private repository')
-        # parser.add_argument('--password', nargs='?',
-        #                     help='password for private repository')
         parser.add_argument('--clean', '-c', action='store_true',
                             help='clean all temporary folders, etc.')
         parser.add_argument('--verbose', '-v', action='count', default=0,
                             help='verbose output eg) -v, -vv, -vvv, ...')
 
         subps = parser.add_subparsers(help='ppm command help', dest='command')
+        ########################################################################
         # ppm functions
+        ########################################################################
         _ = subps.add_parser('test', help='test this module')
         _ = subps.add_parser('build', help='build this module')
         _ = subps.add_parser('submit', help='submit to upload server')
@@ -738,13 +1295,46 @@ private-repositories:
                              help='clear all temporary folders and '
                                   'virtual environment')
 
+        ########################################################################
         # get command
-        sp = subps.add_parser('get', help='get configuration')
-        sp.add_argument('get_config', metavar='config',
+        ########################################################################
+        sp = subps.add_parser('get', help='get command')
+        sp.add_argument('get_cmd', metavar='get_sub_cmd',
                         choices=['repository', 'trusted-host'],
-                        help="get configuration {'repository', 'trusted-host'}")
+                        help="get command {'repository', 'trusted-host'}")
 
+        ########################################################################
+        # plugin command
+        ########################################################################
+        sp = subps.add_parser('plugin', help='plugin command')
+        sp.add_argument('plugin_cmd',
+                        choices=['get', 'dumpspec', 'venv'],
+                        help="get command {'get', 'dumpspec'}")
+        sp.add_argument('plugin_module',
+                        nargs="*",
+                        help="plugin module name eg) argoslabs.demo.helloworld or argoslabs.demo.helloworld==1.327.1731")
+        sp.add_argument('--user',
+                        help="user id for plugin command")
+        sp.add_argument('--user-auth',
+                        help="user authentication for plugin command")
+        sp.add_argument('--startswith',
+                        help="module filter to start with")
+        sp.add_argument('--official-only', action="store_true",
+                        help="do plugin command with official repository only")
+        sp.add_argument('--private-only', action="store_true",
+                        help="do plugin command with private repository only")
+        sp.add_argument('--short-output', action="store_true",
+                        help="just print module name and version only")
+        sp.add_argument('--flush-cache', action="store_true",
+                        help="dumpspec.json will be cached. If this flag is set, clear all cache first.")
+        sp.add_argument('--outfile',
+                        help="filename to save the stdout into a file")
+        sp.add_argument('--requirements-txt',
+                        help="filename to read modules from requirements.txt instead plugin_module parameters")
+
+        ########################################################################
         # pip command
+        ########################################################################
         sp = subps.add_parser('install', help='install module')
         sp.add_argument('subargs', metavar='module', nargs=argparse.REMAINDER,
                         help='module[s] to install')
@@ -757,14 +1347,16 @@ private-repositories:
         sp = subps.add_parser('search', help='search keywords')
         sp.add_argument('subargs', metavar='keyword', nargs=argparse.REMAINDER,
                         help='search module which have keywords')
-        sp = subps.add_parser('dumpspec', help='dumpspec keywords')
-        sp.add_argument('modulename',
-                        help='dumpspec module which have modulename')
+        # sp = subps.add_parser('dumpspec', help='dumpspec keywords')
+        # sp.add_argument('modulename',
+        #                 help='dumpspec module which have modulename')
         _ = subps.add_parser('list', help='list installed module')
         _ = subps.add_parser('list-repository',
                              help='list all modules at remote')
 
+        ########################################################################
         # direct command
+        ########################################################################
         sp = subps.add_parser('pip', help='pip command')
         sp.add_argument('subargs', metavar='pip-arguments',
                         nargs=argparse.REMAINDER,
@@ -790,9 +1382,19 @@ private-repositories:
             parser.print_help()
             return False
         else:
-            venv = VEnv(args)
-            ppm = PPM(venv, args, dcf)
-            return ppm.do()
+            if os.path.exists(OUT_PATH):
+                os.remove(OUT_PATH)
+            if os.path.exists(ERR_PATH):
+                os.remove(ERR_PATH)
+            loglevel = logging.INFO if args.verbose <= 0 else logging.DEBUG
+            logger = None
+            try:
+                logger = get_logger(LOG_PATH, loglevel=loglevel)
+                venv = VEnv(args, logger=logger)
+                ppm = PPM(venv, args, dcf, logger=logger)
+                return ppm.do()
+            finally:
+                logging.shutdown()
     finally:
         os.chdir(cwd)
 

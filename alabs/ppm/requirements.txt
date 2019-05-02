@@ -3,3 +3,4 @@
 # default for alabs.ppm
 PyYAML
 requests
+requirements-parser
