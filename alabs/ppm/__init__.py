@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/05/04]
+#     - 특정 plugin의 버전목록 구하기 기능 추가
 #  * [2019/05/01]
 #     - 사용자 별 dumpspec 기능 추가
 #  * [2019/04/29]
@@ -103,10 +105,10 @@ def ver_compare(a, b):
     b_eles = b.split('.')
     max_len = max(len(a_eles), len(b_eles))
     for i in range(max_len):
-        if i >= len(a_eles):
-            return 1
-        elif i >= len(b_eles):
+        if i >= len(a_eles):    # a='1.2', b='1.2.3' 인 경우 a < b
             return -1
+        elif i >= len(b_eles):  # a='1.2.3', b='1.2' 인 경우 a > b
+            return 1
         if int(a_eles[i]) > int(b_eles[i]):
             return 1
         elif int(a_eles[i]) < int(b_eles[i]):
@@ -117,6 +119,11 @@ def ver_compare(a, b):
 ################################################################################
 def version_compare(a, b):
     return ver_compare(a['version'], b['version'])
+
+
+################################################################################
+def plugin_version_compare(a, b):
+    return ver_compare(a['plugin_version'], b['plugin_version'])
 
 
 ################################################################################
@@ -505,16 +512,14 @@ class PPM(object):
     # ==========================================================================
     # noinspection PyMethodMayBeStatic
     def _dumpspec_json_clear_cache(self):
-        tmpdir = tempfile.gettempdir()
-        glob_filter = '%s%sdumpspec-*.json' % (tmpdir, os.path.sep)
+        glob_filter = '%s%sdumpspec-*.json' % (tempfile.gettempdir(), os.path.sep)
         for f in glob.glob(glob_filter):
             os.remove(f)
 
     # ==========================================================================
     # noinspection PyMethodMayBeStatic
     def _dumpspec_json_save(self, modname, version, jd):
-        tmpdir = tempfile.gettempdir()
-        jsfile = '%s%sdumpspec-%s-%s.json' % (tmpdir, os.path.sep, modname, version)
+        jsfile = '%s%sdumpspec-%s-%s.json' % (tempfile.gettempdir(), os.path.sep, modname, version)
         if os.path.exists(jsfile):
             return False
         with open(jsfile, 'w') as ofp:
@@ -525,8 +530,7 @@ class PPM(object):
     # ==========================================================================
     # noinspection PyMethodMayBeStatic
     def _dumpspec_json_load(self, modname, version):
-        tmpdir = tempfile.gettempdir()
-        jsfile = '%s%sdumpspec-%s-%s.json' % (tmpdir, os.path.sep, modname, version)
+        jsfile = '%s%sdumpspec-%s-%s.json' % (tempfile.gettempdir(), os.path.sep, modname, version)
         if not os.path.exists(jsfile):
             return None
         with open(jsfile) as ifp:
@@ -539,18 +543,17 @@ class PPM(object):
         # pip download argoslabs.demo.helloworld==1.327.1731
         # --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com
         # --dest=C:\tmp\pkg --no-deps
-        tmpdir = tempfile.gettempdir()
         mname = modname
         if version:
             mname = '%s==%s' % (modname, version)
             jd = self._dumpspec_json_load(modname, version)
             if jd:
                 return jd
-        glob_filter = '%s%s%s-*.whl' % (tmpdir, os.path.sep, modname)
+        glob_filter = '%s%s%s-*.whl' % (tempfile.gettempdir(), os.path.sep, modname)
         for f in glob.glob(glob_filter):
             os.remove(f)
         self.venv.venv_pip('download', mname,
-                           '--dest', tmpdir,
+                           '--dest', tempfile.gettempdir(),
                            '--no-deps',
                            *self.ndx_param)
         mfilename = None
@@ -572,57 +575,82 @@ class PPM(object):
                 return jd
 
     # ==========================================================================
-    def _dumpspec_user(self, ofp):
-        #  curl -X GET --header 'Accept: application/json' 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/seonme%40vivans.net/plugins'
+    def _dumpspec_user(self, tmpdir):
+        # curl -X GET --header 'Accept: application/json' 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/seonme%40vivans.net/plugins'
         url = 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/%s/plugins' \
               % quote(self.args.user)
         headers = {
-            #'Content-Type': 'application/json; charset=utf-8',
+            # 'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'
-            # 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
         }
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code // 10 != 20:
-            raise RuntimeError('PPM._dumpspec_user: API Error!')
-        md = json.loads(r.data)
-        print(md)
-
-    # ==========================================================================
-    def _get_venv(self, new_d):
-        self.args.venv = True
-        new_venv = VEnv(self.args, root=new_d, logger=self.logger)
-        new_venv.check_venv()
-        if self.args.requirements_txt:
-            requirements_txt = self.args.requirements_txt
+            # raise RuntimeError('PPM._dumpspec_user: API Error!')
+            # TODO: for debug (외부에서는 막아 놓았으므로)
+            mdlist = [
+                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.ai.tts', 'plugin_version': '1.330.1500'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rest', 'plugin_version': '1.315.1054'},
+                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rossum', 'plugin_version': '1.327.1355'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.excel', 'plugin_version': '1.425.1322'},
+                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.json', 'plugin_version': '1.418.1631'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.rdb', 'plugin_version': '1.313.1857'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.monitor', 'plugin_version': '1.424.1142'},
+                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.418.1812'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.430.1418'},
+                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.terminal.sshexp', 'plugin_version': '1.415.1930'},
+            ]
         else:
-            tmpdir = tempfile.mkdtemp(prefix='requirements_')
-            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
-            with open(requirements_txt, 'w') as ofp:
-                ofp.write('# pip dependent packages\n')
-                for pm in self.args.plugin_module:
-                    ofp.write('%s\n' % pm)
-        r = new_venv.venv_pip('install', '-r', requirements_txt,
-                              *self.ndx_param)
-        if r == 0:
-            outfile = os.path.join(new_d, 'freeze.txt')
-            new_venv.venv_pip('freeze', outfile=outfile)
-            freeze_d = {}
-            with open(outfile) as ifp:
-                for line in ifp:
-                    eles = line.rstrip().split('==')
-                    if len(eles) != 2:
-                        raise RuntimeError('PPM._get_venv: freeze must module==version but "%s"' % line.rstrip())
-                    freeze_d[eles[0].strip().lower()] = eles[1].strip()
-            if os.path.exists(outfile):
-                os.remove(outfile)
-            freeze_f = os.path.join(new_d, 'freeze.json')
-            with open(freeze_f, 'w') as ofp:
-                json.dump(freeze_d, ofp)
+            mdlist = json.loads(r.text)
+        # print(md)
+        req_txt = os.path.join(tmpdir, 'requirements.txt')
+        with open(req_txt, 'w') as ofp:
+            for md in mdlist:
+                ofp.write('%s==%s\n' % (md['plugin_id'], md['plugin_version']))
+        self.args.requirements_txt = req_txt
+        self.args.user = None
         return True
 
     # ==========================================================================
-    def _get_modspec(self):
+    def _get_venv(self, new_d):
+        _tmpdir = None
+        try:
+            self.args.venv = True
+            new_venv = VEnv(self.args, root=new_d, logger=self.logger)
+            new_venv.check_venv()
+            if self.args.requirements_txt:
+                requirements_txt = self.args.requirements_txt
+            else:
+                _tmpdir = tempfile.mkdtemp(prefix='get_venv_')
+                requirements_txt = os.path.join(_tmpdir, 'requirements.txt')
+                with open(requirements_txt, 'w') as ofp:
+                    ofp.write('# pip dependent packages\n')
+                    for pm in self.args.plugin_module:
+                        ofp.write('%s\n' % pm)
+            r = new_venv.venv_pip('install', '-r', requirements_txt,
+                                  *self.ndx_param)
+            if r == 0:
+                outfile = os.path.join(new_d, 'freeze.txt')
+                new_venv.venv_pip('freeze', outfile=outfile)
+                freeze_d = {}
+                with open(outfile) as ifp:
+                    for line in ifp:
+                        eles = line.rstrip().split('==')
+                        if len(eles) != 2:
+                            raise RuntimeError('PPM._get_venv: freeze must module==version but "%s"' % line.rstrip())
+                        freeze_d[eles[0].strip().lower()] = eles[1].strip()
+                if os.path.exists(outfile):
+                    os.remove(outfile)
+                freeze_f = os.path.join(new_d, 'freeze.json')
+                with open(freeze_f, 'w') as ofp:
+                    json.dump(freeze_d, ofp)
+            return True
+        finally:
+            if _tmpdir and os.path.exists(_tmpdir):
+                shutil.rmtree(_tmpdir)
+
+    # ==========================================================================
+    def _get_modspec(self, tmpdir):
         """
 docopt == 0.6.1             # Version Matching. Must be version 0.6.1
 keyring >= 4.1.1            # Minimum version 4.1.1
@@ -637,20 +665,26 @@ SomeProject~=1.4.2
 Django [('>=', '1.11'), ('<', '1.12')]
 six [('==', '1.10.0')]
         """
-        modspec = {}
-        if self.args.requirements_txt:
-            requirements_txt = self.args.requirements_txt
-        else:
-            tmpdir = tempfile.mkdtemp(prefix='requirements_')
-            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
-            with open(requirements_txt, 'w') as ofp:
-                ofp.write('# pip dependent packages\n')
-                for pm in self.args.plugin_module:
-                    ofp.write('%s\n' % pm)
-        with open(requirements_txt) as ifp:
-            for req in requirements.parse(ifp):
-                modspec[req.name.lower()] = req.specs
-        return modspec
+        requirements_txt = None
+        try:
+            modspec = {}
+            requirements_txt = os.path.join(tmpdir, 'modspec.txt')
+            if self.args.requirements_txt and os.path.exists(self.args.requirements_txt):
+                shutil.copy(self.args.requirements_txt, requirements_txt)
+            if self.args.plugin_module:
+                with open(requirements_txt, 'a') as ofp:
+                    ofp.write('# plugin_module parameters\n')
+                    for pm in self.args.plugin_module:
+                        ofp.write('%s\n' % pm)
+            if not os.path.exists(requirements_txt):
+                return modspec
+            with open(requirements_txt) as ifp:
+                for req in requirements.parse(ifp):
+                    modspec[req.name.lower()] = req.specs
+            return modspec
+        finally:
+            if requirements_txt and os.path.exists(requirements_txt):
+                os.remove(requirements_txt)
 
     # ==========================================================================
     # noinspection PyMethodMayBeStatic
@@ -719,11 +753,63 @@ six [('==', '1.10.0')]
         return match_cnt
 
     # ==========================================================================
+    def _cmd_modspec(self, moddict, modspec, version_attr='version'):
+        rd = {}
+        if not modspec:  # all
+            if self.args.last_only:
+                for modname in moddict.keys():
+                    rd[modname] = moddict[modname][0]  # 마지막 버전
+                return rd
+            return moddict
+        for modname, speclist in modspec.items():
+            if modname not in moddict:
+                self.logger.error('plugin get command module "%s" does not exists in plugin list' % modname)
+                continue
+            if not speclist:
+                # 만약 모듈이름만 나왔다면 무조건 최신 모듈
+                rd[modname] = moddict[modname][0]  # 마지막 버전
+                continue
+            b_found = False
+            for vdict in moddict[modname]:
+                for op, ver in speclist:
+                    cmp = ver_compare(vdict[version_attr], ver)
+                    if op == '==':
+                        if cmp == 0:
+                            b_found = True
+                    elif op == '>':
+                        if cmp > 0:
+                            b_found = True
+                    elif op == '>=':
+                        if cmp >= 0:
+                            b_found = True
+                    elif op == '<':
+                        if cmp < 0:
+                            b_found = True
+                    elif op == '<=':
+                        if cmp <= 0:
+                            b_found = True
+                    elif op == '~=':  # '>=' and '=='
+                        f_v = '.'.join(vdict[version_attr].split('.')[:-1])
+                        s_v = '.'.join(ver.split('.')[:-1])
+                        cmp = ver_compare(f_v, s_v)
+                        if cmp >= 0:
+                            b_found = True
+                    if b_found:
+                        rd[modname] = vdict
+                        break
+                if b_found:
+                    break
+            if not b_found:
+                self.logger.error('plugin get command module "%s" failed to find '
+                                  'version spec %s' % (modname, str(speclist)))
+        return rd
+
+    # ==========================================================================
     def do_plugin(self):
         ofp = sys.stdout
         modd = {}
-        dsd = {}
-        tmpdir = None
+        modds = {}
+        tmpdir = tempfile.mkdtemp(prefix='do_plugin_')
         try:
             self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
             ####################################################################
@@ -739,7 +825,7 @@ six [('==', '1.10.0')]
                 venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
                 if not os.path.exists(venv_d):
                     os.makedirs(venv_d)
-                modspec = self._get_modspec()
+                modspec = self._get_modspec(tmpdir)
                 get_venv = None
                 glob_f = os.path.join(venv_d, '**', 'freeze.json')
                 match_list = list()
@@ -761,6 +847,12 @@ six [('==', '1.10.0')]
                 self._get_venv(get_venv)
                 print(get_venv)
                 return 0
+
+            # 만약 CHIEF에 특정 사용자별 dumpspec 결과를 가져오려면 우선
+            # 해당 모듈 리스트를 구함
+            if self.args.plugin_cmd == 'dumpspec' and self.args.user:
+                self._dumpspec_user(tmpdir)
+
             # 나머지는 CHIEF, STU용
             # 우선은 pypi 서버에서 해당 모듈 목록을 구해와서
             # 해당 모듈(wheel)만 다운로드하여 포함되어 있는 dumpspec.json을
@@ -783,12 +875,6 @@ six [('==', '1.10.0')]
                     'flatform-tag': eles[4],
                 }
                 dsj = self._dumpspec_json(eles[0], eles[1])
-                if eles[0] not in dsd:
-                    dsd[eles[0]] = dsj
-                else:
-                    # 가장 최후 버전을 가지고 있음
-                    if dsj['plugin_version'] > dsd[eles[0]]['plugin_version']:
-                        dsd[eles[0]] = dsj
                 ved['display_name'] = dsj.get('display_name')
                 ved['description'] = dsj.get('description')
                 ved['owner'] = dsj.get('owner')
@@ -799,6 +885,7 @@ six [('==', '1.10.0')]
                 ved['sha256'] = dsj.get('sha256')
                 if eles[0] not in modd:
                     modd[eles[0]] = [ved]
+                    modds[eles[0]] = [dsj]
                 else:
                     b_found = False
                     for ve in modd[eles[0]]:
@@ -807,20 +894,23 @@ six [('==', '1.10.0')]
                             break
                     if not b_found:
                         modd[eles[0]].append(ved)
+                        modds[eles[0]].append(dsj)
             # modd 에 있는 ved 목록에 대하여 내림차순 정렬
             # cmp_items_py3 = cmp_to_key(version_compare)
             for k, v in modd.items():
                 if len(v) <= 1:
                     continue
                 modd[k] = sorted(v, key=cmp_to_key(version_compare), reverse=True)
-            pilist = self.args.plugin_module
-            if not pilist:
-                modod = modd
-            else:
-                modod = {}
-                for mod in pilist:
-                    if mod in modd:
-                        modod[mod] = modd[mod]
+            for k, v in modds.items():
+                if len(v) <= 1:
+                    continue
+                modds[k] = sorted(v, key=cmp_to_key(plugin_version_compare), reverse=True)
+
+            ####################################################################
+            # 사용자 plugin_modules를 포함한 --requirements-txt 의 모듈 스펙을 파싱
+            ####################################################################
+            modspec = self._get_modspec(tmpdir)
+
             ####################################################################
             # --user 옵션을 안주면 CHIEF에서 모든 플러그인 가져오기
             # 예) alabs.ppm plugin get --official-only --outfile get-all.json
@@ -828,15 +918,30 @@ six [('==', '1.10.0')]
             # 예) alabs.ppm plugin get --user a@b.c.d --official-only --outfile get-user.json
             # --official-only 는 공식사이트, --private-only는 자신의 private 만 (~/.argos-rpa.conf 에서)
             # 예) alabs.ppm plugin get --user a@b.c.d --private-only --outfile get-user-private.json
+            # --last-only
             ####################################################################
             if self.args.plugin_cmd == 'get':
+                rd = self._cmd_modspec(modd, modspec)
                 if not self.args.short_output:
-                    json.dump(modod, ofp)
+                    json.dump(rd, ofp)
                 else:
-                    for mod in sorted([x for x in modod.keys()]):
-                        for ved in modod[mod]:
-                            ofp.write(
-                                '%s,%s%s' % (mod, ved['version'], os.linesep))
+                    for mod in sorted([x for x in rd.keys()]):
+                        for ved in rd[mod]:
+                            if isinstance(ved, list):
+                                for v in ved:
+                                    ofp.write('%s,%s%s' % (mod, v['version'], os.linesep))
+                            else:
+                                ofp.write('%s,%s%s' % (mod, ved['version'], os.linesep))
+
+            elif self.args.plugin_cmd == 'versions':
+                if not self.args.plugin_module or len(self.args.plugin_module) != 1:
+                    raise RuntimeError('plugin versions need only one plugin_module parameter')
+                modname = self.args.plugin_module[0]
+                if modname not in modd:
+                    raise RuntimeError('module "%s" not in plugin module list' % modname)
+                for ved in modd[modname]:
+                    print(ved['version'])
+
             ####################################################################
             # --user 옵션을 안주면 CHIEF/STU에서 모든 플러그인 dumpspec 가져오기
             # 예) alabs.ppm plugin dumpspec --official-only --outfile dumpspec.json
@@ -846,12 +951,8 @@ six [('==', '1.10.0')]
             # 예) alabs.ppm plugin dumpspec --private-only --outfile dumpspec.json
             ####################################################################
             elif self.args.plugin_cmd == 'dumpspec':
-                if self.args.user:
-                    return self._dumpspec_user(ofp)
-                dsout = {}
-                for mod in sorted([x for x in modod.keys()]):
-                    dsout[mod] = dsd[mod]
-                json.dump(dsout, ofp)
+                rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')
+                json.dump(rd, ofp)
             return 0
         finally:
             if self.args.outfile:
@@ -1308,8 +1409,8 @@ private-repositories:
         ########################################################################
         sp = subps.add_parser('plugin', help='plugin command')
         sp.add_argument('plugin_cmd',
-                        choices=['get', 'dumpspec', 'venv'],
-                        help="get command {'get', 'dumpspec'}")
+                        choices=['get', 'dumpspec', 'venv', 'versions'],
+                        help="plugin command, one of {'get', 'dumpspec', 'venv', 'versions']}")
         sp.add_argument('plugin_module',
                         nargs="*",
                         help="plugin module name eg) argoslabs.demo.helloworld or argoslabs.demo.helloworld==1.327.1731")
@@ -1327,6 +1428,8 @@ private-repositories:
                         help="just print module name and version only")
         sp.add_argument('--flush-cache', action="store_true",
                         help="dumpspec.json will be cached. If this flag is set, clear all cache first.")
+        sp.add_argument('--last-only', action="store_true",
+                        help="get or dumpspec last version only.")
         sp.add_argument('--outfile',
                         help="filename to save the stdout into a file")
         sp.add_argument('--requirements-txt',
