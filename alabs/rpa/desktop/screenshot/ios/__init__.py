@@ -4,7 +4,7 @@
 ====================================
  :mod:`alabs.pam.la.bot2py
 ====================================
-.. moduleauthor:: Raven Lim <deokyu@argos-labs.com>
+.. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
 .. note:: VIVANS License
 
 Description
@@ -14,17 +14,20 @@ ARGOS LABS PAM For LA
 Authors
 ===========
 
-* Raven Lim
+* Injoong Kim
 
 Change Log
 --------
 
- * [2019/01/30]
+ * [2019/04/24]
     - starting
 """
 
 ################################################################################
-import time
+import sys
+import io
+import enum
+import wda
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -37,27 +40,38 @@ __version__ = VERSION
 
 OWNER = 'ARGOS-LABS'
 GROUP = 'Pam'
-PLATFORM = ['windows', 'darwin', 'linux']
+PLATFORM = ['darwin']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
+class TapType(enum.Enum):
+    ONEFINGER = 'one'
+    TWOFINGER = 'two'
+    THREEFINGER = 'three'
+
+################################################################################
 @func_log
-def delay(mcxt, argspec):
+def screenshot(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: actual delay seconds
+    :return: iO.BytesIO
     """
+
     mcxt.logger.info('>>>starting...')
-    start_t = time.time()
-    time.sleep(argspec.delay * 0.001)
-    end_t = time.time()
-
+    client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
+                                                  port=argspec.wda_port))
+    session = client.session()
+    buffer = io.BytesIO()
+    img = session.screenshot()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    session.close()
     mcxt.logger.info('>>>end...')
+    return buffer
 
-    return end_t - start_t
 
 ################################################################################
 def _main(*args):
@@ -71,7 +85,7 @@ def _main(*args):
     owner='ARGOS-LABS',
     group='pam',
     version='1.0',
-    platform=['windows', 'darwin', 'linux'],
+    platform=['darwin'],
     output_type='text',
     description='HA Bot for LA',
     test_class=TU,
@@ -84,11 +98,18 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
+        mcxt.add_argument('--path', re_match='.*[.](png|PNG).*$',
+                          type=str, default=None, metavar='screenshot_path',
+                          help='screenshot path')
+        mcxt.add_argument('--wda_url', type=str, default='http://localhost',
+                          help='')
+        mcxt.add_argument('--wda_port', type=str, default='8100', help='')
+
+        print(args)
         argspec = mcxt.parse_args(args)
-        return delay(mcxt, argspec)
+        return screenshot(mcxt, argspec)
+
 
 ################################################################################
 def main(*args):
     return _main(*args)
-

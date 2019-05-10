@@ -24,11 +24,11 @@ Change Log
 """
 
 ################################################################################
-import time
+import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-
-
+from alabs.rpa.autogui.click import ClickMotionType, ClickType, to_int
+from alabs.rpa.autogui.find_image_location.macos import find_image_loacation
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -43,21 +43,34 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
 @func_log
-def delay(mcxt, argspec):
+def locate_image(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: actual delay seconds
+    :return: x, y
     """
     mcxt.logger.info('>>>starting...')
-    start_t = time.time()
-    time.sleep(argspec.delay * 0.001)
-    end_t = time.time()
+    # 이미지 좌표 구하기
+    location = find_image_loacation(mcxt, argspec)
+    print("LOCATION:: ", location)
+    if not location:
+        raise ValueError("COULDN'T FIND LOCATION")
+    x, y, *_ = location
+
+    # 버튼
+    motion = ClickMotionType[argspec.motion].value
+    button = ClickType[argspec.button].value
+
+    cx, cy = argspec.coordinates
+    x += cx; y += cy
+    action = getattr(pyautogui, motion)
+    action(button=button, x=x, y=y)
 
     mcxt.logger.info('>>>end...')
-
-    return end_t - start_t
+    if argspec.verbose:
+        print(x, y, motion, button)
+    return location
 
 ################################################################################
 def _main(*args):
@@ -84,11 +97,35 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
+        # 필수 입력 항목
+        mcxt.add_argument('path', re_match='.*[.](png|PNG).*$',
+                          metavar='image_filename.png',  help='')
+        mcxt.add_argument('--region', nargs=4, type=int, default=None,
+                          metavar='0', help='')
+        mcxt.add_argument('--similarity', type=int, metavar='50',
+                          default=50, min_value=0, max_value=100, help='')
+        mcxt.add_argument('--coordinates', type=int, nargs=2, default=[0, 0],
+                          metavar='0', help='')
+        mcxt.add_argument('--motion',
+                          default=ClickMotionType.CLICK.name,
+                          choices=[
+                              ClickMotionType.CLICK.name,
+                              ClickMotionType.DOUBLE.name,
+                              ClickMotionType.PRESS.name,
+                              ClickMotionType.RELEASE.name, ],
+                          help='')
+        mcxt.add_argument('--button',
+                          default=ClickType.LEFT.name,
+                          choices=[
+                              ClickType.RIGHT.name,
+                              ClickType.LEFT.name,
+                              ClickType.NONE.name, ],
+                          help='')
+
         argspec = mcxt.parse_args(args)
-        return delay(mcxt, argspec)
+        return locate_image(mcxt, argspec)
+
 
 ################################################################################
 def main(*args):
     return _main(*args)
-

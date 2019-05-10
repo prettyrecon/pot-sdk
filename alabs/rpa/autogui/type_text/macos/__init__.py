@@ -24,7 +24,7 @@ Change Log
 """
 
 ################################################################################
-import time
+import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -41,23 +41,22 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+
 ################################################################################
 @func_log
-def delay(mcxt, argspec):
+def type_text(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: actual delay seconds
+    :return: True
     """
     mcxt.logger.info('>>>starting...')
-    start_t = time.time()
-    time.sleep(argspec.delay * 0.001)
-    end_t = time.time()
-
+    pyautogui.typewrite(argspec.text)
     mcxt.logger.info('>>>end...')
 
-    return end_t - start_t
+    return True
+
 
 ################################################################################
 def _main(*args):
@@ -84,9 +83,12 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
+        ########################################################################
+        mcxt.add_argument('text', type=str,
+                          help='Text to type on an application')
+
         argspec = mcxt.parse_args(args)
-        return delay(mcxt, argspec)
+        return type_text(mcxt, argspec)
 
 ################################################################################
 def main(*args):

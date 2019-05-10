@@ -24,9 +24,12 @@ Change Log
 """
 
 ################################################################################
-import time
+import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+from alabs.rpa.desktop.screenshot.macos import screenshot
+from PIL import Image
+import pyscreeze
 
 
 ################################################################################
@@ -43,21 +46,31 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
 @func_log
-def delay(mcxt, argspec):
+def find_image_loacation(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: actual delay seconds
+    :return: x, y
     """
     mcxt.logger.info('>>>starting...')
-    start_t = time.time()
-    time.sleep(argspec.delay * 0.001)
-    end_t = time.time()
+    target = screenshot(mcxt, argspec)
+    target = Image.open(target)
+    # target.save('/tmp/sss.png')
 
+
+    # location = pyscreeze.locate(target, argspec.path, region=argspec.region)
+    location = pyscreeze.locate(argspec.path, target, confidence=0.5)
+    # location = pyscreeze.locate(argspec.path, target, region=None)
+
+    # location = pyautogui.locate(argspec.path, target, region=argspec.region, confidence=0.101)
+    # location = pyautogui.locate(argspec.path, target, region=argspec.region)
+    if not location:
+        raise ValueError("Can't find image location")
     mcxt.logger.info('>>>end...')
-
-    return end_t - start_t
+    if argspec.verbose:
+        print(location)
+    return location
 
 ################################################################################
 def _main(*args):
@@ -84,11 +97,17 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
+        # 필수 입력 항목
+        mcxt.add_argument('path', re_match='.*[.](png|PNG).*$',
+                          metavar='image_filename.png',  help='')
+        mcxt.add_argument('--region', nargs=4, type=int, default=None,
+                          metavar='0', help='')
+        mcxt.add_argument('--similarity', type=int, metavar='SIMILARITY',
+                            default=50, min_value=0, max_value=100, help='')
         argspec = mcxt.parse_args(args)
-        return delay(mcxt, argspec)
+        return find_image_loacation(mcxt, argspec)
+
 
 ################################################################################
 def main(*args):
     return _main(*args)
-

@@ -4,7 +4,7 @@
 ====================================
  :mod:`alabs.pam.la.bot2py
 ====================================
-.. moduleauthor:: Raven Lim <deokyu@argos-labs.com>
+.. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
 .. note:: VIVANS License
 
 Description
@@ -14,17 +14,17 @@ ARGOS LABS PAM For LA
 Authors
 ===========
 
-* Raven Lim
+* Injoong Kim
 
 Change Log
 --------
 
- * [2019/01/30]
+ * [2019/04/24]
     - starting
 """
 
 ################################################################################
-import time
+import wda
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -37,27 +37,33 @@ __version__ = VERSION
 
 OWNER = 'ARGOS-LABS'
 GROUP = 'Pam'
-PLATFORM = ['windows', 'darwin', 'linux']
+PLATFORM = ['darwin']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
 @func_log
-def delay(mcxt, argspec):
+def siwpe(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
-    :return: actual delay seconds
+    :return: True
     """
+
     mcxt.logger.info('>>>starting...')
-    start_t = time.time()
-    time.sleep(argspec.delay * 0.001)
-    end_t = time.time()
+
+
+    client = wda.Client(url='{url}:{port}'.format(url=argspec.wda_url,
+                                                  port=argspec.wda_port))
+    session = client.session()
+    scale = session.scale
+    # points: [] = list(map(lambda i: i / scale, argspec.coordinates))
+    point = (0, 100, 0, (100 + argspec.vertical) * -1)
+    x, y, x2, y2 = point
+    session.swipe(x1=x, y1=y, x2=x2, y2=y2)
 
     mcxt.logger.info('>>>end...')
-
-    return end_t - start_t
 
 ################################################################################
 def _main(*args):
@@ -71,7 +77,7 @@ def _main(*args):
     owner='ARGOS-LABS',
     group='pam',
     version='1.0',
-    platform=['windows', 'darwin', 'linux'],
+    platform=['darwin'],
     output_type='text',
     description='HA Bot for LA',
     test_class=TU,
@@ -84,11 +90,18 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
+        mcxt.add_argument('--wda_url', type=str, default='http://localhost',
+                          help='')
+        mcxt.add_argument('--wda_port', type=str, default='8100', help='')
+        ########################################################################
+        mcxt.add_argument('--vertical', '-y', type=int, default=0, help='')
+
+        # mcxt.add_argument('coordinates', nargs=4, type=int, default=None,
+        #                   metavar='COORDINATE', help='fromX fromY toX toY')
+
         argspec = mcxt.parse_args(args)
-        return delay(mcxt, argspec)
+        return siwpe(mcxt, argspec)
 
 ################################################################################
 def main(*args):
     return _main(*args)
-
