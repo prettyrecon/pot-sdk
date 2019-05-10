@@ -1,6 +1,8 @@
 import unittest
+import datetime
 from alabs.pam.variable_manager.variable_manager import \
-    get_delimiter_index, split_string_variables, split, Variables
+    get_delimiter_index, split_string_variables, split, Variables, \
+    current_datetime
 import warnings
 
 ################################################################################
@@ -48,6 +50,14 @@ EXAMPLE_XPATH_11 = 'ABC/DEF/GHI'
 EXAMPLE_XPATH_20 = 'ABC/DEF/1'
 EXAMPLE_XPATH_22 = 'ABC/DEF/1/2'
 EXAMPLE_XPATH_23 = 'ABC/DEF/1/2/3'
+
+# SYSTEM Variables
+EXAMPLE_50 = '{{Global.year}}'
+EXAMPLE_51 = '{{Global.month}}'
+EXAMPLE_52 = '{{Global.day}}'
+EXAMPLE_53 = '{{Global.hour}}'
+EXAMPLE_54 = '{{Global.minute}}'
+EXAMPLE_55 = '{{Global.second}}'
 
 # Error
 
@@ -609,6 +619,7 @@ class TestUnit(unittest.TestCase):
         var.set_by_argos_variable(EXAMPLE_27, value)
         self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_27))
 
+    # ==========================================================================
     def test_index_one_based(self):
         """
         RPA-251
@@ -627,8 +638,13 @@ class TestUnit(unittest.TestCase):
         self.assertEqual(value_2, var.get_by_argos_variable('{{ABC.DEF(2)}}'))
         self.assertEqual('2', var.convert('{{ABC.DEF(COUNT)}}'))
 
-
-
+    # ==========================================================================
+    def test_reserved_call_datetime(self):
+        var = Variables(base_index=1)
+        self.assertEqual(current_datetime('year'), var.convert(EXAMPLE_50))
+        self.assertEqual(current_datetime('month'), var.convert(EXAMPLE_51))
+        self.assertEqual(current_datetime('day'), var.convert(EXAMPLE_52))
+        self.assertEqual(current_datetime('hour'), var.convert(EXAMPLE_53))
 
 
 

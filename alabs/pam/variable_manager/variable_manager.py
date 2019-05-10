@@ -1,6 +1,7 @@
 import re
 import enum
 import hvac
+import datetime
 from alabs.common.util.vvjson import get_xpath, set_xpath
 from alabs.pam.variable_manager import EXTERNAL_STORE_TOKEN, \
     EXTERNAL_STORE_ADDRESS_PORT, EXTERNAL_STORE_NAME
@@ -16,6 +17,18 @@ DELIMITERS = '{{', '}}', '(', ')', '@', ','
 DELIMITERS_PATTERN = '|'.join(map(re.escape, DELIMITERS))
 PAIR = {VAR_OPEN: VAR_CLOSE, ARRAY_OPEN: ARRAY_CLOSE}
 
+RESERVED_PATH = {
+    "datetime": ("Global/year", "Global/month", "Global/day", "Global/hour",
+                 "Global/minute", "Global/second",),
+    "system": ("SYSTEM/CPU", "SYSTEM/MEMORY")
+}
+
+RESERVED_KEYS = [x for x in RESERVED_PATH.keys() for x in RESERVED_PATH[x]]
+
+
+################################################################################
+def current_datetime(req):
+    return "{:02d}".format(getattr(datetime.datetime.now(), req))
 
 ################################################################################
 class Sign(enum.Enum):
@@ -205,12 +218,25 @@ class Variables(dict):
         return form.format(*arg)
 
     # ==========================================================================
+    def is_reserved_keys(self, path) -> bool:
+        if path in RESERVED_KEYS:
+            return True
+        return False
+
+    # ==========================================================================
+    def reserved_call(self, path, option):
+        group, *_ = path.split('/')
+        if group == "Global":
+            return current_datetime(path.split('/')[1])
+
+    # ==========================================================================
     def get_by_argos_variable(self, variable, raise_exception=False):
         """
         ARGOS 변수형태로 위치 값을 찾아서 값 반환
         :param variable: {{ABC.DEF[1]}}
         :return:
         """
+        print(variable)
         idx = get_delimiter_index(variable)
         _, variables = split_string_variables(variable, idx)
 
@@ -258,6 +284,10 @@ class Variables(dict):
 
     # ==========================================================================
     def get_by_xpath(self, xpath:str, sign:str, raise_exception=False):
+        # 시스템 예약 변수 사용
+        if self.is_reserved_keys(xpath):
+            value = self.reserved_call(xpath, sign)
+            return value
 
         if sign == Sign.GLOBAL.name:
             value = self._global_get_by_xpath(xpath)
