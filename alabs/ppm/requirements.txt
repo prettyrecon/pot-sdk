@@ -1,5 +1,7 @@
 # pip dependent packages
 
+alabs.common
+
 # default for alabs.ppm
 PyYAML
 requests

@@ -71,6 +71,7 @@ import tempfile
 import traceback
 import subprocess
 import requirements
+import urllib3
 from urllib.parse import quote
 from alabs.common.util.vvjson import get_xpath
 from alabs.common.util.vvlogger import get_logger
@@ -83,6 +84,7 @@ if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
 else:
     from urllib.parse import urlparse
     from pathlib import Path
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 ################################################################################
@@ -586,27 +588,32 @@ class PPM(object):
         }
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code // 10 != 20:
-            # raise RuntimeError('PPM._dumpspec_user: API Error!')
-            # TODO: for debug (외부에서는 막아 놓았으므로)
-            mdlist = [
-                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.ai.tts', 'plugin_version': '1.330.1500'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rest', 'plugin_version': '1.315.1054'},
-                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rossum', 'plugin_version': '1.327.1355'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.excel', 'plugin_version': '1.425.1322'},
-                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.json', 'plugin_version': '1.418.1631'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.rdb', 'plugin_version': '1.313.1857'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.monitor', 'plugin_version': '1.424.1142'},
-                {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.418.1812'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.430.1418'},
-                # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.terminal.sshexp', 'plugin_version': '1.415.1930'},
-            ]
+            raise RuntimeError('PPM._dumpspec_user: API Error!')
+            # mdlist = [
+            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.ai.tts', 'plugin_version': '1.330.1500'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rest', 'plugin_version': '1.315.1054'},
+            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rossum', 'plugin_version': '1.327.1355'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.excel', 'plugin_version': '1.425.1322'},
+            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.json', 'plugin_version': '1.418.1631'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.rdb', 'plugin_version': '1.313.1857'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.monitor', 'plugin_version': '1.424.1142'},
+            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.418.1812'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.filesystem.op', 'plugin_version': '1.430.1418'},
+            #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.terminal.sshexp', 'plugin_version': '1.415.1930'},
+            # ]
         else:
             mdlist = json.loads(r.text)
         # print(md)
         req_txt = os.path.join(tmpdir, 'requirements.txt')
         with open(req_txt, 'w') as ofp:
             for md in mdlist:
-                ofp.write('%s==%s\n' % (md['plugin_id'], md['plugin_version']))
+                if 'plugin_name' in md:
+                    if 'plugin_version' in md:
+                        ofp.write('%s==%s\n' % (md['plugin_name'], md['plugin_version']))
+                    else:
+                        ofp.write('%s\n' % md['plugin_name'])
+                else:
+                    self.logger.error('Chief API result for user plugin "%s" must have "plugin_name" key')
         self.args.requirements_txt = req_txt
         self.args.user = None
         return True
@@ -816,7 +823,6 @@ six [('==', '1.10.0')]
             # PAM용 환경설정 만들기
             ####################################################################
             if self.args.plugin_cmd == 'venv':
-                r = -1
                 if not (self.args.plugin_module or self.args.requirements_txt):
                     raise RuntimeError('PPM.do_plugin: plugin-modules parameters or --requirements-txt option must be specifiyed.')
                 if self.args.requirements_txt and not os.path.exists(self.args.requirements_txt):
@@ -826,7 +832,6 @@ six [('==', '1.10.0')]
                 if not os.path.exists(venv_d):
                     os.makedirs(venv_d)
                 modspec = self._get_modspec(tmpdir)
-                get_venv = None
                 glob_f = os.path.join(venv_d, '**', 'freeze.json')
                 match_list = list()
                 for f in glob.glob(glob_f):
@@ -1489,8 +1494,8 @@ private-repositories:
                 os.remove(OUT_PATH)
             if os.path.exists(ERR_PATH):
                 os.remove(ERR_PATH)
-            loglevel = logging.INFO if args.verbose <= 0 else logging.DEBUG
-            logger = None
+            # loglevel = logging.INFO if args.verbose <= 0 else logging.DEBUG
+            loglevel = logging.DEBUG
             try:
                 logger = get_logger(LOG_PATH, loglevel=loglevel)
                 venv = VEnv(args, logger=logger)
@@ -1508,10 +1513,10 @@ def main(argv=None):
         r = _main(argv)
         sys.exit(r)
     except Exception as err:
-        _exc_info = sys.exc_info()
-        _out = traceback.format_exception(*_exc_info)
-        del _exc_info
-        sys.stderr.write('%s\n' % ''.join(_out))
+        # _exc_info = sys.exc_info()
+        # _out = traceback.format_exception(*_exc_info)
+        # del _exc_info
+        # sys.stderr.write('%s\n' % ''.join(_out))
         sys.stderr.write('%s\n' % str(err))
         sys.stderr.write('  use -h option for more help\n')
         sys.exit(9)
