@@ -151,8 +151,7 @@ class Bot(threading.Thread):
             self.scenario = Scenario()
             self.scenario.set_logger(self.logger)
             self.scenario.load_scenario(filename)
-            print(self.scenario)
-            print(self.scenario.__iter__())
+            self.scenario.__iter__()
         except Exception as e:
             print(e)
 
@@ -383,9 +382,9 @@ def _main(*args):
         mcxt.add_argument('--ip', type=str, default="0.0.0.0")
         mcxt.add_argument('port', type=int, default=8082)
 
-
         argspec = mcxt.parse_args(args)
         return bot(mcxt, argspec)
+
 
 ################################################################################
 def main(*args):

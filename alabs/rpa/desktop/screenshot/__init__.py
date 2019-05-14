@@ -26,27 +26,9 @@ Change Log
 ################################################################################
 import os
 import platform
-import enum
+
 from alabs.common.definitions.platforms import Platforms
 
-
-################################################################################
-class ClickMotionType(enum.Enum):
-    CLICK = 'click'
-    DOUBLE = 'doubleClick'
-    PRESS = 'mouseDown'
-    RELEASE = 'mouseUp'
-
-
-################################################################################
-class ClickType(enum.Enum):
-    RIGHT = 'right'
-    LEFT = 'left'
-    NONE = 'None'
-
-################################################################################
-def to_int(value:str):
-    return tuple((int(v) for v in value.split(',')))
 
 ################################################################################
 # Version
@@ -65,14 +47,17 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
     if _platform == Platforms.LINUX.value:
-        from alabs.rpa.autogui.click.linux import main as _main
-
+        from alabs.rpa.desktop.screenshot.linux import main as _main
+        args = ['--path', '/tmp/tmp.png']
     elif _platform == Platforms.MAC.value:
-        pass
+        from alabs.rpa.desktop.screenshot.macos import main as _main
+        args = ['--path', '/tmp/tmp.png']
 
     elif _platform == Platforms.IOS.value:
-        from alabs.rpa.autogui.click.ios import main as _main
-        # return _main('--wda_url', url, '--wda_port', port)
+        from alabs.rpa.desktop.screenshot.ios import main as _main
+        url = os.environ.get("ARGOS_RPA_WDA_URL", "http://localhost")
+        port = os.environ.get("ARGOS_RPA_WDA_PORT", "8100")
+        return _main('--wda_url', url, '--wda_port', port)
     else:
         raise Exception("{} is Not Supported Platform".format(_platform))
     return _main(*args)

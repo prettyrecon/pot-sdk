@@ -2,9 +2,9 @@
 # coding=utf8
 """
 ====================================
- :mod:`alabs.rpa.autogui.find_image_location.ios
+ :mod:`alabs.pam.la.bot2py
 ====================================
-.. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
+.. moduleauthor:: Raven Lim <deokyu@argos-labs.com>
 .. note:: VIVANS License
 
 Description
@@ -14,21 +14,20 @@ ARGOS LABS PAM For LA
 Authors
 ===========
 
-* Injoong Kim
+* Raven Lim
 
 Change Log
 --------
 
- * [2019/04/09]
+ * [2019/01/30]
     - starting
 """
 
 ################################################################################
-import pyscreeze
+import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.rpa.desktop.screenshot.ios import screenshot
-from PIL import Image
+
 
 ################################################################################
 # Version
@@ -38,13 +37,13 @@ __version__ = VERSION
 
 OWNER = 'ARGOS-LABS'
 GROUP = 'Pam'
-PLATFORM = ['darwin']
+PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
 @func_log
-def find_image_location(mcxt, argspec):
+def scroll(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
@@ -52,24 +51,18 @@ def find_image_location(mcxt, argspec):
     :return: x, y
     """
     mcxt.logger.info('>>>starting...')
-
-    target = screenshot(mcxt, argspec)
-    target = Image.open(target)
-    target.save('/tmp/sss.png')
-
-    rect = pyscreeze.locate(argspec.filename, target, region=argspec.region)
-
+    x = argspec.horizon
+    y = argspec.vertical
+    if not any([x, y]):
+        raise ArgsError
+    if y:
+        # Mac에서는 음수로 작동
+        pyautogui.vscroll(y * -1)
+    if x:
+        pyautogui.hscroll(x)
     mcxt.logger.info('>>>end...')
-    if argspec.verbose:
-        print(rect)
-    return rect
 
-
-################################################################################
-def compare_image(source, target, region=None):
-    rect = pyscreeze.locate(source, target, region=region)
-    return rect
-
+    return x, y
 
 ################################################################################
 def _main(*args):
@@ -96,20 +89,11 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        # 필수 입력 항목
-        mcxt.add_argument('filename', re_match='.*[.](png|PNG).*$',
-                          metavar='image_filename.png',  help='')
-        mcxt.add_argument('--region', nargs=4, type=int, default=None,
-                          metavar='0', help='')
-        mcxt.add_argument('--similarity', type=int, metavar='SIMILARITY',
-                            default=50, min_value=0, max_value=100, help='')
-        mcxt.add_argument('--wda_url', type=str, default='http://localhost', help='')
-        mcxt.add_argument('--wda_port', type=str, default='8100', help='')
+        mcxt.add_argument('--horizon', '-x',  type=int, default=0,  help='')
+        mcxt.add_argument('--vertical', '-y', type=int, default=0, help='')
         argspec = mcxt.parse_args(args)
-        return find_image_location(mcxt, argspec)
-
+        return scroll(mcxt, argspec)
 
 ################################################################################
 def main(*args):
     return _main(*args)
-

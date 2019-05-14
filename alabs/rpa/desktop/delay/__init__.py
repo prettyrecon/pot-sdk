@@ -84,7 +84,7 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        mcxt.add_argument('delay', type=int, help='Millisecond')
+        mcxt.add_argument('delay', type=int, default=1000, help='Millisecond')
         argspec = mcxt.parse_args(args)
         return delay(mcxt, argspec)
 
