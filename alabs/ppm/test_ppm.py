@@ -280,8 +280,8 @@ class TU(TestCase):
             r = _main(cmd)
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
-        TU.vers = stdout.split('\n')
-        self.assertTrue(len(TU.vers) >= 2)
+        TU.vers1 = stdout.split('\n')
+        self.assertTrue(len(TU.vers1) >= 2)
 
     # ==========================================================================
     def test_0430_plugin_get_module(self):
@@ -294,12 +294,12 @@ class TU(TestCase):
         print(stdout)
         self.assertTrue(stdout.find('argoslabs.demo.helloworld') > 0)
         rd = json.loads(stdout)
-        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers[0])
+        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers1[0])
 
     # ==========================================================================
     def test_0440_plugin_get_module_with_version(self):
         # 특정 버전을 지정
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld==%s' % TU.vers[1]]
+        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld==%s' % TU.vers1[1]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -307,12 +307,12 @@ class TU(TestCase):
         print(stdout)
         self.assertTrue(stdout.find('argoslabs.demo.helloworld') > 0)
         rd = json.loads(stdout)
-        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers[1])
+        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers1[1])
 
     # ==========================================================================
     def test_0450_plugin_get_module_with_version(self):
         # 특정 버전 보다 큰 버전
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld>%s' % TU.vers[1]]
+        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld>%s' % TU.vers1[1]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -320,12 +320,12 @@ class TU(TestCase):
         print(stdout)
         self.assertTrue(stdout.find('argoslabs.demo.helloworld') > 0)
         rd = json.loads(stdout)
-        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers[0])
+        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers1[0])
 
     # ==========================================================================
     def test_0460_plugin_get_module_with_version(self):
         # 특정 버전 보다 작은 버전
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld<%s' % TU.vers[0]]
+        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld<%s' % TU.vers1[0]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -333,7 +333,7 @@ class TU(TestCase):
         print(stdout)
         self.assertTrue(stdout.find('argoslabs.demo.helloworld') > 0)
         rd = json.loads(stdout)
-        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers[1])
+        self.assertTrue(rd['argoslabs.demo.helloworld']['version'] == TU.vers1[1])
 
     # ==========================================================================
     def test_0470_plugin_get_all_only_official(self):
@@ -485,11 +485,28 @@ class TU(TestCase):
             shutil.rmtree(venv_d)
         self.assertTrue(not os.path.exists(venv_d))
 
+        cmd = ['plugin', 'versions', 'argoslabs.data.fileconv']
+        with captured_output() as (out, err):
+            r = _main(cmd)
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        TU.vers2 = stdout.split('\n')
+        self.assertTrue(len(TU.vers2) >= 2)
+
+        cmd = ['plugin', 'versions', 'argoslabs.web.bsoup']
+        with captured_output() as (out, err):
+            r = _main(cmd)
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        TU.vers3 = stdout.split('\n')
+        self.assertTrue(len(TU.vers3) >= 2)
+
     # ==========================================================================
     def test_0610_plugin_venv_success(self):
         try:
             with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.data.json']
+                # argoslabs.data.fileconv 최신버전 설치 in venv_01
+                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv']
                 r = _main(cmd)
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
@@ -499,17 +516,18 @@ class TU(TestCase):
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
-            self.assertTrue('argoslabs.data.json' in rd)
+            self.assertTrue(rd['argoslabs.data.fileconv'] == TU.vers2[0])
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
             pass
 
     # ==========================================================================
-    def test_0620_plugin_venv_success_helloworld(self):
+    def test_0620_plugin_venv_success(self):
         try:
             with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.demo.helloworld==1.424.2255']
+                # argoslabs.data.fileconv 최신버전 설치 in venv_01
+                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[0]]
                 r = _main(cmd)
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
@@ -519,17 +537,18 @@ class TU(TestCase):
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
-            self.assertTrue(rd['argoslabs.demo.helloworld'] == '1.424.2255')
+            self.assertTrue(rd['argoslabs.data.fileconv'] == TU.vers2[0])
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
             pass
 
     # ==========================================================================
-    def test_0630_plugin_venv_success_helloworld_again(self):
+    def test_0630_plugin_venv_success(self):
         try:
             with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.demo.helloworld==1.424.2255']
+                # argoslabs.web.bsoup 최신버전 설치 in venv_01
+                cmd = ['plugin', 'venv', 'argoslabs.web.bsoup==%s' % TU.vers3[0]]
                 r = _main(cmd)
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
@@ -539,17 +558,18 @@ class TU(TestCase):
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
-            self.assertTrue(rd['argoslabs.demo.helloworld'] == '1.424.2255')
+            self.assertTrue(rd['argoslabs.web.bsoup'] == TU.vers3[0])
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
             pass
 
     # ==========================================================================
-    def test_0640_plugin_venv_new_helloworld(self):
+    def test_0640_plugin_venv(self):
         try:
             with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.demo.helloworld==1.427.2277']
+                # argoslabs.data.fileconv 이전버전 설치 in venv_02
+                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[1]]
                 r = _main(cmd)
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
@@ -560,7 +580,7 @@ class TU(TestCase):
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
-            self.assertTrue(rd['argoslabs.demo.helloworld'] == '1.427.2277')
+            self.assertTrue(rd['argoslabs.data.fileconv'] == TU.vers2[1])
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
@@ -570,9 +590,12 @@ class TU(TestCase):
     def test_0650_plugin_venv_requirements_txt(self):
         tmpdir = None
         try:
+            # argoslabs.data.fileconv 이전버전 설치
+            # argoslabs.web.bsoup 이전버전 설치
+            # in venv_02
             modlist = [
-                'argoslabs.demo.helloworld==1.427.2277',
-                'argoslabs.ai.tts ==  1.330.1500',
+                'argoslabs.data.fileconv==%s' % TU.vers2[1],
+                'argoslabs.web.bsoup==%s' % TU.vers3[1],
             ]
             tmpdir = tempfile.mkdtemp(prefix='requirements_')
             requirements_txt = os.path.join(tmpdir, 'requirements.txt')
@@ -593,8 +616,8 @@ class TU(TestCase):
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
             self.assertTrue(
-                rd['argoslabs.demo.helloworld'] == '1.427.2277' and
-                rd['argoslabs.ai.tts'] == '1.330.1500'
+                rd['argoslabs.data.fileconv'] == TU.vers2[1] and
+                rd['argoslabs.web.bsoup'] == TU.vers3[1]
             )
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
@@ -606,9 +629,12 @@ class TU(TestCase):
     def test_0660_plugin_venv_requirements_txt_best(self):
         tmpdir = None
         try:
+            # argoslabs.data.fileconv 이전버전 설치
+            # argoslabs.web.bsoup 최신버전 설치
+            # in venv_03
             modlist = [
-                'alabs.common',
-                'argoslabs.ai.tts ==  1.330.1500',
+                'argoslabs.data.fileconv==%s' % TU.vers2[1],
+                'argoslabs.web.bsoup==%s' % TU.vers3[0],
             ]
             tmpdir = tempfile.mkdtemp(prefix='requirements_')
             requirements_txt = os.path.join(tmpdir, 'requirements.txt')
@@ -622,15 +648,15 @@ class TU(TestCase):
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
             print(stdout)
-            self.assertTrue(TU.venv_02 == stdout)
+            self.assertTrue(TU.venv_01 != stdout and TU.venv_02 != stdout)
             TU.venv_02 = stdout
             freeze_f = os.path.join(TU.venv_02, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
             self.assertTrue(
-                rd['argoslabs.demo.helloworld'] == '1.427.2277' and
-                rd['argoslabs.ai.tts'] == '1.330.1500'
+                rd['argoslabs.data.fileconv'] == TU.vers2[1] and
+                rd['argoslabs.web.bsoup'] == TU.vers3[0]
             )
             for k, v in rd.items():
                 print('%s==%s' % (k, v))

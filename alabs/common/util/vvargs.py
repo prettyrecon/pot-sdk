@@ -18,6 +18,8 @@
 # 다음과 같은 작업 사항이 있었습니다:
 #
 #  * [2019/04/25]
+#     - console method 추가
+#  * [2019/04/25]
 #     - argument에 display_name을 넣도록 함
 #     - argument에 show_default 추가
 #     - last_modify_datetime 추가
@@ -695,6 +697,12 @@ class ModuleContext(ArgumentParser):
                                          (step, total_step, percent, message))))
         return True
 
+    # ==========================================================================
+    def console(self, msg):
+        if not msg.endwith('\n'):
+            msg += '\n'
+        self._org_stdout.write(msg)
+
 
 ################################################################################
 def str2bool(v):
@@ -735,7 +743,7 @@ def get_pip_version(modname):
                 yd = yaml_load(ifp, Loader=yaml.FullLoader)
             else:
                 yd = yaml_load(ifp)
-            return yd.get('setup',{}).get('version', None)
+            return yd.get('setup', {}).get('version', None)
     _d = get_all_pip_version()
     if modname not in _d:
         return None

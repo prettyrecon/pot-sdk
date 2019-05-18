@@ -18,6 +18,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/05/17]
+#     - python 3.6.3 에서 setuptools 를 최신 것으로 update 해야하는 상황 발생
 #  * [2019/05/04]
 #     - 특정 plugin의 버전목록 구하기 기능 추가
 #  * [2019/05/01]
@@ -204,7 +206,10 @@ class VEnv(object):
             self.logger.error(msg)
             raise RuntimeError(msg)
         self.logger.info("making venv %s success!" % self.root)
-        return self.venv_pip('install', '--upgrade', 'pip')
+        r = self.venv_pip('install', '--upgrade', 'pip')
+        if r == 0:
+            r = self.venv_pip('install', '--upgrade', 'setuptools')
+        return r
 
     # ==========================================================================
     def check_venv(self):
