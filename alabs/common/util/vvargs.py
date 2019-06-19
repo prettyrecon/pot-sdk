@@ -163,13 +163,28 @@ class ModuleContext(ArgumentParser):
     # 각 패러미터에 대한 부가 속성 : 주로 사용자 입력 UI 관련
     ETC_ATTRS = {
         # 1) input_group: 해당 패러미터의 입력 그룹 (디폴트는 None)
+        # 1.1) "groupname" : 해당 그룹명으로 모음
+        #      "groupname;groupbox" : groupname 그룹박스에 넣음
+        #      "radio=a" : a라는 그룹박스 이름으로 동일 그룹 중에 하나만 선택
+        #      "radio=a;default" : a라는 이름으로 동일 그룹 중에 하나만 선택; default
+        # 1.2) "showwhen:operation=send" operation 이라는 패러미터가 send 일 때 보여짐
+        #      "showwhen:operation=read,monitor" operation 이라는 패러미터가 read 또는 monitor 일 때 보여짐
+        # 1.1과 1.2는 '+'로 여러개 표현 가능
         'input_group': None,
         # 2) input_method: 해당 패러미터의 특정 UI 입력 방법 (디폴트는 None)
         # 2.1) "password" : Stu에서 암호표시
         # 2.2) "fileread" : Stu에서 읽을 파일을 지정
+        #      "fileread;xlsx" : Stu에서 읽을 파일을 지정 (확장자 지정)
         # 2.3) "filewrite" : Stu에서 쓸 파일을 지정
-        # 2.4) "folderread" : Stu에서 읽을 파일을 지정
-        # 2.5) "folderwrite" : Stu에서 쓸 파일을 지정
+        #      "filewrite;txt,pdf" : Stu에서 쓸 파일을 지정 (확장자 지정)
+        # 2.4) "folderread" : Stu에서 읽을 폴더를 지정
+        # 2.5) "folderwrite" : Stu에서 쓸 폴더를 지정
+        # 2.6) "dateselect" : Stu에서 쓸 날짜 선택 다이얼로그 지정
+        # 2.7) "textarea" : multiline 텍스트 입력
+        # 2.8) "radio" : choice로 선택해야 하는 경우 radio로 보여줌
+        # 2.9) "combobox" : choice로 선택해야 하는 경우 combobox로 보여줌
+        # 2.10)"imagebox" : image filename인 경우
+        # 2.11)"mouseop" : STU의 mouse 관련 선택 항목
         'input_method': None,
         # 3) display_name: Stu에서 보여줄 내용
         'display_name': None,

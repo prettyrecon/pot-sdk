@@ -16,22 +16,33 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/05/29]
+#     - dumppi 테스트
+#  * [2019/05/27]
+#     - POT 환경 구축 후 테스트
+#     - 마지막 테스트 후 24시간이 지나지 않으면 dumpspec 캐시를 지우는 테스트 않함
 #  * [2018/11/28]
 #     - 본 모듈 작업 시작
 ################################################################################
 import os
 import sys
 import json
+import time
 import shutil
 import tempfile
+import requests
+import datetime
+import subprocess
 from tempfile import gettempdir
-# noinspection PyProtectedMember
-from alabs.ppm import _main
+# from urllib.parse import quote
+# noinspection PyProtectedMember,PyUnresolvedReferences
+from alabs.ppm import _main, CONF_PATH, _conf_last_version
 from unittest import TestCase, TestLoader, TextTestRunner
 from pathlib import Path
 from contextlib import contextmanager
 from io import StringIO
 from pprint import pprint
+from pickle import dump, load
 
 
 ################################################################################
@@ -47,21 +58,31 @@ def captured_output():
 
 
 ################################################################################
+# noinspection PyUnresolvedReferences
 class TU(TestCase):
     # ==========================================================================
     vers = list()
+    TS_FILE = '%s/.test_ppm.pkl' % gettempdir()
+    TS_LAST = datetime.datetime(2000, 1, 1, 0, 0, 0)
+    TS_CLEAR = True
+    DUMPPI_FOLDER = '%s%sdumppi_folder' % (gettempdir(), os.path.sep)
+    HTTP_SERVER_PO = None
 
     # ==========================================================================
     def test_0000_check_python(self):
         self.assertTrue('%s.%s' % (sys.version_info.major,
                                    sys.version_info.minor) > '3.3')
+        if os.path.exists(TU.TS_FILE):
+            with open(TU.TS_FILE, 'rb') as ifp:
+                TU.TS_LAST = load(ifp)
+        ts_diff = datetime.datetime.now() - TU.TS_LAST
+        TU.TS_CLEAR = True if ts_diff.total_seconds() > 86400 else False
 
     # ==========================================================================
     def test_0005_check_apm_conf(self):
-        cf = os.path.join(str(Path.home()), '.argos-rpa.conf')
-        if not os.path.exists(cf):
-            sys.stderr.write('First MUST edit "%s"' % cf)
-        self.assertTrue(os.path.exists(cf))
+        if os.path.exists(CONF_PATH):
+            os.remove(CONF_PATH)
+        self.assertTrue(not os.path.exists(CONF_PATH))
 
     # ==========================================================================
     def test_0010_help(self):
@@ -136,9 +157,36 @@ class TU(TestCase):
                                                         'python')))
 
     # ==========================================================================
-    def test_0050_submit(self):
+    def test_0045_change_apm_conf(self):
+        with open(CONF_PATH, 'w') as ofp:
+            ofp.write('''
+---
+version: "1.1"
+
+repository:
+  url: https://pypi-official.argos-labs.com/pypi
+  req: https://pypi-req.argos-labs.com
+private-repositories:
+- name: pypi-test
+  url: https://pypi-test.argos-labs.com/simple
+  username: argos
+  password: argos_01
+''')
+        self.assertTrue(os.path.exists(CONF_PATH))
+
+    # ==========================================================================
+    def test_0050_submit_without_key(self):
         try:
             _main(['submit'])
+            self.assertTrue(False)
+        except Exception as e:
+            print(e)
+            self.assertTrue(True)
+
+    # ==========================================================================
+    def test_0055_submit_with_key(self):
+        try:
+            _main(['submit', '--submit-key', 'aL0PK2Rhs6ed0mgqLC42'])
             self.assertTrue(True)
         except Exception as e:
             print(e)
@@ -185,6 +233,18 @@ class TU(TestCase):
     def test_0150_list(self):
         with captured_output() as (out, err):
             r = _main(['-vv', 'list'])
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        print(stdout)
+        # self.assertTrue(stdout.find('alabs.ppm') > 0)
+        if stdout.find('alabs.ppm') > 0:
+            r = _main(['-vv', 'uninstall', 'alabs.ppm'])
+            self.assertTrue(r == 0)
+
+    # ==========================================================================
+    def test_0160_list_self_upgrade(self):
+        with captured_output() as (out, err):
+            r = _main(['--self-upgrade', '-vv', 'list'])
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
         print(stdout)
@@ -247,9 +307,24 @@ class TU(TestCase):
         self.assertTrue(r == 0)
 
     # ==========================================================================
+    def test_0390_plugin_versions(self):
+        cmd = ['plugin', 'versions', 'argoslabs.demo.helloworld']
+        if TU.TS_CLEAR:
+            cmd.append('--flush-cache')
+        with captured_output() as (out, err):
+            r = _main(cmd)
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        print(stdout)
+        TU.vers1 = stdout.split('\n')
+        self.assertTrue(len(TU.vers1) >= 2)
+
+    # ==========================================================================
     def test_0400_plugin_get_all_short_output(self):
         # --flush-cache 캐쉬를 지우면 오래 걸림 (특히 플러그인이 많을 경우)
-        cmd = ['plugin', 'get', '--short-output', '--flush-cache']
+        cmd = ['plugin', 'get', '--short-output']
+        if TU.TS_CLEAR:
+            cmd.append('--flush-cache')
         # cmd = ['plugin', 'get', '--short-output']
         with captured_output() as (out, err):
             r = _main(cmd)
@@ -280,6 +355,7 @@ class TU(TestCase):
             r = _main(cmd)
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
+        print(stdout)
         TU.vers1 = stdout.split('\n')
         self.assertTrue(len(TU.vers1) >= 2)
 
@@ -458,11 +534,90 @@ class TU(TestCase):
                 os.remove(jsf)
 
     # ==========================================================================
-    def test_0520_plugin_dumpspec_user_official(self):
+    def test_0520_get_oauth_token(self):
+        # 현재 STU에서 호출할 경우에는 token을 받아 처리하지만 이 유닛 테스트는
+        # 그럴 수 없으므로 황이사가 알려준 admin 토큰 받아오는 것을 불러
+        # 테스트를 하지만, 이런 경우 보안 구멍이 있을 수 있으므로 테스트 시에만
+        TU.token = None
+        try:
+            cookies = {
+                'JSESSIONID': '04EFBA89842288248F32F9EC19B7423E',
+            }
+
+            headers = {
+                'Accept': '*/*',
+                'Authorization': 'Basic YXJnb3MtcnBhOjA0MGM1YTA1MTkzZWRjYWViZjk4NTY1MmMxOGE1MThj',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Host': 'oauth-rpa.argos-labs.com',
+                'Postman-Token': 'd010ec3c-d0b5-40cf-a3a5-4522fe73b2ad,0af02f20-2044-4983-9db4-ab7aa8453e06',
+                'User-Agent': 'PostmanRuntime/7.13.0',
+                'accept-encoding': 'gzip, deflate',
+                'cache-control': 'no-cache',
+                'content-length': '92',
+                'content-type': 'application/x-www-form-urlencoded',
+                'cookie': 'JSESSIONID=04EFBA89842288248F32F9EC19B7423E',
+            }
+
+            data = {
+                'grant_type': 'password',
+                'client_id': 'argos-rpa',
+                'scope': 'read write',
+                'username': 'admin',
+                'password': '78argos90'
+            }
+
+            r = requests.post('https://oauth-rpa.argos-labs.com/oauth/token',
+                              headers=headers, cookies=cookies, data=data)
+            if r.status_code // 10 != 20:
+                raise RuntimeError('PPM._dumpspec_user: API Error!')
+            jd = json.loads(r.text)
+            TU.token = 'Bearer %s' % jd['access_token']
+            self.assertTrue(TU.token.startswith('Bearer '))
+        except Exception as e:
+            sys.stderr('%s%s' % (str(e), os.linesep))
+            self.assertTrue(False)
+
+    # ==========================================================================
+    def test_0530_plugin_dumpspec_user_official_without_auth(self):
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
         try:
             cmd = ['plugin', 'dumpspec', '--official-only',
-                   '--user', 'seonme@vivans.net',
+                   '--user', 'fjoker@naver.com',
+                   '--outfile', jsf]
+            _ = _main(cmd)
+            self.assertTrue(False)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(True)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
+    def test_0540_plugin_dumpspec_user_official_invalid_auth(self):
+        jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+        try:
+            cmd = ['plugin', 'dumpspec', '--official-only',
+                   '--user', 'fjoker@naver.com',
+                   '--user-auth', 'invalid--key',
+                   '--outfile', jsf]
+            _ = _main(cmd)
+            self.assertTrue(False)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(True)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
+    def test_0550_plugin_dumpspec_user_official(self):
+        jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+        try:
+            cmd = ['plugin', 'dumpspec', '--official-only',
+                   '--user', 'fjoker@naver.com',
+                   '--user-auth', TU.token,
                    '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -502,6 +657,21 @@ class TU(TestCase):
         self.assertTrue(len(TU.vers3) >= 2)
 
     # ==========================================================================
+    def test_0605_plugin_venv_success(self):
+        try:
+            with captured_output() as (out, err):
+                cmd = ['plugin', 'venv', 'argoslabs.ai.tts']
+                r = _main(cmd)
+            self.assertTrue(r == 0)
+            stdout = out.getvalue().strip()
+            print(stdout)
+            TU.venv_01 = stdout
+            self.assertTrue(True)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(False)
+
+    # ==========================================================================
     def test_0610_plugin_venv_success(self):
         try:
             with captured_output() as (out, err):
@@ -511,7 +681,7 @@ class TU(TestCase):
             self.assertTrue(r == 0)
             stdout = out.getvalue().strip()
             print(stdout)
-            TU.venv_01 = stdout
+            self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
@@ -665,6 +835,92 @@ class TU(TestCase):
                 shutil.rmtree(tmpdir)
 
     # ==========================================================================
+    def test_0700_plugin_dumppi_empty_folder(self):
+        try:
+            cmd = ['plugin', 'dumppi', '--official-only', '--last-only']
+            _ = _main(cmd)
+            self.assertTrue(False)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(True)
+
+    # ==========================================================================
+    def test_0710_plugin_dumppi(self):
+        try:
+            if os.path.exists(TU.DUMPPI_FOLDER):
+                shutil.rmtree(TU.DUMPPI_FOLDER)
+            with captured_output() as (out, err):
+                cmd = ['plugin', 'dumppi', '--official-only', '--last-only',
+                       '--dumppi-folder', TU.DUMPPI_FOLDER]
+                r = _main(cmd)
+            self.assertTrue(r == 0)
+            stdout = out.getvalue().strip()
+            print(stdout)
+            stderr = err.getvalue().strip()
+            sys.stderr.write('%s\n' % stderr)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(False)
+
+    # ==========================================================================
+    def test_0720_remove_all_venv(self):
+        venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
+        if os.path.exists(venv_d):
+            shutil.rmtree(venv_d)
+        self.assertTrue(not os.path.exists(venv_d))
+
+    # ==========================================================================
+    def test_0730_http_server(self):
+        cmd = [
+            'python',
+            '-m',
+            'http.server',
+            '--directory', TU.DUMPPI_FOLDER,
+            '38038'
+        ]
+        TU.HTTP_SERVER_PO = subprocess.Popen(cmd)
+        time.sleep(1)
+        self.assertTrue(TU.HTTP_SERVER_PO is not None)
+
+    # ==========================================================================
+    def test_0740_rename_conf(self):
+        os.rename(CONF_PATH, '%s.org' % CONF_PATH)
+        with open(CONF_PATH, 'w') as ofp:
+            ofp.write('''
+version: "%s"
+repository:
+  url: http://localhost:38038/simple
+'''% _conf_last_version)
+        self.assertTrue(os.path.exists('%s.org' % CONF_PATH))
+
+    # ==========================================================================
+    def test_0750_plugin_venv_success(self):
+        try:
+            with captured_output() as (out, err):
+                cmd = ['plugin', 'venv', 'argoslabs.ai.tts']
+                r = _main(cmd)
+            self.assertTrue(r == 0)
+            stdout = out.getvalue().strip()
+            print(stdout)
+            TU.venv_01 = stdout
+            self.assertTrue(True)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(False)
+
+    # ==========================================================================
+    def test_0760_restore_conf(self):
+        os.remove(CONF_PATH)
+        os.rename('%s.org' % CONF_PATH, CONF_PATH)
+        self.assertTrue(not os.path.exists('%s.org' % CONF_PATH))
+
+    # ==========================================================================
+    def test_0770_stop_http_server(self):
+        self.assertTrue(TU.HTTP_SERVER_PO is not None)
+        TU.HTTP_SERVER_PO.terminate()
+        TU.HTTP_SERVER_PO.wait()
+
+    # ==========================================================================
     def test_9980_install_last(self):
         r = _main(['-vv', 'install', 'alabs.ppm'])
         self.assertTrue(r == 0)
@@ -679,10 +935,15 @@ class TU(TestCase):
     def test_9990_clear_all(self):
         r = _main(['clear-all'])
         self.assertTrue(r == 0)
+        if os.path.exists(TU.DUMPPI_FOLDER):
+            shutil.rmtree(TU.DUMPPI_FOLDER)
+        self.assertTrue(not os.path.exists(TU.DUMPPI_FOLDER))
 
     # ==========================================================================
     def test_9999_quit(self):
-        self.assertTrue(True)
+        with open(TU.TS_FILE, 'wb') as ofp:
+            dump(datetime.datetime.now(), ofp)
+        self.assertTrue(os.path.exists(TU.TS_FILE))
 
 
 ################################################################################

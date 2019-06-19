@@ -16,8 +16,10 @@ from tempfile import gettempdir
 class TU(TestCase):
     # ==========================================================================
     isFirst = True
-    host = 'pypi.argos-labs.com'
-    token = 'KxnBsoIFABmzpqFBQtr0tqemlGO1tbv0dJyFLZtY'
+    url = 'https://pypi-req.argos-labs.com'
+    token = 'aL0PK2Rhs6ed0mgqLC42'
+    # url = 'http://router.vivans.net:25478'
+    # token = 'KxnBsoIFABmzpqFBQtr0tqemlGO1tbv0dJyFLZtY'
     zf = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     tf = gettempdir()
     file = os.path.join(tf, 'alabs.common.zip')
@@ -42,7 +44,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0100_check_non_exists(self):
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             r = sdu.exists(str(uuid.uuid4()))
             self.assertTrue(not r)
         except Exception as e:
@@ -52,7 +54,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0200_upload(self):
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             r = sdu.upload(self.file)
             self.assertTrue(r)
         except Exception as e:
@@ -62,7 +64,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0210_check_exitsts(self):
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             r = sdu.exists(self.file)
             self.assertTrue(r)
         except Exception as e:
@@ -73,7 +75,7 @@ class TU(TestCase):
     # # ==========================================================================
     # def test0300_check_not_exitsts(self):
     #     try:
-    #         sdu = SimpleDownUpload(host=self.host, token=self.token)
+    #         sdu = SimpleDownUpload(url=self.url, token=self.token)
     #         r = sdu.exists(self.saved_filename)
     #         self.assertTrue(not r)
     #     except Exception as e:
@@ -83,7 +85,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0310_upload_saved_filename(self):
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             r = sdu.upload(self.file, saved_filename=self.saved_filename)
             self.assertTrue(r)
             os.remove(self.file)
@@ -94,7 +96,7 @@ class TU(TestCase):
     # ==========================================================================
     def test0320_check_exitsts(self):
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             r = sdu.exists(self.saved_filename)
             self.assertTrue(r)
         except Exception as e:
@@ -105,7 +107,7 @@ class TU(TestCase):
     def test0400_download(self):
 
         try:
-            sdu = SimpleDownUpload(host=self.host, token=self.token)
+            sdu = SimpleDownUpload(url=self.url, token=self.token)
             dst = os.path.join(gettempdir(), 'download.zip')
             r = sdu.download(self.file, dst)
             self.assertTrue(r)

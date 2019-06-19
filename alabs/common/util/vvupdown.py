@@ -58,12 +58,11 @@ def clean_filename(filename, whitelist=valid_filename_chars, replace=' '):
 ################################################################################
 class SimpleDownUpload(object):
     # refer: https://hub.docker.com/r/mayth/simple-upload-server/
-    static_token = 'KxnBsoIFABmzpqFBQtr0tqemlGO1tbv0dJyFLZtY'
+    static_token = 'aL0PK2Rhs6ed0mgqLC42'
 
     # ==========================================================================
-    def __init__(self, host, token, port=25478):
-        self.host = host
-        self.port = port
+    def __init__(self, url, token):
+        self.url = url
         self.token = token
 
     # ==========================================================================
@@ -74,23 +73,23 @@ class SimpleDownUpload(object):
 
     # ==========================================================================
     def upload(self, file, saved_filename=None):
-        url = 'http://%s:%s/upload' % (self.host, self.port)
+        url = '%s/upload' % self.url
         params = {'token': self.token}
         with open(file, 'rb') as ifp:
             fn = self.safe_basename(saved_filename) if saved_filename \
                 else self.safe_basename(file)
             multiple_files = [('file', (fn, ifp))]
-            r = post(url, params=params, files=multiple_files)
+            r = post(url, params=params, files=multiple_files, verify=False)
         if r.status_code // 10 != 20:
             raise RuntimeError('Cannot upload "%s" to "%s": %s' %
-                               file, url, r.text)
+                               (file, url, r.text))
         return True
 
     # ==========================================================================
     def download(self, remote_file, local_file):
-        url = 'http://%s:%s/files/%s?token=%s' % \
-              (self.host, self.port, os.path.basename(remote_file), self.token)
-        r = get(url, stream=True)
+        url = '%s/files/%s?token=%s' % \
+              (self.url, os.path.basename(remote_file), self.token)
+        r = get(url, stream=True, verify=False)
         if r.status_code == 200:
             with open(local_file, 'wb') as f:
                 r.raw.decode_content = True
@@ -101,7 +100,7 @@ class SimpleDownUpload(object):
 
     # ==========================================================================
     def exists(self, file):
-        url = 'http://%s:%s/files/%s?token=%s' % \
-              (self.host, self.port, self.safe_basename(file), self.token)
-        r = head(url)
+        url = '%s/files/%s?token=%s' % \
+              (self.url, self.safe_basename(file), self.token)
+        r = head(url, verify=False)
         return r.status_code == 200

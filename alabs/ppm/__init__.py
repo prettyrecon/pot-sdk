@@ -18,7 +18,18 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/05/28]
+#     - ppm self upgrade on startup (--self-upgrade option)
+#     - TODO : pip2pi 모듈로 로컬용 pi를 만들고 로컬에서 설치하는 것 테스트
+#       - dumppi 명령 추가 (--dumppi-folder 옵션)
+#  * [2019/05/27]
+#     - submit 별도 구축 및 테스트
+#     - 설정에 버전 넣고 지정
+#     - plugin versions 명령은 해당 플러그인 들만 가져오도록 수정해야함
+#     - pypiuploader를 이용하여 https용 pypiserver에 업로드
 #  * [2019/05/17]
+#     - python 3.6.3 에서 setuptools 를 최신 것으로 update 해야하는 상황 발생
+#  * [2019/05/2?]
 #     - python 3.6.3 에서 setuptools 를 최신 것으로 update 해야하는 상황 발생
 #  * [2019/05/04]
 #     - 특정 plugin의 버전목록 구하기 기능 추가
@@ -58,6 +69,7 @@
 ################################################################################
 import os
 import sys
+import ssl
 # noinspection PyPackageRequirements
 import yaml
 import glob
@@ -74,17 +86,22 @@ import traceback
 import subprocess
 import requirements
 import urllib3
-from urllib.parse import quote
+import urllib.request
+import urllib.parse
+# noinspection PyUnresolvedReferences,PyPackageRequirements
+from random import randint
+from bs4 import BeautifulSoup
 from alabs.common.util.vvjson import get_xpath
 from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvupdown import SimpleDownUpload
+from alabs.ppm.pypiuploader.commands import main as pu_main
 from functools import cmp_to_key
 # from tempfile import gettempdir
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
 else:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, quote
     from pathlib import Path
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -101,6 +118,28 @@ ERR_PATH = os.path.join(str(Path.home()), ERR_NAME)
 
 ################################################################################
 __all__ = ['main']
+
+_conf_version_list = [
+    '1.1'
+]
+_conf_last_version = _conf_version_list[-1]
+_conf_contents_dict = {
+    _conf_last_version: """
+---
+version: "{last_version}"
+
+repository:
+  url: https://pypi-official.argos-labs.com/pypi
+  req: https://pypi-req.argos-labs.com
+private-repositories:
+#- name: pypi-test
+#  url: https://pypi-test.argos-labs.com/simple
+#  username: user
+#  password: pass
+""".format(last_version=_conf_last_version)
+
+}
+_conf_last_contents = _conf_contents_dict[_conf_last_version]
 
 
 ################################################################################
@@ -180,6 +219,18 @@ class VEnv(object):
         return 0
 
     # ==========================================================================
+    def _upgrade(self, ndx_param=None):
+        rl = list()
+        rl.append(self.venv_pip('install', '--upgrade', 'pip'))
+        rl.append(self.venv_pip('install', '--upgrade', 'setuptools'))
+        if not ndx_param:
+            ndx_param = list()
+        if self.args.self_upgrade:
+            rl.append(self.venv_pip('install', '--upgrade', 'alabs.common', *ndx_param))
+            rl.append(self.venv_pip('install', '--upgrade', 'alabs.ppm', *ndx_param))
+        return 1 if any(rl) else 0
+
+    # ==========================================================================
     def make_venv(self, isdelete=True):
         if not self.use:
             return 9
@@ -206,10 +257,7 @@ class VEnv(object):
             self.logger.error(msg)
             raise RuntimeError(msg)
         self.logger.info("making venv %s success!" % self.root)
-        r = self.venv_pip('install', '--upgrade', 'pip')
-        if r == 0:
-            r = self.venv_pip('install', '--upgrade', 'setuptools')
-        return r
+        return 0
 
     # ==========================================================================
     def check_venv(self):
@@ -312,6 +360,18 @@ class PPM(object):
     ]
     LIST_PKGS = [
         'beautifulsoup4',
+    ]
+    PLUGIN_PKGS = [
+        'pip2pi',
+        'twine',    # for gTTS
+        # 'zip',  # for dumppi
+        'pbr',  # for dumppi
+    ]
+    DUMPPI_PKGS = [
+        'alabs.ppm',
+        'twine',
+        # 'zip',
+        'pbr',
     ]
     CLASSIFIERS = [
         'Topic :: RPA',
@@ -429,6 +489,7 @@ class PPM(object):
             raise IOError('PPM._get_setup_config: Cannot find "%s" for setup' % yamlpath)
         with open(yamlpath) as ifp:
             if yaml.__version__ >= '5.1':
+                # noinspection PyUnresolvedReferences
                 yaml_config = yaml.load(ifp, Loader=yaml.FullLoader)
             else:
                 yaml_config = yaml.load(ifp)
@@ -487,17 +548,17 @@ class PPM(object):
         for pkg in self.LIST_PKGS:
             # self.venv.venv_pip('install', pkg, *self.ndx_param)
             self.venv.venv_pip('install', pkg)
-        import urllib.request
-        import urllib.parse
-        # noinspection PyUnresolvedReferences,PyPackageRequirements
-        from bs4 import BeautifulSoup
         for i, url in enumerate(self.indices):
             if i == 0 and private_only:
                 continue
             if i > 0 and official_only:
                 break
-            web_url = url + '/packages/'
-            with urllib.request.urlopen(web_url) as response:
+            o = urlparse(url)
+            web_url = '{scheme}://{netloc}/packages/'.format(scheme=o.scheme,
+                                                             netloc=o.netloc)
+            # noinspection PyProtectedMember
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(web_url, context=context) as response:
                 html = response.read()
                 soup = BeautifulSoup(html, 'html.parser')
             for x in soup.find_all('a'):
@@ -583,13 +644,20 @@ class PPM(object):
 
     # ==========================================================================
     def _dumpspec_user(self, tmpdir):
+        # curl -X GET --header 'Accept: application/json'
+        #   --header 'authorization: Bearer 312df8e2-b143-4d5e-8d77-f4c15fe2b911'
+        #   'https://api-chief.argos-labs.com/plugin/api/v1.0/users/fjoker%40naver.com/plugins'
+        # GET /plugin/api/v1.0/users/{user_id}/plugins
         # curl -X GET --header 'Accept: application/json' 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/seonme%40vivans.net/plugins'
         url = 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/%s/plugins' \
               % quote(self.args.user)
+        if not self.args.user_auth:
+            raise RuntimeError('_dumpspec_user: --user-auth option must have a valid key')
         headers = {
             # 'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'
+            'authorization': self.args.user_auth,
+            # 'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3',
         }
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code // 10 != 20:
@@ -824,6 +892,10 @@ six [('==', '1.10.0')]
         tmpdir = tempfile.mkdtemp(prefix='do_plugin_')
         try:
             self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
+            for pkg in self.PLUGIN_PKGS:
+                # self.venv.venv_pip('install', pkg, *self.ndx_param)
+                self.venv.venv_pip('install', pkg)
+
             ####################################################################
             # PAM용 환경설정 만들기
             ####################################################################
@@ -871,6 +943,9 @@ six [('==', '1.10.0')]
                 ofp = open(self.args.outfile, 'w', encoding='utf-8')
             if self.args.flush_cache:
                 self._dumpspec_json_clear_cache()
+            if self.args.plugin_cmd == 'versions' and not self.args.startswith:
+                # versions 명령에서는 해당 모듈만 가져오도록 필터링
+                self.args.startswith = self.args.plugin_module[0]
             modlist = self._list_modules(startswith=self.args.startswith,
                                          official_only=self.args.official_only,
                                          private_only=self.args.private_only)
@@ -963,13 +1038,96 @@ six [('==', '1.10.0')]
             elif self.args.plugin_cmd == 'dumpspec':
                 rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')
                 json.dump(rd, ofp)
+            ####################################################################
+            # plugin 오프라인 용 저장소 만들기 (나중에 http.server 로 동작가능)
+            ####################################################################
+            elif self.args.plugin_cmd == 'dumppi':
+                if not self.args.dumppi_folder:
+                    raise RuntimeError(
+                        'plugin dumppi command need --dumppi-folder option')
+                # pip2pi \work\p2p -r \work\reqtest.txt --index https://pypi-official.argos-labs.com/pypi -S
+                rd = self._cmd_modspec(modd, modspec)
+                # dp_req_file = '%s%s.dumppi.%d.txt' % (tmpdir, os.path.sep, randint(100000, 999999))
+                # with open(dp_req_file, 'w') as dp_ofp:
+                modl = list()
+                for mod in sorted([x for x in rd.keys()]):
+                    if isinstance(rd[mod], list):
+                        for ved in rd[mod]:
+                            line = '%s==%s' % (mod, ved['version'])
+                            # dp_ofp.write('%s\n' % line)
+                            modl.append(line)
+                    elif isinstance(rd[mod], dict):
+                        line = '%s==%s' % (mod, rd[mod]['version'])
+                        # dp_ofp.write('%s\n' % line)
+                        modl.append(line)
+                    # else raise runtime
+                from libpip2pi.commands import pip2pi
+                if not os.path.exists(self.args.dumppi_folder):
+                    os.makedirs(self.args.dumppi_folder)
+                args = [
+                    'pip2pi',
+                    self.args.dumppi_folder,
+                ]
+                args.extend(self.ndx_param)
+                # if sys.platform == 'win32':
+                args.append('--no-symlink')  # win32 고려
+                args.extend(modl)
+                args.extend(self.DUMPPI_PKGS)
+                self.logger.debug('pip2pi(%s)' % ' '.join(args))
+                # pip2pi p2p --index https://pypi-official.argos-labs.com/pypi
+                # --trusted-host pypi-official.argos-labs.com
+                # --extra-index-url https://pypi-test.argos-labs.com/simple
+                # --trusted-host pypi-test.argos-labs.com --no-symlink
+                # argoslabs.ai.translate==1.410.1357 argoslabs.ai.tts==1.330.1500
+
+                # _ = pip2pi(args)
+                po = subprocess.Popen(args)
+                po.wait()
             return 0
         finally:
-            if self.args.outfile:
+            if self.args.outfile and ofp != sys.stdout:
                 ofp.close()
             if tmpdir and os.path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
             self.logger.info('PPM.do_plugin: end. %s' % self.args.plugin_cmd)
+
+    # ==========================================================================
+    @staticmethod
+    def _parse_req(req):
+        o = urlparse(req)
+        nls = o.netloc.split(':')
+        port = None
+        if len(nls) == 2:
+            port = int(nls[1])
+        else:
+            if o.scheme == 'http':
+                port = 80
+            elif o.scheme == 'https':
+                port = 443
+        return nls[0], port
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _do_upload(self, url, user, passwd, wheels):
+        o = urlparse(url)
+        raw_url = '{scheme}://{netloc}/'.format(scheme=o.scheme,
+                                                netloc=o.netloc)
+        # 기존의 twine으로 사설 pypiserver로 올리는데 https 문제 때문에
+        # pypiuploader 를 가져와 처리
+        # r = self.venv.venv_py('-m', 'twine', 'upload', wheel,
+        #                       '--repository-url', raw_url,
+        #                       '--username', user,
+        #                       '--password', passwd,
+        #                       stdout=True)
+        cmd = [
+            'files',
+            '--index-url',
+            raw_url,
+            '--username', user,
+            '--password', passwd,
+        ]
+        cmd.extend(wheels)
+        return pu_main(argv=cmd)
 
     # ==========================================================================
     def do(self):
@@ -980,6 +1138,11 @@ six [('==', '1.10.0')]
             else:
                 subargs = []
             self._get_indices()
+
+            if self.args.self_upgrade:
+                # noinspection PyProtectedMember
+                self.venv._upgrade(self.ndx_param)
+
             # first do actions which do not need virtualenv
             ####################################################################
             # get commond
@@ -1024,6 +1187,8 @@ six [('==', '1.10.0')]
                     sargs.append('--trusted-host')
                     sargs.append(self._get_host_from_index(ndx))
                     r = self.venv.venv_pip(*sargs, getstdout=True)
+                    # official repository 애서만 가져오도록 수정
+                    break
                 return r
             elif self.args.command == 'list':
                 return self.venv.venv_pip('list', getstdout=True)
@@ -1037,6 +1202,9 @@ six [('==', '1.10.0')]
                     and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
+            if self.args.self_upgrade:
+                # noinspection PyProtectedMember
+                self.venv._upgrade()
             self._get_setup_config()
 
             ####################################################################
@@ -1065,6 +1233,8 @@ six [('==', '1.10.0')]
             elif self.args.command == 'submit':
                 zf = None
                 try:
+                    if not self.args.submit_key:
+                        raise RuntimeError('submit: Invalid submit key')
                     current_wd = os.path.abspath(getattr(self.args, '_cwd_'))
                     parent_wd = os.path.abspath(os.path.join(getattr(self.args, '_cwd_'), '..'))
                     if not os.path.exists(parent_wd):
@@ -1075,7 +1245,10 @@ six [('==', '1.10.0')]
                                         base_dir=os.path.basename(current_wd))
                     if not os.path.exists(zf):
                         raise RuntimeError('PPM.do: Cannot build zip file "%s" to submit' % zf)
-                    sdu = SimpleDownUpload(host=self.ndx_param[3], token=SimpleDownUpload.static_token)
+                    req = get_xpath(self.config, '/repository/req')
+                    if not req:
+                        raise RuntimeError('PPM.do: Cannot submit to "%s"' % req)
+                    sdu = SimpleDownUpload(url=req, token=self.args.submit_key)
                     sfl = list()
                     sfl.append(self.pkgname)
                     emstr = self.setup_config.get('author_email', 'unknown email')
@@ -1127,11 +1300,14 @@ six [('==', '1.10.0')]
                     raise RuntimeError('PPM.do: Cannot find wheel package file at "%s",'
                                        ' please build first' %
                                        os.path.join(self.basepath, 'dist'))
-                r = self.venv.venv_py('-m', 'twine', 'upload', 'dist/*',
-                                      '--repository-url', pr_url,
-                                      '--username', pr_user,
-                                      '--password', pr_pass,
-                                      stdout=True)
+                pr_wheels = [f for f in gl]
+                kwargs = {
+                    'url': pr_url,
+                    'user': pr_user,
+                    'passwd': pr_pass,
+                    'wheels': pr_wheels,
+                }
+                r = self._do_upload(**kwargs)
                 print('upload is done. success is %s' % (r == 0,))
                 return r
 
@@ -1322,15 +1498,27 @@ def get_repository_env():
     cf = CONF_PATH
     if not os.path.exists(cf):
         with open(cf, 'w') as ofp:
-            ofp.write('''---
-repository:
-  url: http://pypi.argos-labs.com:8080
-''')
+            ofp.write(_conf_last_contents)
     with open(cf) as ifp:
         if yaml.__version__ >= '5.1':
+            # noinspection PyUnresolvedReferences
             dcf = yaml.load(ifp, Loader=yaml.FullLoader)
         else:
             dcf = yaml.load(ifp)
+    need_conf_upgrade = False
+    if 'version' not in dcf:
+        need_conf_upgrade = True
+    elif ver_compare(dcf['version'], _conf_last_version) < 0:
+        need_conf_upgrade = True
+    if need_conf_upgrade:
+        with open(cf, 'w') as ofp:
+            ofp.write(_conf_last_contents)
+        with open(cf) as ifp:
+            if yaml.__version__ >= '5.1':
+                # noinspection PyUnresolvedReferences
+                dcf = yaml.load(ifp, Loader=yaml.FullLoader)
+            else:
+                dcf = yaml.load(ifp)
     return dcf
 
 
@@ -1345,19 +1533,7 @@ def _main(argv=None):
 This manager use private PyPI repository.
 set {conf_path} as follows:
 
----
-repository:
-  url: http://pypi.argos-labs.com:8080
-private-repositories:
-  - name: internal
-    url: http://10.211.55.2:48080
-    username: user
-    password: pass
-  - name: external
-    url: http://pypi.argos-labs.com:8080
-    username: user
-    password: pass
-
+{conf_contents}
 
 * repository is the main plugin modules's store
   * url is the url of ARGOS RPA+ main pypi module
@@ -1370,8 +1546,7 @@ private-repositories:
   * password is the user password at pypi repository
   NB) username and password is only needed for upload
       upload is only valid for private repositories
-'''.format(conf_path=CONF_PATH),
-            formatter_class=argparse.RawTextHelpFormatter)
+'''.format(conf_path=CONF_PATH, conf_contents=_conf_contents_dict[_conf_last_version]), formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument('--new-py', action='store_true',
                             help='making new python venv environment at py.%s' %
                             sys.platform)
@@ -1379,6 +1554,8 @@ private-repositories:
                             help='if set use package top py.%s for virtual env.'
                                  ' If not set. Use system python instead.'
                                  % sys.platform)
+        parser.add_argument('--self-upgrade', '-U', action='store_true',
+                            help='If set this flag self upgrade this ppm.')
         parser.add_argument('--clean', '-c', action='store_true',
                             help='clean all temporary folders, etc.')
         parser.add_argument('--verbose', '-v', action='count', default=0,
@@ -1390,10 +1567,9 @@ private-repositories:
         ########################################################################
         _ = subps.add_parser('test', help='test this module')
         _ = subps.add_parser('build', help='build this module')
-        _ = subps.add_parser('submit', help='submit to upload server')
-        # TODO : 현재는 붙박이로 키를 넣어서 가져오지만 나중에는 vault 서비스에서 가져오도록 수정
-        #  sp.add_argument('submit_key',
-        #                 help="token key to submit")
+        ss = subps.add_parser('submit', help='submit to upload server')
+        _ = ss.add_argument('--submit-key',
+                            help="token key to submit")
         sp = subps.add_parser('upload', help='upload this module to pypi server')
         sp.add_argument('repository_name', nargs='?',
                         help="repository name from the list of private repositories. "
@@ -1419,8 +1595,14 @@ private-repositories:
         ########################################################################
         sp = subps.add_parser('plugin', help='plugin command')
         sp.add_argument('plugin_cmd',
-                        choices=['get', 'dumpspec', 'venv', 'versions'],
-                        help="plugin command, one of {'get', 'dumpspec', 'venv', 'versions']}")
+                        choices=['get', 'dumpspec', 'venv', 'versions', 'dumppi'],
+                        help="""plugin command, one of {'get', 'dumpspec', 'venv', 'versions', 'dumppi']}.
+   - get : get plugin info for STU
+   - dumpspec : get plugin spec for STU
+   - venv : making virtual environment for PAM
+   - versions : get versions for a plugin
+   - dumppi : dump all pypi index for mirroring to a folder
+""")
         sp.add_argument('plugin_module',
                         nargs="*",
                         help="plugin module name eg) argoslabs.demo.helloworld or argoslabs.demo.helloworld==1.327.1731")
@@ -1440,6 +1622,8 @@ private-repositories:
                         help="dumpspec.json will be cached. If this flag is set, clear all cache first.")
         sp.add_argument('--last-only', action="store_true",
                         help="get or dumpspec last version only.")
+        sp.add_argument('--dumppi-folder',
+                        help="module filter to start with")
         sp.add_argument('--outfile',
                         help="filename to save the stdout into a file")
         sp.add_argument('--requirements-txt',
