@@ -658,29 +658,33 @@ private-repositories:
 
     # ==========================================================================
     def test_0605_plugin_venv_success(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.ai.tts']
-                r = _main(cmd)
+            cmd = ['plugin', 'venv', 'argoslabs.ai.tts',
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
-            TU.venv_01 = stdout
+            with open(venvout) as ifp:
+                TU.venv_01 = ifp.read()
             self.assertTrue(True)
         except Exception as err:
             sys.stderr.write('%s%s' % (str(err), os.linesep))
             self.assertTrue(False)
+        finally:
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0610_plugin_venv_success(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                # argoslabs.data.fileconv 최신버전 설치 in venv_01
-                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv']
-                r = _main(cmd)
+            # argoslabs.data.fileconv 최신버전 설치 in venv_01
+            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv',
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
@@ -690,18 +694,20 @@ private-repositories:
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
-            pass
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0620_plugin_venv_success(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                # argoslabs.data.fileconv 최신버전 설치 in venv_01
-                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[0]]
-                r = _main(cmd)
+            # argoslabs.data.fileconv 최신버전 설치 in venv_01
+            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[0],
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
@@ -711,18 +717,20 @@ private-repositories:
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
-            pass
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0630_plugin_venv_success(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                # argoslabs.web.bsoup 최신버전 설치 in venv_01
-                cmd = ['plugin', 'venv', 'argoslabs.web.bsoup==%s' % TU.vers3[0]]
-                r = _main(cmd)
+            # argoslabs.web.bsoup 최신버전 설치 in venv_01
+            cmd = ['plugin', 'venv', 'argoslabs.web.bsoup==%s' % TU.vers3[0],
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
@@ -732,18 +740,20 @@ private-repositories:
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
-            pass
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0640_plugin_venv(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                # argoslabs.data.fileconv 이전버전 설치 in venv_02
-                cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[1]]
-                r = _main(cmd)
+            # argoslabs.data.fileconv 이전버전 설치 in venv_02
+            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[1],
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_01 != stdout)
             TU.venv_02 = stdout
             freeze_f = os.path.join(TU.venv_02, 'freeze.json')
@@ -754,11 +764,13 @@ private-repositories:
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
         finally:
-            pass
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0650_plugin_venv_requirements_txt(self):
         tmpdir = None
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.data.fileconv 이전버전 설치
             # argoslabs.web.bsoup 이전버전 설치
@@ -773,12 +785,12 @@ private-repositories:
                 ofp.write('# pip dependent packages\n')
                 ofp.write('\n'.join(modlist))
 
-            with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt]
-                r = _main(cmd)
+            cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt,
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_02 == stdout)
             TU.venv_02 = stdout
             freeze_f = os.path.join(TU.venv_02, 'freeze.json')
@@ -794,10 +806,13 @@ private-repositories:
         finally:
             if tmpdir and os.path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0660_plugin_venv_requirements_txt_best(self):
         tmpdir = None
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.data.fileconv 이전버전 설치
             # argoslabs.web.bsoup 최신버전 설치
@@ -811,13 +826,12 @@ private-repositories:
             with open(requirements_txt, 'w') as ofp:
                 ofp.write('# pip dependent packages\n')
                 ofp.write('\n'.join(modlist))
-
-            with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt]
-                r = _main(cmd)
+            cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt,
+                   '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             self.assertTrue(TU.venv_01 != stdout and TU.venv_02 != stdout)
             TU.venv_02 = stdout
             freeze_f = os.path.join(TU.venv_02, 'freeze.json')
@@ -833,6 +847,8 @@ private-repositories:
         finally:
             if tmpdir and os.path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0700_plugin_dumppi_empty_folder(self):
@@ -895,18 +911,21 @@ repository:
 
     # ==========================================================================
     def test_0750_plugin_venv_success(self):
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            with captured_output() as (out, err):
-                cmd = ['plugin', 'venv', 'argoslabs.ai.tts']
-                r = _main(cmd)
+            cmd = ['plugin', 'venv', 'argoslabs.ai.tts', '--outfile', venvout]
+            r = _main(cmd)
             self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
             TU.venv_01 = stdout
             self.assertTrue(True)
         except Exception as err:
             sys.stderr.write('%s%s' % (str(err), os.linesep))
             self.assertTrue(False)
+        finally:
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     def test_0760_restore_conf(self):

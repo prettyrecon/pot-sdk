@@ -1,3 +1,0 @@
-[console_scripts]
-alabs.ppm = alabs.ppm:main
-

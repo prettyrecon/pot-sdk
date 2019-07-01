@@ -18,6 +18,10 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/06/25]
+#     - venv의 Popen 결과를 Thread, Queue로 해결
+#  * [2019/06/20]
+#     - venv의 Popen 결과를 line by line 으로 가져와서 처리
 #  * [2019/05/28]
 #     - ppm self upgrade on startup (--self-upgrade option)
 #     - TODO : pip2pi 모듈로 로컬용 pi를 만들고 로컬에서 설치하는 것 테스트
@@ -75,7 +79,9 @@ import yaml
 import glob
 import copy
 import json
+import time
 import shutil
+import chardet
 import logging
 import zipfile
 import requests
@@ -90,6 +96,8 @@ import urllib.request
 import urllib.parse
 # noinspection PyUnresolvedReferences,PyPackageRequirements
 from random import randint
+from threading import Thread
+from queue import Queue, Empty
 from bs4 import BeautifulSoup
 from alabs.common.util.vvjson import get_xpath
 from alabs.common.util.vvlogger import get_logger
@@ -287,6 +295,52 @@ class VEnv(object):
         return self.check_venv()
 
     # ==========================================================================
+    @staticmethod
+    def enqueue_stdout(out, queue):
+        for line in iter(out.readline, b''):
+            queue.put(line)
+        out.close()
+
+    # ==========================================================================
+    @staticmethod
+    def enqueue_stderr(err, queue):
+        for line in iter(err.readline, b''):
+            queue.put(line)
+        err.close()
+
+    # ==========================================================================
+    def get_line_str(self, line):
+        try:
+            line = line.decode("utf-8").rstrip()
+        except UnicodeDecodeError:
+            cd = chardet.detect(line)
+            line = line.decode(cd['encoding']).rstrip()
+        except Exception as err:
+            self.logger.error('get_line_str: Error: %s' % str(err))
+            raise
+        return line
+
+    # ==========================================================================
+    def do_stdout(self, line, kwargs, out_fp):
+        if not line:
+            return
+        line = self.get_line_str(line)
+        if kwargs['getstdout']:
+            print(line)
+        out_fp.write('%s\n' % line)
+        self.logger.debug('VEnv.venv_py: %s' % line)
+
+    # ==========================================================================
+    def do_stderr(self, line, kwargs, err_fp):
+        if not line:
+            return
+        line = self.get_line_str(line)
+        if kwargs['getstdout']:
+            sys.stderr.write('%s\n' % line)
+        err_fp.write('%s\n' % line)
+        self.logger.error('VEnv.venv_py: %s' % line)
+
+    # ==========================================================================
     def venv_py(self, *args, **kwargs):
         tmpdir = None
         try:
@@ -309,31 +363,43 @@ class VEnv(object):
 
             with open(out_path, 'w', encoding='utf-8') as out_fp, \
                     open(err_path, 'w', encoding='utf-8') as err_fp:
-
                 po = subprocess.Popen(' '.join(cmd), shell=True,
-                                      stdout=out_fp, stderr=err_fp)
-                po.wait()
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                q_out, q_err = Queue(), Queue()
+                t_out = Thread(target=self.enqueue_stdout, args=(po.stdout, q_out))
+                t_out.daemon = True  # thread dies with the program
+                t_out.start()
+                t_err = Thread(target=self.enqueue_stderr, args=(po.stderr, q_err))
+                t_err.daemon = True  # thread dies with the program
+                t_err.start()
+
+                # while po.poll() is None:
+                while po.poll() is None:
+                    try:
+                        line = q_out.get_nowait()
+                        self.do_stdout(line, kwargs, out_fp)
+                    except Empty:
+                        pass
+                    try:
+                        line = q_err.get_nowait()  # or q.get(timeout=.1)
+                        self.do_stderr(line, kwargs, err_fp)
+                    except Empty:
+                        pass
+                    time.sleep(0.1)
+
+                while not q_out.empty():
+                    line = q_out.get()
+                    self.do_stdout(line, kwargs, out_fp)
+                while not q_err.empty():
+                    line = q_err.get()  # or q.get(timeout=.1)
+                    self.do_stderr(line, kwargs, err_fp)
+
+                t_out.join()
+                t_err.join()
 
             if kwargs['outfile']:
                 shutil.copy2(out_path, kwargs['outfile'])
-            if kwargs['getstdout']:
-                with open(out_path) as ifp:
-                    print(ifp.read())
-
-            with open(out_path) as ifp:
-                try:
-                    out = ifp.read().encode('utf-8')
-                except UnicodeDecodeError as e:
-                    out = ifp.read().encode(e.encoding)
-                if out:
-                    self.logger.debug('VEnv.venv_py: stdout=<%s>' % out.decode('utf-8'))
-            with open(err_path) as ifp:
-                try:
-                    err = ifp.read().encode('utf-8')
-                except UnicodeDecodeError as e:
-                    err = ifp.read().encode(e.encoding)
-                if err:
-                    self.logger.debug('VEnv.venv_py: stderr=<%s>' % err.decode('utf-8'))
             if po.returncode != 0 and kwargs['raise_error']:
                 msg = 'VEnv.venv_py: venv command "%s": error %s' % (' '.join(cmd), po.returncode)
                 self.logger.error(msg)
@@ -649,6 +715,9 @@ class PPM(object):
         #   'https://api-chief.argos-labs.com/plugin/api/v1.0/users/fjoker%40naver.com/plugins'
         # GET /plugin/api/v1.0/users/{user_id}/plugins
         # curl -X GET --header 'Accept: application/json' 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/seonme%40vivans.net/plugins'
+        msg = 'Try to dump plugin spec for user "%s"' % self.args.user
+        sys.stdout.write('%s\n' % msg)
+        self.logger.info(msg)
         url = 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/%s/plugins' \
               % quote(self.args.user)
         if not self.args.user_auth:
@@ -661,6 +730,9 @@ class PPM(object):
         }
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code // 10 != 20:
+            msg = 'Dump plugin spec for user "%s" Error: API result is %s' % (self.args.user, r.status_code)
+            sys.stderr.write('%s\n' % msg)
+            self.logger.error(msg)
             raise RuntimeError('PPM._dumpspec_user: API Error!')
             # mdlist = [
             #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.ai.tts', 'plugin_version': '1.330.1500'},
@@ -708,10 +780,10 @@ class PPM(object):
                     for pm in self.args.plugin_module:
                         ofp.write('%s\n' % pm)
             r = new_venv.venv_pip('install', '-r', requirements_txt,
-                                  *self.ndx_param)
+                                  *self.ndx_param, getstdout=True)
             if r == 0:
                 outfile = os.path.join(new_d, 'freeze.txt')
-                new_venv.venv_pip('freeze', outfile=outfile)
+                new_venv.venv_pip('freeze', outfile=outfile, getstdout=True)
                 freeze_d = {}
                 with open(outfile) as ifp:
                     for line in ifp:
@@ -896,6 +968,9 @@ six [('==', '1.10.0')]
                 # self.venv.venv_pip('install', pkg, *self.ndx_param)
                 self.venv.venv_pip('install', pkg)
 
+            if self.args.outfile:
+                ofp = open(self.args.outfile, 'w', encoding='utf-8')
+
             ####################################################################
             # PAM용 환경설정 만들기
             ####################################################################
@@ -927,7 +1002,7 @@ six [('==', '1.10.0')]
                     match_list.sort(key=lambda x: x[0])
                     get_venv = match_list[-1][1]
                 self._get_venv(get_venv)
-                print(get_venv)
+                ofp.write(get_venv)
                 return 0
 
             # 만약 CHIEF에 특정 사용자별 dumpspec 결과를 가져오려면 우선
@@ -939,8 +1014,6 @@ six [('==', '1.10.0')]
             # 우선은 pypi 서버에서 해당 모듈 목록을 구해와서
             # 해당 모듈(wheel)만 다운로드하여 포함되어 있는 dumpspec.json을
             # 가져오는데 tempdir에 dumpspec-modulename-version.json 식으로 캐슁
-            if self.args.outfile:
-                ofp = open(self.args.outfile, 'w', encoding='utf-8')
             if self.args.flush_cache:
                 self._dumpspec_json_clear_cache()
             if self.args.plugin_cmd == 'versions' and not self.args.startswith:
@@ -1202,9 +1275,6 @@ six [('==', '1.10.0')]
                     and not self.args.venv:
                 self.args.venv = True  # 그래야 아래  _check_pkg에서 폴더 옮김
             self._check_pkg()
-            if self.args.self_upgrade:
-                # noinspection PyProtectedMember
-                self.venv._upgrade()
             self._get_setup_config()
 
             ####################################################################
@@ -1702,10 +1772,10 @@ def main(argv=None):
         r = _main(argv)
         sys.exit(r)
     except Exception as err:
-        # _exc_info = sys.exc_info()
-        # _out = traceback.format_exception(*_exc_info)
-        # del _exc_info
-        # sys.stderr.write('%s\n' % ''.join(_out))
+        _exc_info = sys.exc_info()
+        _out = traceback.format_exception(*_exc_info)
+        del _exc_info
+        sys.stderr.write('%s\n' % ''.join(_out))
         sys.stderr.write('%s\n' % str(err))
         sys.stderr.write('  use -h option for more help\n')
         sys.exit(9)

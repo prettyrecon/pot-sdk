@@ -1,5 +1,0 @@
-alabs.common
-PyYAML
-requests
-requirements-parser
-beautifulsoup4
