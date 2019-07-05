@@ -127,7 +127,7 @@ def split(text:str)->list:
 
 
 ################################################################################
-def split_string_variables(data:str, idx, stack=None, value='', variables=''):
+def split_string_variables(data: str, idx):
     """
     * 서식(Format) 문자열과 문자열 변수를 분리
     * 지정된 구분자를 찾을때 까지 문자열을 탐색
@@ -139,47 +139,49 @@ def split_string_variables(data:str, idx, stack=None, value='', variables=''):
     EXAMPLE_29 = 'Hello World {{ABC.VARIABLE_TEXT}} End'
     'Hello World {} End', '{{ABC.VARIABLE_TEXT}}'
     """
-    if stack is None:
-        stack = list()
 
-    if len(idx) == 1:
-        # 모든 문자 파싱 끝
-        variables = variables.split('|')
-        variables.pop()
-        return value, tuple(variables)
+    text = ""
+    variables = ""
+    stack = list()
 
-    t = data[idx[0]:idx[1]]
-    # print("t:{}\ndata:{}\nidx:{}\nstack:{}\nvalue:{}\nvariables:{}".format(t, data, idx, stack, value, variables))
-    # print()
-    if stack:
-        variables += t
-    elif not stack and t not in ('{{', '}}'):
-        # '{', '}' 문자일 경우 format 사용시 문제가 되므로 '{{', '}}'으로 변경
-        # {hello} -> {{hello}}
-        tv = t.replace('{','{{')
-        tv = tv.replace('}','}}')
-        value += tv
+    while True:
+        if len(idx) == 1:
+            # 모든 문자 파싱 끝
+            break
 
-    if t == '{{':
-        if not stack:
+        t = data[idx[0]:idx[1]]
 
-            value += '{}'
+        if stack:
             variables += t
-        stack.append(t)
-    elif t == '(':
-        if stack:
-            stack.append(t)
-    elif t == ')':
-        if stack:
-            stack.pop()
-    elif t == '}}':
-        stack.pop()
-        if not stack:
-            # 값은 문자열로 합치고 구분자로 `|` 사용
-            variables += '|'
 
-    idx.pop(0)
-    return split_string_variables(data, idx, stack, value, variables)
+        elif not stack and t not in ('{{', '}}'):
+            # '{', '}' 문자일 경우 format 사용시 문제가 되므로 '{{', '}}'으로 변경
+            # {hello} -> {{hello}}
+            tv = t.replace('{', '{{')
+            tv = tv.replace('}', '}}')
+            text += tv
+
+        if t == '{{':
+            if not stack:
+                text += '{}'
+                variables += t
+            stack.append(t)
+        elif t == '(':
+            if stack:
+                stack.append(t)
+        elif t == ')':
+            if stack:
+                stack.pop()
+        elif t == '}}':
+            stack.pop()
+            if not stack:
+                # 값은 문자열로 합치고 구분자로 `|` 사용
+                variables += '|'
+        idx.pop(0)
+
+    variables = variables.split('|')
+    variables.pop()
+    return text, tuple(variables)
 
 
 ################################################################################
@@ -236,7 +238,6 @@ class Variables(dict):
         :param variable: {{ABC.DEF[1]}}
         :return:
         """
-        print(variable)
         idx = get_delimiter_index(variable)
         _, variables = split_string_variables(variable, idx)
 

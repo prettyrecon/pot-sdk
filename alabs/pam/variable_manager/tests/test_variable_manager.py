@@ -60,6 +60,7 @@ EXAMPLE_54 = '{{Global.minute}}'
 EXAMPLE_55 = '{{Global.second}}'
 
 # Error
+ERROR_100 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ {{ABC.DEF}}" * 10000
 
 
 def ignore_warnings(test_func):
@@ -235,6 +236,8 @@ class TestUnit(unittest.TestCase):
         test_split_string_variables(EXAMPLE_130, ('{{@ABC.DEF}}',))
         test_split_string_variables(EXAMPLE_131, ('{{@ABC.DEF}}', '{{DEF.GHI}}'))
         test_split_string_variables(EXAMPLE_132, ('{{@ABC.DEF}}', '{{DEF.GHI}}'))
+
+        test_split_string_variables(ERROR_100, (tuple(['{{ABC.DEF}}'] * 10000)))
 
     # ==========================================================================
     def test_110_split(self):
