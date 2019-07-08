@@ -37,9 +37,10 @@ class Sign(enum.Enum):
 
 ################################################################################
 class ArrayFunction(enum.Enum):
-    COUNT = 'COUNT'
-    APPEND = 'APPEND'
-    LAST = 'LAST'
+    COUNT = ('COUNT',)
+    APPEND = ('APPEND', '+')
+    LAST = ('LAST', '$')
+
 
 
 ################################################################################
@@ -211,7 +212,7 @@ class Variables(dict):
             t = split(v)
             value, path, *_ = self.parse(t, option=option)
             array_function = option.setdefault('array_function', None)
-            if array_function == ArrayFunction.APPEND.value:
+            if array_function in ArrayFunction.APPEND.value:
                 # TODO: 전용 Exception Class 를 만들기
                 # APPEND는 값을 가져올 때는 사용하지 못함
                 raise ValueError("Array Function - "
@@ -248,7 +249,7 @@ class Variables(dict):
         t = split(variables[0])
         value, path, option = self.parse(t)
         array_function = option.setdefault('array_function', None)
-        if array_function == ArrayFunction.APPEND.value:
+        if array_function in ArrayFunction.APPEND.value:
             # TODO: 전용 Exception Class 를 만들기
             # APPEND는 값을 가져올 때는 사용하지 못함
             raise ValueError("Array Function - "
@@ -395,16 +396,16 @@ class Variables(dict):
             if not array_function:
                 value = self.get_by_xpath(path, store)
 
-            elif array_function == 'COUNT':
+            elif array_function in ArrayFunction.COUNT.value:
                 value = len(self.get_by_xpath(path, store))
 
-            elif array_function == 'LAST':
+            elif array_function in ArrayFunction.LAST.value:
                 # TODO: OUT OF INDEX 처리 필요
                 temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
                 path += "[{}]".format(len(temporary_value) - 1)
 
-            elif array_function == 'APPEND':
+            elif array_function in ArrayFunction.APPEND.value:
                 # TODO: OUT OF INDEX 처리 필요
                 temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
@@ -439,7 +440,8 @@ class Variables(dict):
             parsed += self.parse(data, stack, option=option)
             return parsed
 
-        elif t.upper() in tuple(map(lambda n: n.name, ArrayFunction)):
+        elif t.upper() in [item for sublist in list(ArrayFunction)
+                           for item in sublist.value]:
             option['array_function'] = t.upper()
 
         # t의 값이 '}}', 값을 요청하여 리턴
