@@ -22,6 +22,8 @@ EXAMPLE_24 = '{{ABC.DEF(1,2,{{DEF.GHI}})}}'
 EXAMPLE_25 = '{{ABC.DEF(COUNT)}}'
 EXAMPLE_26 = '{{ABC.DEF(APPEND)}}'
 EXAMPLE_27 = '{{ABC.DEF(LAST)}}'
+EXAMPLE_28 = '{{ABC.DEF(+)}}'
+EXAMPLE_29 = '{{ABC.DEF($)}}'
 
 EXAMPLE_30 = """Hello {{ABC.DEF}} World"""
 EXAMPLE_31 = """Hello {{ABC.DEF}} World Hi {{DEF.GHI}} Jo"""
@@ -60,6 +62,7 @@ EXAMPLE_54 = '{{Global.minute}}'
 EXAMPLE_55 = '{{Global.second}}'
 
 # Error
+ERROR_100 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ {{ABC.DEF}}" * 10000
 
 
 def ignore_warnings(test_func):
@@ -236,6 +239,8 @@ class TestUnit(unittest.TestCase):
         test_split_string_variables(EXAMPLE_131, ('{{@ABC.DEF}}', '{{DEF.GHI}}'))
         test_split_string_variables(EXAMPLE_132, ('{{@ABC.DEF}}', '{{DEF.GHI}}'))
 
+        test_split_string_variables(ERROR_100, (tuple(['{{ABC.DEF}}'] * 10000)))
+
     # ==========================================================================
     def test_110_split(self):
         def test_split(example, expected):
@@ -268,6 +273,9 @@ class TestUnit(unittest.TestCase):
         test_split(EXAMPLE_25, ['{{', 'ABC.DEF', '(', 'COUNT', ')', '}}'])
         test_split(EXAMPLE_26, ['{{', 'ABC.DEF', '(', 'APPEND', ')', '}}'])
         test_split(EXAMPLE_27, ['{{', 'ABC.DEF', '(', 'LAST', ')', '}}'])
+
+        test_split(EXAMPLE_28, ['{{', 'ABC.DEF', '(', '+', ')', '}}'])
+        test_split(EXAMPLE_29, ['{{', 'ABC.DEF', '(', '$', ')', '}}'])
 
         # ----------------------------------------------------------------------
         idx = get_delimiter_index(EXAMPLE_30)
@@ -611,6 +619,9 @@ class TestUnit(unittest.TestCase):
         var.set_by_argos_variable(EXAMPLE_26, value)
         self.assertEqual(value, var.get_by_argos_variable('{{ABC.DEF}}')[1])
 
+        var.set_by_argos_variable(EXAMPLE_28, value)
+        self.assertEqual(value, var.get_by_argos_variable('{{ABC.DEF}}')[1])
+
         # ----------------------------------------------------------------------
         # ARRAY LAST 처리
         var = Variables()
@@ -618,6 +629,9 @@ class TestUnit(unittest.TestCase):
         var.set_by_argos_variable('{{ABC.DEF}}', ['Hello'])
         var.set_by_argos_variable(EXAMPLE_27, value)
         self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_27))
+
+        var.set_by_argos_variable(EXAMPLE_29, value)
+        self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_29))
 
     # ==========================================================================
     def test_index_one_based(self):

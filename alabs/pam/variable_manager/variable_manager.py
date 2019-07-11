@@ -37,9 +37,10 @@ class Sign(enum.Enum):
 
 ################################################################################
 class ArrayFunction(enum.Enum):
-    COUNT = 'COUNT'
-    APPEND = 'APPEND'
-    LAST = 'LAST'
+    COUNT = ('COUNT',)
+    APPEND = ('APPEND', '+')
+    LAST = ('LAST', '$')
+
 
 
 ################################################################################
@@ -127,7 +128,7 @@ def split(text:str)->list:
 
 
 ################################################################################
-def split_string_variables(data:str, idx, stack=None, value='', variables=''):
+def split_string_variables(data: str, idx):
     """
     * 서식(Format) 문자열과 문자열 변수를 분리
     * 지정된 구분자를 찾을때 까지 문자열을 탐색
@@ -139,47 +140,49 @@ def split_string_variables(data:str, idx, stack=None, value='', variables=''):
     EXAMPLE_29 = 'Hello World {{ABC.VARIABLE_TEXT}} End'
     'Hello World {} End', '{{ABC.VARIABLE_TEXT}}'
     """
-    if stack is None:
-        stack = list()
 
-    if len(idx) == 1:
-        # 모든 문자 파싱 끝
-        variables = variables.split('|')
-        variables.pop()
-        return value, tuple(variables)
+    text = ""
+    variables = ""
+    stack = list()
 
-    t = data[idx[0]:idx[1]]
-    # print("t:{}\ndata:{}\nidx:{}\nstack:{}\nvalue:{}\nvariables:{}".format(t, data, idx, stack, value, variables))
-    # print()
-    if stack:
-        variables += t
-    elif not stack and t not in ('{{', '}}'):
-        # '{', '}' 문자일 경우 format 사용시 문제가 되므로 '{{', '}}'으로 변경
-        # {hello} -> {{hello}}
-        tv = t.replace('{','{{')
-        tv = tv.replace('}','}}')
-        value += tv
+    while True:
+        if len(idx) == 1:
+            # 모든 문자 파싱 끝
+            break
 
-    if t == '{{':
-        if not stack:
+        t = data[idx[0]:idx[1]]
 
-            value += '{}'
+        if stack:
             variables += t
-        stack.append(t)
-    elif t == '(':
-        if stack:
-            stack.append(t)
-    elif t == ')':
-        if stack:
-            stack.pop()
-    elif t == '}}':
-        stack.pop()
-        if not stack:
-            # 값은 문자열로 합치고 구분자로 `|` 사용
-            variables += '|'
 
-    idx.pop(0)
-    return split_string_variables(data, idx, stack, value, variables)
+        elif not stack and t not in ('{{', '}}'):
+            # '{', '}' 문자일 경우 format 사용시 문제가 되므로 '{{', '}}'으로 변경
+            # {hello} -> {{hello}}
+            tv = t.replace('{', '{{')
+            tv = tv.replace('}', '}}')
+            text += tv
+
+        if t == '{{':
+            if not stack:
+                text += '{}'
+                variables += t
+            stack.append(t)
+        elif t == '(':
+            if stack:
+                stack.append(t)
+        elif t == ')':
+            if stack:
+                stack.pop()
+        elif t == '}}':
+            stack.pop()
+            if not stack:
+                # 값은 문자열로 합치고 구분자로 `|` 사용
+                variables += '|'
+        idx.pop(0)
+
+    variables = variables.split('|')
+    variables.pop()
+    return text, tuple(variables)
 
 
 ################################################################################
@@ -209,7 +212,7 @@ class Variables(dict):
             t = split(v)
             value, path, *_ = self.parse(t, option=option)
             array_function = option.setdefault('array_function', None)
-            if array_function == ArrayFunction.APPEND.value:
+            if array_function in ArrayFunction.APPEND.value:
                 # TODO: 전용 Exception Class 를 만들기
                 # APPEND는 값을 가져올 때는 사용하지 못함
                 raise ValueError("Array Function - "
@@ -236,7 +239,6 @@ class Variables(dict):
         :param variable: {{ABC.DEF[1]}}
         :return:
         """
-        print(variable)
         idx = get_delimiter_index(variable)
         _, variables = split_string_variables(variable, idx)
 
@@ -247,7 +249,7 @@ class Variables(dict):
         t = split(variables[0])
         value, path, option = self.parse(t)
         array_function = option.setdefault('array_function', None)
-        if array_function == ArrayFunction.APPEND.value:
+        if array_function in ArrayFunction.APPEND.value:
             # TODO: 전용 Exception Class 를 만들기
             # APPEND는 값을 가져올 때는 사용하지 못함
             raise ValueError("Array Function - "
@@ -394,16 +396,16 @@ class Variables(dict):
             if not array_function:
                 value = self.get_by_xpath(path, store)
 
-            elif array_function == 'COUNT':
+            elif array_function in ArrayFunction.COUNT.value:
                 value = len(self.get_by_xpath(path, store))
 
-            elif array_function == 'LAST':
+            elif array_function in ArrayFunction.LAST.value:
                 # TODO: OUT OF INDEX 처리 필요
                 temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
                 path += "[{}]".format(len(temporary_value) - 1)
 
-            elif array_function == 'APPEND':
+            elif array_function in ArrayFunction.APPEND.value:
                 # TODO: OUT OF INDEX 처리 필요
                 temporary_value = self.get_by_xpath(path, store)
                 value = temporary_value[-1]
@@ -438,7 +440,8 @@ class Variables(dict):
             parsed += self.parse(data, stack, option=option)
             return parsed
 
-        elif t.upper() in tuple(map(lambda n: n.name, ArrayFunction)):
+        elif t.upper() in [item for sublist in list(ArrayFunction)
+                           for item in sublist.value]:
             option['array_function'] = t.upper()
 
         # t의 값이 '}}', 값을 요청하여 리턴
