@@ -7,4 +7,3 @@ PyYAML
 requests
 requirements-parser
 beautifulsoup4
-icon-font-to-png
