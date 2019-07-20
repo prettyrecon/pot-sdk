@@ -13,7 +13,7 @@ ARGOS LABS plugin module demo helloworld
 ################################################################################
 import sys
 from alabs.common.util.vvargs import ArgsError, ArgsExit
-from argoslabs.data.binaryop import main
+from alabs.icon import main
 
 
 ################################################################################

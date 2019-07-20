@@ -40,7 +40,7 @@ IF NOT %ERRORLEVEL% == 0 (
 )
 
 REM # clear
-REM alabs.ppm --venv clear-all
+alabs.ppm --venv clear-all
 
 echo "Build all success!"
 

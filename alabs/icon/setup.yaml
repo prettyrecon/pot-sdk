@@ -25,4 +25,4 @@ setup:
   package_data:
     alabs.icon: ['icon*.*', 'fontawesome*.*']
   url: https://www.argos-labs.com
-  version: 1.711.1407
+  version: 1.711.2351

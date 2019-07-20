@@ -141,7 +141,7 @@ def _main(*args):
         version='1.0',
         platform=['windows', 'darwin', 'linux'],
         output_type='text',
-        display_name='Binary Op',
+        display_name='Argos Icon',
         icon_path=get_icon_path(__file__),
         description='alabs.icon util for making icon for ARGOS LABS plugin SDK',
     ) as mcxt:

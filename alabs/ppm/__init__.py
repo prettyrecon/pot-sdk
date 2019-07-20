@@ -450,7 +450,7 @@ class PPM(object):
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
     DUMPSPEC_JSON = 'dumpspec.json'
-    EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common')
+    EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common', 'alabs.icon')
 
     # ==========================================================================
     def __init__(self, venv, args, config, logger=None):
