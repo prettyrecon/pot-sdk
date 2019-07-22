@@ -517,7 +517,13 @@ class Variables(dict):
             parsed += self.parse(data, stack, option=option)
             return parsed
 
-        elif t.isalpha() and stack[-1] == '(':
+        # t의 값이 '}}', 값을 요청하여 리턴
+        # 조건: 스택 마지막이 '{{' 이거나 ')'일 경우
+        elif t == ')' and stack[-1] == '(':
+            stack.pop()
+            return parsed
+
+        elif not t.isdigit() and stack[-1] == '(':
             if t.upper() in [item for sublist in list(ArrayFunction)
                              for item in sublist.value]:
                 option['array_function'] = t.upper()
@@ -525,11 +531,6 @@ class Variables(dict):
                 raise ValueError(
                     "{} is not a supported array function'".format(t))
 
-        # t의 값이 '}}', 값을 요청하여 리턴
-        # 조건: 스택 마지막이 '{{' 이거나 ')'일 경우
-        elif t == ')' and stack[-1] == '(':
-            stack.pop()
-            return parsed
         elif t == '}}':
             stack.pop()
             if stack:

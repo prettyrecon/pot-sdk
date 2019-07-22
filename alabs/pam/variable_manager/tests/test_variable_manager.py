@@ -707,8 +707,9 @@ class TestUnit(unittest.TestCase):
         self.assertEqual(
             value, var.get_by_argos_variable('{{ABC.DEF}}', name)[1])
 
-        var.set_by_argos_variable(EXAMPLE_28, value)
-        self.assertEqual(value, var.get_by_argos_variable('{{ABC.DEF}}')[1])
+        var.set_by_argos_variable(EXAMPLE_28, value, name)
+        self.assertEqual(
+            value, var.get_by_argos_variable('{{ABC.DEF}}', name)[1])
 
         # ----------------------------------------------------------------------
         # ARRAY LAST 처리
@@ -718,8 +719,8 @@ class TestUnit(unittest.TestCase):
         var.set_by_argos_variable(EXAMPLE_27, value, name)
         self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_27, name))
 
-        var.set_by_argos_variable(EXAMPLE_29, value)
-        self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_29))
+        var.set_by_argos_variable(EXAMPLE_29, value, name)
+        self.assertEqual(value, var.get_by_argos_variable(EXAMPLE_29, name))
 
     # ==========================================================================
     def test_400_index_one_based(self):
