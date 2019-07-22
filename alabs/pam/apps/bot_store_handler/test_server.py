@@ -8,26 +8,26 @@ __license__ = "MIT"
 
 from flask import Flask
 from flask_restplus import Api
-from alabs.pam.la.bot.app.status import api as api_status
+from .app import api as test_api
 
 
 ################################################################################
 def main(api_port=8082, *args):
     app = None
+    endpoint ='/%s/%s/%s' % ('api', 'v1.0', 'test')
     try:
         app = Flask(__name__)
         api = Api(
             title='ARGOS BOT-REST-Server',
             version='1.0',
             description='BOT RESTful Server')
-        api.add_namespace(api_status, path='/%s/%s/%s' % ('api', 'v1.0', 'pam'))
+        api.add_namespace(test_api, path=endpoint)
 
         app.logger.info("Start RestAPI from [%s]..." % __name__)
+        app.logger.info("End-Point [%s]..." % endpoint)
         api.init_app(app)
     except Exception as err:
         if app and app.logger:
             app.logger.error('Error: %s' % str(err))
         raise
     app.run(host="0.0.0.0", port=int(api_port))
-
-

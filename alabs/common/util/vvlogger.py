@@ -34,6 +34,7 @@ import logging
 import datetime
 import logging.handlers
 import traceback
+import pathlib
 from functools import wraps
 
 ################################################################################
@@ -49,6 +50,7 @@ def get_logger(logfile,
                logsize=500*1024, logbackup_count=4,
                logger=None, loglevel=logging.DEBUG):
     loglevel = loglevel
+    pathlib.Path(logfile).parent.mkdir(parents=True, exist_ok=True)
     if logger is None:
         logger = logging.getLogger(os.path.basename(logfile))
     logger.setLevel(loglevel)

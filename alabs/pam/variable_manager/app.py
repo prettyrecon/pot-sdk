@@ -9,7 +9,7 @@ import os
 from flask import Flask
 from flask_restplus import Api
 from alabs.pam.variable_manager.rest.ns_variables import api as ns_variables
-from alabs.pam.variable_manager.rest import REST_API_PREFIX, \
+from alabs.pam.variable_manager import REST_API_PREFIX, \
     REST_API_NAME, REST_API_VERSION
 from alabs.pam.variable_manager import VM_API_PORT
 
