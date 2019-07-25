@@ -22,10 +22,9 @@ Change Log
  * [2019/04/24]
     - starting
 """
-import os
+
 import sys
 import pdb
-import pathlib
 
 from gevent import monkey
 monkey.patch_all()
