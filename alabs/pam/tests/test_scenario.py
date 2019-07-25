@@ -198,6 +198,22 @@ class TestUnit(unittest.TestCase):
         cmd = plugin_spec_parser(item['pluginDumpspec'])
         print(cmd)
 
-
+    # ==========================================================================
+    def test1020_forward(self):
+        p = pathlib.Path(SCENARIO_1)
+        self.scenario.update(self.scenario.load_scenario_file(p))
+        item = next(self.scenario)
+        print(self.scenario.current_item_index)
+        self.scenario.forward(1)
+        print(self.scenario.current_item_index)
+        self.scenario.backward(2)
+        print(self.scenario.current_item_index)
+        self.scenario.step = 1
+        self.scenario.set_current_item_by_index(3)
+        print(self.scenario.current_step_index)
+        print(self.scenario.current_item_index)
+        self.scenario.backward(4)
+        print(self.scenario.current_step_index)
+        print(self.scenario.current_item_index)
 
 

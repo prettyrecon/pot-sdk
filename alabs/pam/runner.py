@@ -14,6 +14,14 @@ from alabs.pam.variable_manager.rc_api_variable_manager import \
 from alabs.common.util.vvlogger import get_logger
 
 
+class ScenarioCommand(enum.Enum):
+    SET_ITEM = "set_item"
+    SET_STEP = "set_step"
+    JUMP_FORWARD = "jump_forward"
+    JUMP_BACKWARD = "jump_backward"
+
+
+
 ################################################################################
 class StatusMessage(dict):
     # ==========================================================================
@@ -252,6 +260,46 @@ class Runner(mp.Process):
         return self._pause
 
     # ==========================================================================
+    def _follow_up(self, data):
+        # data = {
+        #     "status": "OK",
+        #     "function": {
+        #           "name": None,
+        #           "arguments": None,
+        #      }
+        # }
+        if not data:
+            return
+        if data['status'] == "OK" and not data['function']:
+            return
+        if not hasattr(self, data['function']['name']):
+            raise ValueError
+        f = getattr(self, data['function']['name'])
+        ret = f(*data['function']['argument'])
+        return ret
+
+    # ==========================================================================
+    def scenario_handler(self, cmd, args):
+        """
+        시나리오 조작
+        :param cmd: 허용되는 조작자
+        :param args: 값
+        :return:
+        """
+        if not args:
+            raise ValueError
+        if ScenarioCommand.SET_STEP == cmd:
+            self.scenario.step = int(args[0])
+        elif ScenarioCommand.SET_ITEM == cmd:
+            self.scenario.set_current_item_by_index(int(args[0]))
+        elif ScenarioCommand.JUMP_FORWARD == cmd:
+            self.scenario.forward(int(args[0]))
+        elif ScenarioCommand.JUMP_BACKWARD == cmd:
+            self.scenario.backward(int(args[0]))
+        else:
+            raise ValueError
+
+    # ==========================================================================
     @activate_virtual_environment
     def run(self, *args, **kwargs):
         self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
@@ -280,7 +328,9 @@ class Runner(mp.Process):
 
                 # 아이템 실행
                 item = next(self.scenario)
-                self._call_item(item)
+                # TODO: 후속처리 필요
+                data = self._call_item(item)
+                self._follow_up(data)
 
                 # Status Message
                 # self.status_message.set_status(

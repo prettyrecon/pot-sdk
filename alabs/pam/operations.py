@@ -601,6 +601,81 @@ class ClosePopup(Items):
 
 
 ################################################################################
+class PopupInteraction(Items):
+    references = ('popupInteraction',)
+    actions = {
+        "Disuse": None,
+        "Go": "MoveOn",
+        "Resume scenario": "Resume",
+        "FinishScenario": "AbortScenarioButNoError",
+        "Error": "TreatAsError",
+        "FinishStep": "IgnoreFailure",
+        "Jump": "JumpForward",
+        "BackJump": "JumpBackward",
+        "Goto": "JumpToOperation",
+        "StepJump": "JumpToStep",
+        "Restart": "RestartFromTop"
+    }
+
+    # ==========================================================================
+    @property
+    def arguments(self):
+        cmd = list()
+        title = json.dumps(self['popupInteraction']['title'])
+        if not title:
+            title = json.dumps("No Message")
+        cmd.append(title)
+        cmd.append("--button")
+        title = self['popupInteraction']['firstButtonTitle']
+        cmd.append(title)
+        action = self.actions[
+            self['popupInteraction']['firstButtonAction']]
+        cmd.append(action)
+
+        if self.actions[self['popupInteraction']['secondButtonAction']]:
+            cmd.append("--button")
+            title = self['popupInteraction']['secondButtonTitle']
+            cmd.append(title)
+            action = self.actions[
+                self['popupInteraction']['secondButtonAction']]
+            cmd.append(action)
+
+        if self.actions[self['popupInteraction']['thirdButtonAction']]:
+            cmd.append("--button")
+            title = self['popupInteraction']['thirdButtonTitle']
+            cmd.append(title)
+            action = self.actions[self['popupInteraction']['thirdButtonAction']]
+            cmd.append(action)
+        return tuple(cmd)
+
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        print(self.arguments)
+        file = os.environ.setdefault('ACTION_STDOUT_FILE', 'action_stdout.log')
+        if pathlib.Path(file).exists():
+            pathlib.Path(file).unlink()
+
+        cmd = 'python -m alabs.rpa.autogui.dialogue {}'.format(
+            ' '.join(self.arguments))
+
+        with subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                shell=True) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            returncode = proc.returncode
+
+        print(stdout, stderr, returncode)
+
+        # ret = {"status": "OK",
+        #        "function": {
+        #            "name": "scenario_handler",
+        #            "arguments":
+        #        }
+       # }
+        return
+
+################################################################################
 class Plugin(Items):
 
     references = ('pluginDumpspec', 'pluginResultType', 'pluginResultGroupName',

@@ -12,6 +12,7 @@ class Scenario(dict):
         "SystemCall": "systemCallType",
         "Event": "eventType",
         "Verification": "verifyType",
+        "DebugReport": "debugReportType",
         "Plugin": "pluginType"}
     VIRTUAL_ENV_PATH = None
 
@@ -35,6 +36,7 @@ class Scenario(dict):
         # self.logger.info('>>>Start Initializing')
 
         self._scenario_image_dir = ""
+        self.is_skip = False
 
     # ==========================================================================
     @property
@@ -231,6 +233,24 @@ class Scenario(dict):
             if item['id'] == _id:
                 return i
         return None
+
+    # ==========================================================================
+    def forward(self, n: int):
+        for _ in range(n):
+            next(self)
+
+    # ==========================================================================
+    def backward(self, n: int):
+        quotient = self._current_item_index - n
+        print("q: ", quotient)
+        # 아이템의 첫번째를 벗어나는 경우, 이전 스텝으로 이동
+        if quotient < 0:
+            if self._current_step_index == 0:
+                raise IndexError
+            self._current_step_index -= 1
+            self._current_item_index = (len(self.items) - 1) - quotient
+        else:
+            self._current_item_index -= n
 
 
 
