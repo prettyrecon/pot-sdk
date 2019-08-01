@@ -74,7 +74,6 @@ def check_args(argspec):
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
-    print(_platform)
     if _platform == Platforms.LINUX.value:
         from alabs.rpa.autogui.dialogue.linux import main as _main
 

@@ -14,12 +14,20 @@ from alabs.pam.variable_manager.rc_api_variable_manager import \
 from alabs.common.util.vvlogger import get_logger
 
 
-class ScenarioCommand(enum.Enum):
-    SET_ITEM = "set_item"
-    SET_STEP = "set_step"
-    JUMP_FORWARD = "jump_forward"
-    JUMP_BACKWARD = "jump_backward"
+class ResultHandler(enum.Enum):
+    # ==========================================================================
+    SCENARIO_SET_ITEM = "_result_handler_set_item"
+    SCENARIO_SET_STEP = "_result_handler_set_step"
+    SCENARIO_JUMP_FORWARD = "_result_handler_jump_forward"
+    SCENARIO_JUMP_BACKWARD = "_result_handler_jump_backward"
+    SCENARIO_FINISH_STEP = '_result_handler_finish_step'
+    SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
+    # ==========================================================================
 
+
+################################################################################
+class ExceptionTreatAsError(Exception):
+    pass
 
 
 ################################################################################
@@ -56,9 +64,12 @@ def get_env():
     # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
     ARGOS_RPA_PAM_LOG_DIR = pathlib.Path.home() / ".argos-rpa.logs"
     # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
-    CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
+    CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
+    # CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
 
     env.append(("CURRENT_PAM_LOG_DIR", str(CURRENT_PAM_LOG_DIR)))
+    env.append(("OPERATION_STDOUT_FILE",
+                str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
     env.append(("PLUGIN_STDOUT_FILE",
                 str(CURRENT_PAM_LOG_DIR / "plugin_stdout.log")))
     env.append(("PLUGIN_STDERR_FILE",
@@ -222,7 +233,6 @@ class Runner(mp.Process):
             self.Code.NORMAL.value, self.Status.RUNNING.value,
             self.scenario.info,
             "Running... " + info.format(**self._scenario.info))
-        print(self.status_message)
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
         time.sleep(tm * 0.001)
@@ -263,41 +273,21 @@ class Runner(mp.Process):
     def _follow_up(self, data):
         # data = {
         #     "status": "OK",
-        #     "function": {
-        #           "name": None,
-        #           "arguments": None,
-        #      }
+        #     "function": (ResultHandler, args),
         # }
+        # 처리 우선순위
+        # data 존재여부 > status 상태 >
         if not data:
             return
-        if data['status'] == "OK" and not data['function']:
+        if not data['status']:
+            raise ExceptionTreatAsError(data['message'])
+        if data['status'] and not data['function']:
             return
-        if not hasattr(self, data['function']['name']):
+        if not hasattr(self, data['function'][0]):
             raise ValueError
-        f = getattr(self, data['function']['name'])
-        ret = f(*data['function']['argument'])
+        f = getattr(self, data['function'][0])
+        ret = f(data['function'][1])
         return ret
-
-    # ==========================================================================
-    def scenario_handler(self, cmd, args):
-        """
-        시나리오 조작
-        :param cmd: 허용되는 조작자
-        :param args: 값
-        :return:
-        """
-        if not args:
-            raise ValueError
-        if ScenarioCommand.SET_STEP == cmd:
-            self.scenario.step = int(args[0])
-        elif ScenarioCommand.SET_ITEM == cmd:
-            self.scenario.set_current_item_by_index(int(args[0]))
-        elif ScenarioCommand.JUMP_FORWARD == cmd:
-            self.scenario.forward(int(args[0]))
-        elif ScenarioCommand.JUMP_BACKWARD == cmd:
-            self.scenario.backward(int(args[0]))
-        else:
-            raise ValueError
 
     # ==========================================================================
     @activate_virtual_environment
@@ -341,6 +331,8 @@ class Runner(mp.Process):
 
         except StopIteration:
             pass
+        except ExceptionTreatAsError as e:
+            print(e)
         except KeyboardInterrupt:
             print("Keyboard Int")
         except Exception as e:
@@ -380,6 +372,35 @@ class Runner(mp.Process):
             self.logger.info("ERROR: Initialize Variable - {}".format(str(e)))
             raise Exception
         self.logger.info('End Initializing variables...')
+
+    # 아이템 실행결과에 따른 다음 동작
+    # ResultHandler Scenario 관련
+    # ==========================================================================
+    def _result_handler_set_step(self, args):
+        self.scenario.step = args[0]
+
+    # ==========================================================================
+    def _result_handler_set_item(self, args):
+        self.scenario.set_current_item_by_index(int(args[0]))
+
+    # ==========================================================================
+    def _result_handler_finish_step(self, args):
+        self.scenario.next_step()
+
+    # ==========================================================================
+    def _result_handler_jump_forward(self, args):
+        self.scenario.forward(int(args[0]))
+
+    # ==========================================================================
+    def _result_handler_jump_backward(self, args):
+        self.scenario.backward(int(args[0]))
+
+    # ==========================================================================
+    def _result_handler_finish_scenario(self, args):
+        self.scenario.finish_scenario()
+
+
+
 
 
 

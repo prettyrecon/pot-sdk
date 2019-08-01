@@ -252,6 +252,19 @@ class Scenario(dict):
         else:
             self._current_item_index -= n
 
+    # ==========================================================================
+    def next_step(self):
+        self.set_current_item_by_index(len(self.items) - 1)
+        next(self)
+        next(self)
+
+    # ==========================================================================
+    def finish_scenario(self):
+        self.set_step_by_index(len(self.steps) - 1)
+        self.set_current_item_by_index(len(self.items) - 1)
+        next(self)
+
+
 
 
 

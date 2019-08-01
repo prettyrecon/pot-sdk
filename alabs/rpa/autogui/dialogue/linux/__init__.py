@@ -49,7 +49,7 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 SELECTED_BUTTON_VALUE = None
 
 ################################################################################
-@func_log
+# @func_log
 def dialogue(mcxt, argspec):
     """
     plugin job function
@@ -62,9 +62,9 @@ def dialogue(mcxt, argspec):
     def button_clicked(v):
         global SELECTED_BUTTON_VALUE
         SELECTED_BUTTON_VALUE = v
+        sys.stdout.write(','.join(SELECTED_BUTTON_VALUE))
         root.destroy()
 
-    mcxt.logger.info('>>>')
     pyautogui.FAILSAFE = False
 
     root = tk.Tk()
@@ -72,11 +72,12 @@ def dialogue(mcxt, argspec):
     frame.pack(side="bottom")
 
     # 버튼 생성
+    mcxt.logger.info(str(argspec.button))
     for i, button in enumerate(argspec.button):
         tk.Button(
             frame, text=button[Action.TITLE],
             overrelief="solid", width=15,
-            command=lambda: button_clicked(button),
+            command=lambda button=button: button_clicked(button),
             repeatdelay=1000, repeatinterval=100).grid(row=0, column=i)
 
     root.title("Dialogue")
@@ -95,13 +96,7 @@ def dialogue(mcxt, argspec):
              width=50, height=10).pack()
     # root.geometry()
     root.mainloop()
-    mcxt.logger.info('>>>end...')
-
-    if not SELECTED_BUTTON_VALUE:
-        return
-    # print(json.dumps(SELECTED_BUTTON_VALUE))
-    sys.stdout.write(json.dumps(SELECTED_BUTTON_VALUE))
-    return SELECTED_BUTTON_VALUE
+    return True
 
 
 ################################################################################

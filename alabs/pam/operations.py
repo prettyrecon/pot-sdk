@@ -3,7 +3,7 @@ import enum
 import subprocess
 import os
 import json
-
+from functools import wraps
 from alabs.rpa.desktop.execute_process import main as execute_process
 from alabs.rpa.desktop.delay import main as delay
 from alabs.rpa.autogui.locate_image import main as locate_image
@@ -15,6 +15,8 @@ from alabs.rpa.autogui.find_image_location import main as image_match
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
+
+from alabs.pam.runner import ResultHandler
 
 
 ################################################################################
@@ -53,6 +55,40 @@ def get_image_path(path):
 ################################################################################
 def separate_coord(coord:str)->tuple:
     return tuple(coord.replace(' ', '').split(','))
+
+
+################################################################################
+def arguments_options_fileout(f):
+    @wraps(f)
+    def func(*args, **kwargs):
+        arguments = list(f(*args, **kwargs))
+        stdout = os.environ.setdefault(
+            'OPERATION_STDOUT_FILE', 'operation.stdout')
+        if stdout:
+            arguments += ['--outfile ', stdout]
+        pam_log = os.environ.setdefault('PAM_LOG', 'pam.log')
+        if pam_log:
+            arguments += ['--errfile ', pam_log]
+            arguments += ['--logfile', pam_log]
+        return tuple(arguments)
+    return func
+
+
+################################################################################
+def make_follow_job_request(status, function=None, message=''):
+    """
+
+    :param status: Bool
+    :param function: Tuple(name, args)
+    :return:
+    """
+    data = dict()
+    if not isinstance(status, bool):
+        raise TypeError
+    data['status'] = status
+    data['function'] = function
+    data['message'] = message
+    return data
 
 
 ################################################################################
@@ -101,12 +137,14 @@ class ExecuteProcess(Items):
 
     # ==========================================================================
     @property
-    def arguments(self)->tuple:
+    @arguments_options_fileout
+    def arguments(self)-> tuple:
         return self['executeProcess']['executeFilePath']
 
     # ==========================================================================
     def __call__(self):
-        return execute_process(self.arguments)
+        execute_process(self.arguments)
+        return
 
 
 ################################################################################
@@ -599,6 +637,47 @@ class ClosePopup(Items):
     def __call__(self, *args, **kwargs):
         return
 
+################################################################################
+class EndScenario(Items):
+    references = ()
+
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        return
+
+################################################################################
+class UserParams(Items):
+    references = ('userInputs',)
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        data = self['userInputs']
+        cmd = list()
+        group_name = ""
+        for d in data:
+            group_name = d['groupName']
+            cmd.append('--question')
+            cmd.append(d['variableName'])
+            cmd.append(json.dumps(d['defaultValue']))
+        cmd.insert(0, group_name)
+        return tuple(cmd)
+
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        cmd = 'python -m alabs.rpa.autogui.user_parameters {}'.format(
+            ' '.join(self.arguments))
+
+        with subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                shell=True) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            returncode = proc.returncode
+
+        print(stdout, stderr, returncode)
+
 
 ################################################################################
 class PopupInteraction(Items):
@@ -619,6 +698,7 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self):
         cmd = list()
         title = json.dumps(self['popupInteraction']['title'])
@@ -626,7 +706,7 @@ class PopupInteraction(Items):
             title = json.dumps("No Message")
         cmd.append(title)
         cmd.append("--button")
-        title = self['popupInteraction']['firstButtonTitle']
+        title = json.dumps(self['popupInteraction']['firstButtonTitle'])
         cmd.append(title)
         action = self.actions[
             self['popupInteraction']['firstButtonAction']]
@@ -634,7 +714,7 @@ class PopupInteraction(Items):
 
         if self.actions[self['popupInteraction']['secondButtonAction']]:
             cmd.append("--button")
-            title = self['popupInteraction']['secondButtonTitle']
+            title = json.dumps(self['popupInteraction']['secondButtonTitle'])
             cmd.append(title)
             action = self.actions[
                 self['popupInteraction']['secondButtonAction']]
@@ -642,7 +722,7 @@ class PopupInteraction(Items):
 
         if self.actions[self['popupInteraction']['thirdButtonAction']]:
             cmd.append("--button")
-            title = self['popupInteraction']['thirdButtonTitle']
+            title = json.dumps(self['popupInteraction']['thirdButtonTitle'])
             cmd.append(title)
             action = self.actions[self['popupInteraction']['thirdButtonAction']]
             cmd.append(action)
@@ -650,7 +730,7 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        print(self.arguments)
+
         file = os.environ.setdefault('ACTION_STDOUT_FILE', 'action_stdout.log')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
@@ -665,15 +745,31 @@ class PopupInteraction(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
 
-        print(stdout, stderr, returncode)
+        if stderr:
+            return make_follow_job_request(False, message=stderr.decode())
 
-        # ret = {"status": "OK",
-        #        "function": {
-        #            "name": "scenario_handler",
-        #            "arguments":
-        #        }
-       # }
-        return
+        # stdout = b'Button3,JumpForward'
+        act = stdout.decode().split(',')[1]
+
+        status = True
+        function = None
+        message = ''
+
+        if act in ("MoveOn", "Resume"):
+            pass
+        elif act == "TreatAsError":
+            status = False
+            message = "User chose 'Treat as Error' button."
+        elif act == "IgnoreFailure":
+            function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
+        elif act == "AbortScenarioButNoError":
+            function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        else:
+            pass
+        return make_follow_job_request(status, function, message)
+
+
+
 
 ################################################################################
 class Plugin(Items):
@@ -722,7 +818,7 @@ class Plugin(Items):
         # TODO: 플러그인 아웃풋 처리
         self.return_value()
 
-        return cmd
+        return
 
 
 
