@@ -111,7 +111,7 @@ class Items(dict):
             self[r] = data[r]
         for r in self.references:
             self[r] = data[r]
-
+        self.logger = logger
         self._variables = VariableManagerAPI(pid=str(os.getpid()),
                                              logger=logger)
 
@@ -645,6 +645,7 @@ class EndScenario(Items):
     def __call__(self, *args, **kwargs):
         return
 
+
 ################################################################################
 class UserParams(Items):
     references = ('userInputs',)
@@ -658,17 +659,26 @@ class UserParams(Items):
         group_name = ""
         for d in data:
             group_name = d['groupName']
-            cmd.append('--question')
+            cmd.append('--input')
             cmd.append(d['variableName'])
             cmd.append(json.dumps(d['defaultValue']))
+            cmd.append(json.dumps(d['description']))
         cmd.insert(0, group_name)
         return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        # Continue to use 를 선택했을 경우 상태를 파일로 저장
+        # 저장된 정보에서 Show에 Fasle가 있다면 저장된 값을 계속 사용
+        saved_var_file = os.environ.setdefault(
+            'USER_PARAM_VARIABLES', 'user_param_variables.json')
+        if pathlib.Path(saved_var_file).exists():
+            data = json.loads(saved_var_file)
+            status, function, message = self.get_result_handler(data)
+            return make_follow_job_request(status, function, message)
+
         cmd = 'python -m alabs.rpa.autogui.user_parameters {}'.format(
             ' '.join(self.arguments))
-
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 shell=True) as proc:
@@ -676,7 +686,31 @@ class UserParams(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
 
-        print(stdout, stderr, returncode)
+        if stderr:
+            return make_follow_job_request(False, message=stderr.decode())
+        status, function, message = self.get_result_handler(
+            data=json.loads(stdout.decode()))
+        return make_follow_job_request(status, function, message)
+
+    # ==========================================================================
+    @staticmethod
+    def get_result_handler(data=None):
+        # data = {"show": True, "action": "ONCE", "group": "ABC",
+        #         "values": [
+        #             ["DEF", "D", "ABC"],
+        #             ["GHI", "A", "DEDE"],
+        #             ["XYZ", "Z", "AAA"]]}
+        if not data:
+            return False, None, "something wrong"
+        status = True
+        variable_form = '{{{{{}.{}}}}}'
+        values = list()
+        for v in data['values']:
+            name = variable_form.format(data['group'], v[0])
+            value = v[1]
+            values.append((name, value))
+        function = (ResultHandler.VARIABLE_SET_VALUES.value, values)
+        return status, function, ""
 
 
 ################################################################################

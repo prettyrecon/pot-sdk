@@ -23,7 +23,7 @@ class ResultHandler(enum.Enum):
     SCENARIO_FINISH_STEP = '_result_handler_finish_step'
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
     # ==========================================================================
-
+    VARIABLE_SET_VALUES = '_result_handler_set_variables'
 
 ################################################################################
 class ExceptionTreatAsError(Exception):
@@ -68,6 +68,8 @@ def get_env():
     # CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
 
     env.append(("CURRENT_PAM_LOG_DIR", str(CURRENT_PAM_LOG_DIR)))
+    env.append(('USER_PARAM_VARIABLES',
+                str(CURRENT_PAM_LOG_DIR / "user_param_variables.json")))
     env.append(("OPERATION_STDOUT_FILE",
                 str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
     env.append(("PLUGIN_STDOUT_FILE",
@@ -359,7 +361,7 @@ class Runner(mp.Process):
             # 봇 필수 변수 선언
             self.logger.info("Declared Essential Variables...")
             self._variables.create('{{rp.index}}', value=0)  # Loop Index
-            self._variables.create('{{saved_data}}', "")  # Saved Data
+            self._variables.create('{{saved_data}}', value=" ")  # Saved Data
 
             # 사용자 변수 선언
             self.logger.info("Declared User Variables...")
@@ -369,6 +371,8 @@ class Runner(mp.Process):
                 self._variables.create(variable, None)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.logger.info("ERROR: Initialize Variable - {}".format(str(e)))
             raise Exception
         self.logger.info('End Initializing variables...')
@@ -398,6 +402,13 @@ class Runner(mp.Process):
     # ==========================================================================
     def _result_handler_finish_scenario(self, args):
         self.scenario.finish_scenario()
+
+    # ResultHandler Variable 관련
+    # ==========================================================================
+    def _result_handler_set_variables(self, args):
+        for name, value in args:
+            self._variables.create(name, value)
+
 
 
 
