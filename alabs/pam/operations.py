@@ -552,10 +552,13 @@ class SetVariable(Items):
             self['setVariable']['GroupName'],
             self['setVariable']['VariableName'])
         return variable_name
+
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self._variables.create(self.arguments, self['textValue'])
-        return
+        # TODO: 플러그인 아웃풋 처리
+        return make_follow_job_request(True, None, '')
+
 
 
 ################################################################################
@@ -803,6 +806,50 @@ class PopupInteraction(Items):
         return make_follow_job_request(status, function, message)
 
 
+################################################################################
+def excel_column_calculate(n:int, d:list):
+    """
+    Excel의 `A`, `AA` 와 같은 값을 Column 값을 쉽게 구할 수 있습니다.
+    :param n: 첫 번째 Column 기준으로 1 이상의 수
+    :param d: 빈 list
+    :return: str
+    >>> excel_column_calculate(1, []))
+    'A'
+    >>> excel_column_calculate(27, [])
+    'AA'
+    >>> excel_column_calculate(1000, [])
+    'ALL'
+    """
+    if not n:
+        return ''.join(d)
+    n -= 1
+    r = n // 26
+    m = (n % 26)
+    d.insert(0, chr(65 + m))
+    return excel_column_calculate(r, d)
+
+
+################################################################################
+def result_as_csv(group, data:str, header=True):
+    name = None
+    var_form = '{{{{{}.{}}}}}'
+    # 줄 단위로 분리
+    # [['name', 'address', 'data'],
+    # ['Raven', 'deokyu@argos-labs.com', '1234'],
+    # ['Benny', 'bkpark@argos-labs.com', '5678'],
+    # ['Brad', 'brad@argos-labs.com', 'hello']]
+    data = data.split("\n")
+    data = [d.split(',') for d in data]
+
+    # 변수 이름 만들기
+    # 헤더가 없다면 엑셀컬럼 순서로 생성
+    if header:
+        name = data.pop(0)
+        name = [var_form.format(group, n) for n in name]
+    else:
+        name = [var_form.format(group, excel_column_calculate(i, []))
+                for i, _ in enumerate(data[0], 1)]
+    return tuple(zip(name, list(zip(*data))))
 
 
 ################################################################################
@@ -816,9 +863,9 @@ class Plugin(Items):
         cmd = plugin_spec_parser(self['pluginDumpspec'])
         return cmd
 
+    # ==========================================================================
     def return_value(self):
-
-        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin_stdout.log')
+        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         with open(file, 'r') as f:
             value = f.read()
 
@@ -826,13 +873,16 @@ class Plugin(Items):
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, value)
         elif self['pluginResultType'] == 'CSV':
-            pass
+            group = self['pluginResultGroupName']
+            data = result_as_csv(group, value)
+            for path, v in data:
+                self._variables.create(path, v)
         else:
             # File
             pathlib.Path(self['pluginResultFilePath']).write_text(value)
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, self['pluginResultFilePath'])
-        pass
+
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
@@ -849,10 +899,13 @@ class Plugin(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
 
+        if stderr:
+            return make_follow_job_request(False, message=stderr.decode())
+
         # TODO: 플러그인 아웃풋 처리
         self.return_value()
+        return make_follow_job_request(True, None, '')
 
-        return
 
 
 

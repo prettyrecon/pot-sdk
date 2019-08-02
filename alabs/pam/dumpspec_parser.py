@@ -131,7 +131,7 @@ def plugin_spec_parser(dumpspec: dict):
             continue
         args += v
 
-    stdout = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin_stdout.log')
+    stdout = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
     if stdout:
         args += ['--outfile ', stdout]
 

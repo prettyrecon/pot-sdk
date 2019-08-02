@@ -73,9 +73,9 @@ def get_env():
     env.append(("OPERATION_STDOUT_FILE",
                 str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
     env.append(("PLUGIN_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin_stdout.log")))
+                str(CURRENT_PAM_LOG_DIR / "plugin.stdout")))
     env.append(("PLUGIN_STDERR_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin_stderr.log")))
+                str(CURRENT_PAM_LOG_DIR / "plugin.stderr")))
     env.append(("PAM_LOG", str(CURRENT_PAM_LOG_DIR / "pam.log")))
     return env
 
