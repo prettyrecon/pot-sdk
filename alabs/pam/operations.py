@@ -3,6 +3,8 @@ import enum
 import subprocess
 import os
 import json
+import csv
+from io import StringIO
 from functools import wraps
 from alabs.rpa.desktop.execute_process import main as execute_process
 from alabs.rpa.desktop.delay import main as delay
@@ -831,15 +833,16 @@ def excel_column_calculate(n:int, d:list):
 
 ################################################################################
 def result_as_csv(group, data:str, header=True):
-    name = None
     var_form = '{{{{{}.{}}}}}'
     # 줄 단위로 분리
     # [['name', 'address', 'data'],
     # ['Raven', 'deokyu@argos-labs.com', '1234'],
     # ['Benny', 'bkpark@argos-labs.com', '5678'],
     # ['Brad', 'brad@argos-labs.com', 'hello']]
-    data = data.split("\n")
-    data = [d.split(',') for d in data]
+
+    data = StringIO(data)
+    data = csv.reader(data, delimiter=',')
+    data = list(data)
 
     # 변수 이름 만들기
     # 헤더가 없다면 엑셀컬럼 순서로 생성
