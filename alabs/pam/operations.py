@@ -141,12 +141,17 @@ class ExecuteProcess(Items):
     @property
     @arguments_options_fileout
     def arguments(self)-> tuple:
-        return self['executeProcess']['executeFilePath']
+        code, data = self._variables.convert(
+            self['executeProcess']['executeFilePath'])
+        if code != 200:
+            raise ValueError(str(data))
+        print(data)
+        return data,
 
     # ==========================================================================
     def __call__(self):
-        execute_process(self.arguments)
-        return
+        execute_process(' '.join(self.arguments))
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -162,7 +167,8 @@ class Delay(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return delay(self.arguments[0])
+        delay(self.arguments[0])
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -353,15 +359,19 @@ class TypeText(Items):
     def arguments(self) -> tuple:
         _type = self['typeText']['typeTextType']
         if "Text" == _type:
-            value = self['typeText']['keyValue']
+            # TODO: 없는 자료일 경우 처리
+            code, data = self._variables.convert(self['typeText']['keyValue'])
+            value = data
         elif "UserVariable" == _type:
+            # TODO: 없는 자료일 경우 처리
             variable_name = "{{%s.%s}}" % (
                 self['typeText']['userVariableGroup'],
                 self['typeText']['userVariableName'])
             code, value = self._variables.get(variable_name)
         else:
+            # TODO: 없는 자료일 경우 처리
             # Saved Data
-            value = ""
+            code, value = self._variables.get("{{saved_data}}")
             # raise ValueError("Not Supported Yet")
         # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
         value = value.replace('`', '\`')
@@ -373,6 +383,7 @@ class TypeText(Items):
             json.dumps(' '.join(self.arguments)))
         subprocess.Popen(cmd, shell=True)
         # return type_text(*self.arguments)
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -401,7 +412,7 @@ class TypeKeys(Items):
                 ' '.join(arg))
             subprocess.Popen(cmd, shell=True)
             # send_short_cut(*arg)
-        return True
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -557,7 +568,7 @@ class SetVariable(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        self._variables.create(self.arguments, self['textValue'])
+        self._variables.create(self.arguments, self['setVariable']['textValue'])
         # TODO: 플러그인 아웃풋 처리
         return make_follow_job_request(True, None, '')
 
