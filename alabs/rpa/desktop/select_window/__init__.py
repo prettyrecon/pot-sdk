@@ -4,7 +4,7 @@
  :mod:`alabs.pam.la.bot2py
 ====================================
 .. moduleauthor:: Raven Lim <deokyu@argos-labs.com>
-.. note:: VIVANS License
+.. note:: ARGOS-LABS License
 
 Description
 ===========

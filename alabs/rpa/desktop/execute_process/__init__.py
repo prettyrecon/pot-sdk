@@ -5,7 +5,7 @@
  :mod:`alabs.pam.la.bot2py
 ====================================
 .. moduleauthor:: Duk Kyu Lim <deokyu@argos-labs.com>
-.. note:: VIVANS License
+.. note:: ARGOS-LABS License
 
 Description
 ===========

@@ -5,7 +5,7 @@
  :mod:alabs.common ARGOS-LABS common moudle package
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
-.. note:: VIVANS
+.. note:: ARGOS-LABS
 """
 
 # 관련 작업자

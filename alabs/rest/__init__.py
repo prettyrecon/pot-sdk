@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:`vivans.rest.__init__` rest basic functions and so on
+ :mod:`alabs.rest.__init__` rest basic functions and so on
 ====================================
 .. moduleauthor:: 채문창 <mcchae@gmail.com>
 .. note:: MIT

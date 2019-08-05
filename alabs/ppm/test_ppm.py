@@ -33,6 +33,7 @@ import tempfile
 import requests
 import datetime
 import subprocess
+import urllib3
 from tempfile import gettempdir
 # from urllib.parse import quote
 # noinspection PyProtectedMember,PyUnresolvedReferences
@@ -43,6 +44,13 @@ from contextlib import contextmanager
 from io import StringIO
 from pprint import pprint
 from pickle import dump, load
+if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
+    raise EnvironmentError('Python Version must greater then "3.3" '
+                           'which support venv')
+else:
+    from urllib.parse import urlparse, quote
+    from pathlib import Path
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 ################################################################################
@@ -195,7 +203,8 @@ private-repositories:
     # ==========================================================================
     def test_0060_upload(self):
         # 사설 저장소에 wheel upload (내부 QC를 거친 후)
-        r = _main(['--venv', 'upload'])
+        r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   '--venv', 'upload'])
         self.assertTrue(r == 0)
 
     # ==========================================================================
@@ -308,7 +317,8 @@ private-repositories:
 
     # ==========================================================================
     def test_0390_plugin_versions(self):
-        cmd = ['plugin', 'versions', 'argoslabs.demo.helloworld']
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'versions', 'argoslabs.demo.helloworld']
         if TU.TS_CLEAR:
             cmd.append('--flush-cache')
         with captured_output() as (out, err):
@@ -321,6 +331,22 @@ private-repositories:
 
     # ==========================================================================
     def test_0400_plugin_get_all_short_output(self):
+        # --flush-cache 캐쉬를 지우면 오래 걸림 (특히 플러그인이 많을 경우)
+        cmd = ['plugin', 'get', '--short-output', '--official-only']
+        if TU.TS_CLEAR:
+            cmd.append('--flush-cache')
+        # cmd = ['plugin', 'get', '--short-output']
+        with captured_output() as (out, err):
+            r = _main(cmd)
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        print(stdout)
+        self.assertTrue(stdout.find('argoslabs.data.json,') > 0)
+        r = _main(cmd)
+        self.assertTrue(r == 0)
+
+    # ==========================================================================
+    def test_0405_plugin_get_all_short_output(self):
         # --flush-cache 캐쉬를 지우면 오래 걸림 (특히 플러그인이 많을 경우)
         cmd = ['plugin', 'get', '--short-output']
         if TU.TS_CLEAR:
@@ -350,7 +376,8 @@ private-repositories:
 
     # ==========================================================================
     def test_0420_plugin_versions(self):
-        cmd = ['plugin', 'versions', 'argoslabs.demo.helloworld']
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'versions', 'argoslabs.demo.helloworld']
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -362,7 +389,8 @@ private-repositories:
     # ==========================================================================
     def test_0430_plugin_get_module(self):
         # 특정 버전을 지정하지 않으면 가장 최신 버전
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld']
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'get', 'argoslabs.demo.helloworld']
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -375,7 +403,8 @@ private-repositories:
     # ==========================================================================
     def test_0440_plugin_get_module_with_version(self):
         # 특정 버전을 지정
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld==%s' % TU.vers1[1]]
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'get', 'argoslabs.demo.helloworld==%s' % TU.vers1[1]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -388,7 +417,8 @@ private-repositories:
     # ==========================================================================
     def test_0450_plugin_get_module_with_version(self):
         # 특정 버전 보다 큰 버전
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld>%s' % TU.vers1[1]]
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'get', 'argoslabs.demo.helloworld>%s' % TU.vers1[1]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -401,7 +431,8 @@ private-repositories:
     # ==========================================================================
     def test_0460_plugin_get_module_with_version(self):
         # 특정 버전 보다 작은 버전
-        cmd = ['plugin', 'get', 'argoslabs.demo.helloworld<%s' % TU.vers1[0]]
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'get', 'argoslabs.demo.helloworld<%s' % TU.vers1[0]]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -416,7 +447,8 @@ private-repositories:
         jsf = '%s%sget-official-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 안주면 목록으로 가져옴
-            cmd = ['plugin', 'get', '--official-only', '--outfile', jsf]
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'get', '--official-only', '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
             with open(jsf) as ifp:
@@ -436,11 +468,41 @@ private-repositories:
                 os.remove(jsf)
 
     # ==========================================================================
+    def test_0475_plugin_get_all_only_official_with_dumpspec(self):
+        jsf = '%s%sget-official-all.json' % (gettempdir(), os.path.sep)
+        try:
+            # --last-only 옵션을 안주면 목록으로 가져옴
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'get', '--official-only', '--with-dumpspec',
+                   '--outfile', jsf]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            with open(jsf) as ifp:
+                rd = json.load(ifp)
+            # pprint(rd)
+            # noinspection PyChainedComparisons
+            self.assertTrue('argoslabs.data.json' in rd and
+                            'argoslabs.demo.helloworld' not in rd)
+            for k, vd in rd.items():
+                self.assertTrue(k.startswith('argoslabs.'))
+                self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
+                self.assertTrue('last_modify_datetime' in vd[0])
+                if isinstance(vd, list):
+                    for vdi in vd:
+                        self.assertTrue('dumpspec' in vdi and isinstance(vdi['dumpspec'], dict))
+            self.assertTrue('argoslabs.data.json' in rd and
+                            'argoslabs.demo.helloworld' not in rd)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
     def test_0480_plugin_get_all_only_official_last_only(self):
         jsf = '%s%sget-official-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 주면 최신버전을 가져옴
-            cmd = ['plugin', 'get', '--official-only', '--last-only',
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'get', '--official-only', '--last-only',
                    '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -461,22 +523,51 @@ private-repositories:
                 os.remove(jsf)
 
     # ==========================================================================
+    def test_0485_plugin_get_all_only_official_last_only_with_dumpspec(self):
+        jsf = '%s%sget-official-all.json' % (gettempdir(), os.path.sep)
+        try:
+            # --last-only 옵션을 주면 최신버전을 가져옴
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'get', '--official-only', '--last-only',
+                   '--with-dumpspec',
+                   '--outfile', jsf]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            with open(jsf) as ifp:
+                rd = json.load(ifp)
+            pprint(rd)
+            # noinspection PyChainedComparisons
+            self.assertTrue('argoslabs.data.json' in rd and
+                            'argoslabs.demo.helloworld' not in rd)
+            for k, vd in rd.items():
+                self.assertTrue(k.startswith('argoslabs.'))
+                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue('last_modify_datetime' in vd)
+                self.assertTrue('dumpspec' in vd and isinstance(vd['dumpspec'], dict))
+            self.assertTrue('argoslabs.data.json' in rd and
+                            'argoslabs.demo.helloworld' not in rd)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
     def test_0490_plugin_dumpspec_all_only_official(self):
         jsf = '%s%sdumpspec-official-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 안주면 목록으로 가져옴
-            cmd = ['plugin', 'dumpspec', '--official-only', '--outfile', jsf]
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'dumpspec', '--official-only', '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
             self.assertTrue(os.path.exists(jsf))
             with open(jsf) as ifp:
                 rd = json.load(ifp)
-            pprint(rd)
+            # pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
-                self.assertTrue(vd[0]['name'] == k)
-                self.assertTrue('last_modify_datetime' in vd[0])
+                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd['name'] == k)
+                self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
         finally:
@@ -488,7 +579,8 @@ private-repositories:
         jsf = '%s%sdumpspec-official-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 주면 최신버전을 가져옴
-            cmd = ['plugin', 'dumpspec', '--official-only', '--last-only',
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'dumpspec', '--official-only', '--last-only',
                    '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -512,22 +604,27 @@ private-repositories:
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 주면 최신버전을 가져옴
-            cmd = ['plugin', 'dumpspec', '--private-only', '--last-only',
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'dumpspec', '--private-only', '--last-only',
                    '--outfile', jsf]
             r = _main(cmd)
             self.assertTrue(r == 0)
             self.assertTrue(os.path.exists(jsf))
             with open(jsf) as ifp:
                 rd = json.load(ifp)
-            pprint(rd)
+            # pprint(rd)
+            ag_cnt = 0
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
+                ag_cnt += 1
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue(vd['name'] == k)
                 if 'last_modify_datetime' not in vd:
                     print('%s does not have "last_modify_datetime"' % k)
                 self.assertTrue('last_modify_datetime' in vd)
-            self.assertTrue('argoslabs.data.json' in rd and
+            self.assertTrue(ag_cnt > 0 and 'argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' in rd)
         finally:
             if os.path.exists(jsf):
@@ -563,8 +660,10 @@ private-repositories:
                 'grant_type': 'password',
                 'client_id': 'argos-rpa',
                 'scope': 'read write',
-                'username': 'admin',
-                'password': '78argos90'
+                # 'username': 'admin',
+                # 'password': '78argos90',
+                'username': 'mcchae@gmail.com',
+                'password': 'ghkd67vv'
             }
 
             r = requests.post('https://oauth-rpa.argos-labs.com/oauth/token',
@@ -583,7 +682,8 @@ private-repositories:
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
         try:
             cmd = ['plugin', 'dumpspec', '--official-only',
-                   '--user', 'fjoker@naver.com',
+                   # '--user', 'fjoker@naver.com',
+                   '--user', 'mcchae@gmail.com',
                    '--outfile', jsf]
             _ = _main(cmd)
             self.assertTrue(False)
@@ -599,7 +699,8 @@ private-repositories:
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
         try:
             cmd = ['plugin', 'dumpspec', '--official-only',
-                   '--user', 'fjoker@naver.com',
+                   # '--user', 'fjoker@naver.com',
+                   '--user', 'mcchae@gmail.com',
                    '--user-auth', 'invalid--key',
                    '--outfile', jsf]
             _ = _main(cmd)
@@ -614,9 +715,12 @@ private-repositories:
     # ==========================================================================
     def test_0550_plugin_dumpspec_user_official(self):
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+        # 2019.07.27 : 다음의 plugin 의존적인 --user, --user-auth 옵션을 메인 옵션으로 옮김
+        #   STU와 협의 요
         try:
-            cmd = ['plugin', 'dumpspec', '--official-only',
-                   '--user', 'fjoker@naver.com',
+            cmd = ['plugin', 'dumpspec', '--official-only', '--last-only',
+                   # '--user', 'fjoker@naver.com',
+                   '--user', 'mcchae@gmail.com',
                    '--user-auth', TU.token,
                    '--outfile', jsf]
             r = _main(cmd)
@@ -624,7 +728,32 @@ private-repositories:
             self.assertTrue(os.path.exists(jsf))
             with open(jsf) as ifp:
                 rd = json.load(ifp)
-            pprint(rd)
+            # pprint(rd)
+            for k, vd in rd.items():
+                self.assertTrue(k.startswith('argoslabs.'))
+                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['name'] == k)
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(False)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
+    def test_0560_plugin_dumpspec_user_official(self):
+        jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+        try:
+            cmd = ['--pr-user', 'mcchae@gmail.com',  # 'fjoker@naver.com',
+                   '--pr-user-auth', TU.token,
+                   'plugin', 'dumpspec', '--official-only',
+                   '--outfile', jsf]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            self.assertTrue(os.path.exists(jsf))
+            with open(jsf) as ifp:
+                rd = json.load(ifp)
+            # pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
@@ -634,13 +763,26 @@ private-repositories:
                 os.remove(jsf)
 
     # ==========================================================================
+    def test_0570_get_with_private_repository(self):
+        with captured_output() as (out, err):
+            r = _main(['--pr-user', 'mcchae@gmail.com',  # 'fjoker@naver.com',
+                       '--pr-user-auth', TU.token,
+                       'get', 'private'])
+        self.assertTrue(r == 0)
+        stdout = out.getvalue().strip()
+        print(stdout)
+        self.assertTrue(stdout.startswith('There are ')
+                        or stdout == 'No private repository')
+
+    # ==========================================================================
     def test_0600_plugin_venv_clear(self):
         venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
         if os.path.exists(venv_d):
             shutil.rmtree(venv_d)
         self.assertTrue(not os.path.exists(venv_d))
 
-        cmd = ['plugin', 'versions', 'argoslabs.data.fileconv']
+        cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+               'plugin', 'versions', 'argoslabs.data.fileconv']
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -660,7 +802,8 @@ private-repositories:
     def test_0605_plugin_venv_success(self):
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            cmd = ['plugin', 'venv', 'argoslabs.ai.tts',
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.ai.tts',
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -679,7 +822,8 @@ private-repositories:
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.data.fileconv 최신버전 설치 in venv_01
-            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv',
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.data.fileconv',
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -702,7 +846,8 @@ private-repositories:
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.data.fileconv 최신버전 설치 in venv_01
-            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[0],
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[0],
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -725,7 +870,8 @@ private-repositories:
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.web.bsoup 최신버전 설치 in venv_01
-            cmd = ['plugin', 'venv', 'argoslabs.web.bsoup==%s' % TU.vers3[0],
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.web.bsoup==%s' % TU.vers3[0],
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -748,7 +894,8 @@ private-repositories:
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             # argoslabs.data.fileconv 이전버전 설치 in venv_02
-            cmd = ['plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[1],
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.data.fileconv==%s' % TU.vers2[1],
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -785,7 +932,8 @@ private-repositories:
                 ofp.write('# pip dependent packages\n')
                 ofp.write('\n'.join(modlist))
 
-            cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt,
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', '--requirements-txt', requirements_txt,
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -826,7 +974,8 @@ private-repositories:
             with open(requirements_txt, 'w') as ofp:
                 ofp.write('# pip dependent packages\n')
                 ofp.write('\n'.join(modlist))
-            cmd = ['plugin', 'venv', '--requirements-txt', requirements_txt,
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', '--requirements-txt', requirements_txt,
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -850,6 +999,7 @@ private-repositories:
             if os.path.exists(venvout):
                 os.remove(venvout)
 
+    # TODO : local repository
     # ==========================================================================
     def test_0700_plugin_dumppi_empty_folder(self):
         try:

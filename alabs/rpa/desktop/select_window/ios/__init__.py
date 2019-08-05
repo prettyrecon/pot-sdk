@@ -5,7 +5,7 @@
  :mod:`alabs.rpa.desktop.execute_process
 ====================================
 .. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
-.. note:: VIVANS License
+.. note:: ARGOS-LABS License
 
 Description
 ===========

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding=utf8
 """
 ====================================
  :mod:alabs.ppm ARGOS-LABS Plugin Module Manager
@@ -18,6 +16,12 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/07/29]
+#     - upload 시 user 및 암호 받아오기
+#  * [2019/07/27]
+#     - --self-upgrade 체크 속도 개선
+#  * [2019/07/25]
+#     - POT 속도개선 작업
 #  * [2019/06/25]
 #     - venv의 Popen 결과를 Thread, Queue로 해결
 #  * [2019/06/20]
@@ -91,6 +95,7 @@ import tempfile
 import traceback
 import subprocess
 import requirements
+import pkg_resources
 import urllib3
 import urllib.request
 import urllib.parse
@@ -104,6 +109,7 @@ from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvupdown import SimpleDownUpload
 from alabs.ppm.pypiuploader.commands import main as pu_main
 from functools import cmp_to_key
+from getpass import getpass
 # from tempfile import gettempdir
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
@@ -140,12 +146,11 @@ repository:
   url: https://pypi-official.argos-labs.com/pypi
   req: https://pypi-req.argos-labs.com
 private-repositories:
+""".format(last_version=_conf_last_version)
 #- name: pypi-test
 #  url: https://pypi-test.argos-labs.com/simple
 #  username: user
 #  password: pass
-""".format(last_version=_conf_last_version)
-
 }
 _conf_last_contents = _conf_contents_dict[_conf_last_version]
 
@@ -227,14 +232,17 @@ class VEnv(object):
         return 0
 
     # ==========================================================================
-    def _upgrade(self, ndx_param=None):
+    def _upgrade(self, ndx_param=None, is_common=True, is_ppm=True):
+        if not any((is_common, is_ppm)):
+            return 9
         rl = list()
         rl.append(self.venv_pip('install', '--upgrade', 'pip'))
         rl.append(self.venv_pip('install', '--upgrade', 'setuptools'))
         if not ndx_param:
             ndx_param = list()
-        if self.args.self_upgrade:
+        if is_common:
             rl.append(self.venv_pip('install', '--upgrade', 'alabs.common', *ndx_param))
+        if is_ppm:
             rl.append(self.venv_pip('install', '--upgrade', 'alabs.ppm', *ndx_param))
         return 1 if any(rl) else 0
 
@@ -424,15 +432,12 @@ class PPM(object):
     UPLOAD_PKGS = [
         'twine',
     ]
-    LIST_PKGS = [
-        'beautifulsoup4',
-    ]
-    PLUGIN_PKGS = [
-        'pip2pi',
-        'twine',    # for gTTS
-        # 'zip',  # for dumppi
-        'pbr',  # for dumppi
-    ]
+    # PLUGIN_PKGS = [
+    #     # 'pip2pi',
+    #     # 'twine',    # for gTTS
+    #     # 'zip',  # for dumppi
+    #     # 'pbr',  # for dumppi
+    # ]
     DUMPPI_PKGS = [
         'alabs.ppm',
         'twine',
@@ -451,6 +456,10 @@ class PPM(object):
     ]
     DUMPSPEC_JSON = 'dumpspec.json'
     EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common', 'alabs.icon')
+    # ==========================================================================
+    URL_MOD_VER = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/mod-ver-list.json'
+    URL_DEF_DUMPSPEC = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/dumpspec-def-all.json'
+    URL_DUMPSPEC = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/{plugin_name}-{version}-dumpspec.json'
 
     # ==========================================================================
     def __init__(self, venv, args, config, logger=None):
@@ -467,6 +476,9 @@ class PPM(object):
         self.setup_config = None
         self.indices = []
         self.ndx_param = []
+        # Next are for POT speed-up
+        self.mod_ver_list = None
+        self.def_dumpspec = None
 
     # ==========================================================================
     def _get_pkgname(self):
@@ -564,6 +576,45 @@ class PPM(object):
             self.setup_config = yaml_config['setup']
 
     # ==========================================================================
+    def _set_private_repositories(self, _prlist):
+        prconfig = list()
+        prlist = sorted(_prlist, key=lambda d: d['view_priority'])
+        for prd in prlist:
+            if not prd['is_activate']:
+                continue
+            prconfig.append({
+                'name': prd['repo_name'],
+                'url': prd['repo_url'],
+                'username': prd['repo_user'],
+                'password': prd['repo_pw'],
+            })
+        self.config['private-repositories'] = prconfig
+
+    # ==========================================================================
+    def _get_private_repositories(self):
+        try:
+            url = 'https://api-chief.argos-labs.com/chief/repositories'
+            headers = {
+                'Accept': 'application/json',
+                'authorization': self.args.user_auth,
+            }
+            r = requests.get(url,headers=headers)
+            if r.status_code // 10 != 20:
+                msg = 'Get private plugin for user "%s" Error: API result is %s' \
+                      % (self.args.user, r.status_code)
+                sys.stderr.write('%s\n' % msg)
+                self.logger.error(msg)
+                return False
+            else:
+                self._set_private_repositories(json.loads(r.text))
+                return True
+        except Exception as err:
+            msg = '_get_private_repositories Error : %s\n' % str(err)
+            sys.stderr.write(msg)
+            self.logger.error(msg)
+            return False
+
+    # ==========================================================================
     def _get_indices(self):
         self.indices = []
         self.ndx_param = []
@@ -576,6 +627,14 @@ class PPM(object):
         self.ndx_param.append('--trusted-host')
         self.ndx_param.append(self._get_host_from_index(url))
         pr = None
+
+        # 2019.7.27 POT private plugin 정보를 API로 가져오도록 함
+        is_pr = False
+        if self.args.user and self.args.user_auth:
+            is_pr = self._get_private_repositories()
+        if not is_pr:
+            return self.indices
+
         if 'private-repositories' in self.config:
             pr = self.config.get('private-repositories', [])
         if not pr:
@@ -611,9 +670,6 @@ class PPM(object):
     def _list_modules(self, startswith='argoslabs.',
                       official_only=False, private_only=False):
         modlist = list()
-        for pkg in self.LIST_PKGS:
-            # self.venv.venv_pip('install', pkg, *self.ndx_param)
-            self.venv.venv_pip('install', pkg)
         for i, url in enumerate(self.indices):
             if i == 0 and private_only:
                 continue
@@ -673,16 +729,63 @@ class PPM(object):
         return r
 
     # ==========================================================================
+    def _def_dumpspec_from_s3(self):
+        r = requests.get(self.URL_DEF_DUMPSPEC)
+        if r.status_code // 10 != 20:
+            raise RuntimeError('Cannot get "%s"' % self.URL_DEF_DUMPSPEC)
+        return json.loads(r.content)
+
+    # ==========================================================================
+    def _dumpspec_from_s3(self, modname, version):
+        if modname in self.def_dumpspec:
+            for ds in self.def_dumpspec[modname]:
+                if ds['plugin_version'] == version:
+                    return ds
+            self.logger.error('Found "%s" module but not version "%s" in self.def_dumpspec' % (modname, version))
+        url = self.URL_DUMPSPEC.format(plugin_name=modname, version=version)
+        r = requests.get(url)
+        if r.status_code // 10 != 20:
+            raise RuntimeError('Cannot get "%s"' % url)
+        return json.loads(r.content)
+
+    # ==========================================================================
+    def _mod_ver_list_from_s3(self):
+        r = requests.get(self.URL_MOD_VER)
+        if r.status_code // 10 != 20:
+            raise RuntimeError('Cannot get "%s"' % self.URL_MOD_VER)
+        rj = json.loads(r.content)
+        mvl = {}
+        for md in rj['mod-ver-list']:
+            mvl[md['name']] = md['versions']
+        return mvl
+
+    # ==========================================================================
+    def _find_last_version_from_mod_ver_list(self, modname):
+        if not self.mod_ver_list:
+            return None
+        if modname not in self.mod_ver_list:
+            return None
+        return self.mod_ver_list[modname][0]   # descending order
+
+    # ==========================================================================
     def _dumpspec_json(self, modname, version=None):
         # pip download argoslabs.demo.helloworld==1.327.1731
         # --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com
         # --dest=C:\tmp\pkg --no-deps
         mname = modname
+        if not version:
+            version = self._find_last_version_from_mod_ver_list(modname)
         if version:
+            # noinspection PyBroadException
+            try:
+                return self._dumpspec_from_s3(modname, version)
+            except Exception as err:
+                self.logger.error('Cannot get S3 dumpspec for ("%s", "%s")' % (modname, version))
             mname = '%s==%s' % (modname, version)
             jd = self._dumpspec_json_load(modname, version)
             if jd:
                 return jd
+
         glob_filter = '%s%s%s-*.whl' % (tempfile.gettempdir(), os.path.sep, modname)
         for f in glob.glob(glob_filter):
             os.remove(f)
@@ -749,18 +852,19 @@ class PPM(object):
         else:
             mdlist = json.loads(r.text)
         # print(md)
-        req_txt = os.path.join(tmpdir, 'requirements.txt')
-        with open(req_txt, 'w') as ofp:
-            for md in mdlist:
-                if 'plugin_name' in md:
-                    if 'plugin_version' in md:
-                        ofp.write('%s==%s\n' % (md['plugin_name'], md['plugin_version']))
+        if not self.args.private_only:
+            req_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(req_txt, 'w') as ofp:
+                for md in mdlist:
+                    if 'plugin_name' in md:
+                        if 'plugin_version' in md:
+                            ofp.write('%s==%s\n' % (md['plugin_name'], md['plugin_version']))
+                        else:
+                            ofp.write('%s\n' % md['plugin_name'])
                     else:
-                        ofp.write('%s\n' % md['plugin_name'])
-                else:
-                    self.logger.error('Chief API result for user plugin "%s" must have "plugin_name" key')
-        self.args.requirements_txt = req_txt
-        self.args.user = None
+                        self.logger.error('Chief API result for user plugin "%s" must have "plugin_name" key')
+            self.args.requirements_txt = req_txt
+            # self.args.user = None
         return True
 
     # ==========================================================================
@@ -957,6 +1061,17 @@ six [('==', '1.10.0')]
         return rd
 
     # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _get_with_dumpspec(self, mod, d, modds):
+        if mod not in modds:
+            raise RuntimeError('Cannot get "%s" dumpspec from modds in _get_with_dumpspec' % mod)
+        for ds in modds[mod]:
+            if d['version'] == ds['plugin_version']:
+                d['dumpspec'] = ds
+                return True
+        raise RuntimeError('Cannot find "%s" dumpspec from modds in _get_with_dumpspec' % mod)
+
+    # ==========================================================================
     def do_plugin(self):
         ofp = sys.stdout
         modd = {}
@@ -964,9 +1079,11 @@ six [('==', '1.10.0')]
         tmpdir = tempfile.mkdtemp(prefix='do_plugin_')
         try:
             self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
-            for pkg in self.PLUGIN_PKGS:
-                # self.venv.venv_pip('install', pkg, *self.ndx_param)
-                self.venv.venv_pip('install', pkg)
+            self.def_dumpspec = self._def_dumpspec_from_s3()
+
+            # for pkg in self.PLUGIN_PKGS:
+            #     # self.venv.venv_pip('install', pkg, *self.ndx_param)
+            #     self.venv.venv_pip('install', pkg)
 
             if self.args.outfile:
                 ofp = open(self.args.outfile, 'w', encoding='utf-8')
@@ -1081,6 +1198,15 @@ six [('==', '1.10.0')]
             if self.args.plugin_cmd == 'get':
                 rd = self._cmd_modspec(modd, modspec)
                 if not self.args.short_output:
+                    if self.args.with_dumpspec:
+                        for mod, dl in rd.items():
+                            if isinstance(dl, dict):
+                                self._get_with_dumpspec(mod, dl, modds)
+                            elif isinstance(dl, list):
+                                for d in dl:
+                                    self._get_with_dumpspec(mod, d, modds)
+                            else:
+                                raise RuntimeError('Invalid type of get result, needed {dict, list}')
                     json.dump(rd, ofp)
                 else:
                     for mod in sorted([x for x in rd.keys()]):
@@ -1203,18 +1329,109 @@ six [('==', '1.10.0')]
         return pu_main(argv=cmd)
 
     # ==========================================================================
+    def _can_self_upgrade(self):
+        is_common, is_ppm = False, False
+        # for alabs.common
+        try:
+            cur_common = pkg_resources.get_distribution("alabs.common").version
+            last_common = self.mod_ver_list['alabs.common'][0]
+            if ver_compare(last_common, cur_common) > 0:
+                is_common = True
+        except Exception as e:
+            self.logger.error('Cannot get version of "alabs.common": %s' % str(e))
+        # for alabs.ppm
+        try:
+            cur_ppm = pkg_resources.get_distribution("alabs.ppm").version
+            last_ppm = self.mod_ver_list['alabs.ppm'][0]
+            if ver_compare(last_ppm, cur_ppm) > 0:
+                is_ppm = True
+        except Exception as e:
+            self.logger.error('Cannot get version of "alabs.common": %s' % str(e))
+        return is_common, is_ppm
+
+    # ==========================================================================
+    def _get____tk____(self, u___i, p___w):
+        try:
+            cookies = {
+                'JSESSIONID': '04EFBA89842288248F32F9EC19B7423E',
+            }
+
+            headers = {
+                'Accept': '*/*',
+                'Authorization': 'Basic YXJnb3MtcnBhOjA0MGM1YTA1MTkzZWRjYWViZjk4NTY1MmMxOGE1MThj',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Host': 'oauth-rpa.argos-labs.com',
+                'Postman-Token': 'd010ec3c-d0b5-40cf-a3a5-4522fe73b2ad,0af02f20-2044-4983-9db4-ab7aa8453e06',
+                'User-Agent': 'PostmanRuntime/7.13.0',
+                'accept-encoding': 'gzip, deflate',
+                'cache-control': 'no-cache',
+                'content-length': '92',
+                'content-type': 'application/x-www-form-urlencoded',
+                'cookie': 'JSESSIONID=04EFBA89842288248F32F9EC19B7423E',
+            }
+
+            data = {
+                'grant_type': 'password',
+                'client_id': 'argos-rpa',
+                'scope': 'read write',
+                'username': u___i,
+                'password': p___w,
+            }
+
+            r = requests.post('https://oauth-rpa.argos-labs.com/oauth/token',
+                              headers=headers, cookies=cookies, data=data)
+            if r.status_code // 10 != 20:
+                raise RuntimeError('PPM._dumpspec_user: API Error!')
+            jd = json.loads(r.text)
+            return 'Bearer %s' % jd['access_token']
+        except Exception as e:
+            msg = '_get____tk____ Error: %s' % str(e)
+            self.logger.error(msg)
+            return None
+
+    # ==========================================================================
     def do(self):
         try:
             self.logger.info('PPM.do: starting... %s' % self.args.command)
+
+            if self.args.pr_user:
+                setattr(self.args, 'user', self.args.pr_user)
+            elif not hasattr(self.args, 'user'):
+                setattr(self.args, 'user', None)
+            if self.args.pr_user_auth:
+                setattr(self.args, 'user_auth', self.args.pr_user_auth)
+            elif not hasattr(self.args, 'user_auth'):
+                setattr(self.args, 'user_auth', None)
+            # 만약 --pr-user, --pr-user-pass 를 입력한 경우
+            if self.args.user and self.args.pr_user_pass and not self.args.pr_user_auth:
+                setattr(self.args, 'user_auth',
+                        self._get____tk____(self.args.user, self.args.pr_user_pass))
+
+            if self.args.command in ('upload',):
+                # 만약 upload 에서 --pr-user 옵션을 안 준 경우, 사용자를 물어서 가져옴
+                if not self.args.user:
+                    user = input('%s command need user id for ARGOS RPA, User ID? '
+                                 % self.args.command)
+                    setattr(self.args, 'user', user)
+                # 만약 upload 에서 --pr-user 옵션만 주고 실행했을 때는 암호를 물어서 가져옴
+                if not self.args.user_auth:
+                    u___p = getpass('%s command need user password for ARGOS RPA, User Password? '
+                                          % self.args.command)
+                    setattr(self.args, 'user_auth', self._get____tk____(self.args.user, u___p))
+
             if hasattr(self.args, 'subargs'):
                 subargs = self._check_subargs(self.args.subargs)
             else:
                 subargs = []
+            # officail 및 private의 --index 내용 가져오기
             self._get_indices()
-
+            # s3에서 pypi-official의 module 및 버전 모곩을 구해옴
+            self.mod_ver_list = self._mod_ver_list_from_s3()
             if self.args.self_upgrade:
+                is_common, is_ppm = self._can_self_upgrade()
                 # noinspection PyProtectedMember
-                self.venv._upgrade(self.ndx_param)
+                self.venv._upgrade(self.ndx_param, is_common=is_common, is_ppm=is_ppm)
 
             # first do actions which do not need virtualenv
             ####################################################################
@@ -1225,6 +1442,13 @@ six [('==', '1.10.0')]
                     print(self.indices[0])
                 elif self.args.get_cmd == 'trusted-host':
                     print(self._get_host_from_index(self.indices[0]))
+                elif self.args.get_cmd == 'private':
+                    prl = self.indices[1:]
+                    if not prl:
+                        print('No private repository')
+                    else:
+                        print('There are %s private repository(ies)' % len(prl))
+                        print('\n'.join(prl))
                 return 0
             # print('start %s ...' % self.args.command)
 
@@ -1630,6 +1854,12 @@ set {conf_path} as follows:
                             help='clean all temporary folders, etc.')
         parser.add_argument('--verbose', '-v', action='count', default=0,
                             help='verbose output eg) -v, -vv, -vvv, ...')
+        parser.add_argument('--pr-user',
+                            help="user id for private plugin repository command")
+        parser.add_argument('--pr-user-pass',
+                            help="user passwd for private plugin repository command")
+        parser.add_argument('--pr-user-auth',
+                            help="user authentication for private plugin repository command, usually this is for program")
 
         subps = parser.add_subparsers(help='ppm command help', dest='command')
         ########################################################################
@@ -1657,8 +1887,8 @@ set {conf_path} as follows:
         ########################################################################
         sp = subps.add_parser('get', help='get command')
         sp.add_argument('get_cmd', metavar='get_sub_cmd',
-                        choices=['repository', 'trusted-host'],
-                        help="get command {'repository', 'trusted-host'}")
+                        choices=['repository', 'trusted-host', 'private'],
+                        help="get command {'repository', 'trusted-host', 'private'}")
 
         ########################################################################
         # plugin command
@@ -1676,6 +1906,8 @@ set {conf_path} as follows:
         sp.add_argument('plugin_module',
                         nargs="*",
                         help="plugin module name eg) argoslabs.demo.helloworld or argoslabs.demo.helloworld==1.327.1731")
+        # 2019.07.27 : 다음의 plugin 의존적인 --user, --user-auth 옵션은 놔두고
+        # --pr-puser, --pr-user-auth 전체 옵션 추가
         sp.add_argument('--user',
                         help="user id for plugin command")
         sp.add_argument('--user-auth',
@@ -1692,6 +1924,8 @@ set {conf_path} as follows:
                         help="dumpspec.json will be cached. If this flag is set, clear all cache first.")
         sp.add_argument('--last-only', action="store_true",
                         help="get or dumpspec last version only.")
+        sp.add_argument('--with-dumpspec', action="store_true",
+                        help="dumpspec.json will be added in result of get result. If --short-output is set, this option is not applied.")
         sp.add_argument('--dumppi-folder',
                         help="module filter to start with")
         sp.add_argument('--outfile',
