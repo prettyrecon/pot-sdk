@@ -68,7 +68,7 @@ def main(*args):
         from alabs.rpa.autogui.click.linux import main as _main
 
     elif _platform == Platforms.MAC.value:
-        pass
+        from alabs.rpa.autogui.click.linux import main as _main
 
     elif _platform == Platforms.IOS.value:
         from alabs.rpa.autogui.click.ios import main as _main

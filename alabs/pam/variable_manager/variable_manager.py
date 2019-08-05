@@ -1,11 +1,14 @@
 import re
 import enum
-import hvac
+# import hvac
 import datetime
+import math
+
 from alabs.common.util.vvjson import get_xpath, set_xpath
 from alabs.pam.variable_manager import EXTERNAL_STORE_TOKEN, \
     EXTERNAL_STORE_ADDRESS_PORT, EXTERNAL_STORE_NAME
 
+import copy
 
 PATTERN = r'\{\{(.+)\}\}'
 GROUP_VARIABLE_NAME = r'(\w+)[.](\w+)\(?.+?\)?'
@@ -66,6 +69,56 @@ class Client:
 
     def __del__(self):
         self.close()
+
+
+################################################################################
+integers_regex = re.compile(r'\b[\d\.]+\b')
+
+
+def calc(expr, advanced=False):
+    def safe_eval(expr, symbols=None,):
+        if not symbols:
+            symbols = dict()
+        ret = eval(expr, dict(__builtins__=None), symbols)
+
+        return ret
+
+    def whole_number_to_float(match):
+        group = match.group()
+        if group.find('.') == -1:
+            return group + '.0'
+        return group
+
+    expr = expr.replace('^', '**')
+    expr = integers_regex.sub(whole_number_to_float, expr)
+    if advanced:
+        return safe_eval(expr, vars(math))
+    else:
+        return safe_eval(expr)
+
+
+################################################################################
+def number_format(value:str, f=None):
+    def is_digit(v: str):
+        try:
+            float(v)
+            return True
+        except ValueError:
+            return False
+
+    if not f:
+        return value
+    if is_digit(value):
+        if '.' in value:
+            value = float(value)
+        else:
+            value = int(value)
+    if 'd' in f:
+        f = f.replace('.', '')
+        value = int(value)
+    form = "{:%s}" % (str(f),)
+
+    return form.format(value)
 
 
 ################################################################################
@@ -173,7 +226,7 @@ def split_string_variables(data: str, idx):
         elif t == ')':
             if stack:
                 stack.pop()
-        elif t == '}}':
+        elif t == '}}' and stack:
             stack.pop()
             if not stack:
                 # 값은 문자열로 합치고 구분자로 `|` 사용
@@ -198,7 +251,7 @@ class Variables(dict):
         dict.__init__(self, **kwargs)
 
     # ==========================================================================
-    def convert(self, text):
+    def convert(self, text, name):
         idx = get_delimiter_index(text)
         form, variables = split_string_variables(text, idx)
 
@@ -207,8 +260,9 @@ class Variables(dict):
             return text
 
         arg = list()
-        option = dict(store='LOCAL', array_function=None)
+
         for v in variables:
+            option = dict(store='LOCAL', array_function=None, namespace=name)
             t = split(v)
             value, path, *_ = self.parse(t, option=option)
             array_function = option.setdefault('array_function', None)
@@ -233,7 +287,7 @@ class Variables(dict):
             return current_datetime(path.split('/')[1])
 
     # ==========================================================================
-    def get_by_argos_variable(self, variable, raise_exception=False):
+    def get_by_argos_variable(self, variable, name, raise_exception=False):
         """
         ARGOS 변수형태로 위치 값을 찾아서 값 반환
         :param variable: {{ABC.DEF[1]}}
@@ -244,10 +298,11 @@ class Variables(dict):
 
         # 변수 사용이 없는 문자열일 경우
         if not variables:
-            raise ValueError
+            raise ValueError("{} is a wrong variable name".format(variable))
 
         t = split(variables[0])
-        value, path, option = self.parse(t)
+        option = dict(namespace=name, array_function=None)
+        value, path, option = self.parse(t, option=option)
         array_function = option.setdefault('array_function', None)
         if array_function in ArrayFunction.APPEND.value:
             # TODO: 전용 Exception Class 를 만들기
@@ -255,11 +310,12 @@ class Variables(dict):
             raise ValueError("Array Function - "
                              "'APPEND' IS FOR SETTING ONLY")
 
-        value = self.get_by_xpath(path, option['store'], raise_exception)
+        # TODO: raise_exception 을 위해서 한 번 더 호출
+        value = self.get_by_xpath(path, option, raise_exception)
         return value
 
     # ==========================================================================
-    def set_by_argos_variable(self, variable, value):
+    def set_by_argos_variable(self, variable, value, name):
         """
         ARGOS 변수형태로 위치 값을 찾아서 값 저장
         :param variable: {{ABC.DEF[1]}}
@@ -271,51 +327,65 @@ class Variables(dict):
 
         # 변수 사용이 없는 문자열일 경우
         if not variables:
-            raise ValueError
+            raise ValueError("{} is a wrong variable name".format(variable))
 
         t = split(variables[0])
-        _, path, option = self.parse(t)
-        return self.set_by_xpath(path,  value, option['store'])
+        option = dict()
+        option['namespace'] = name
+        # try:
+        _, path, option = self.parse(t, option=option)
+        # except Exception as e:
+        #     raise Exception("Parsing Error")
+        name = option.setdefault('namespace', name)
+        return self.set_by_xpath(path,  value, name)
 
     # ==========================================================================
-    def set_by_xpath(self, xpath:str, value:object, sign:str)->None:
-        if sign == Sign.GLOBAL.name:
-            self._global_set_by_xpath(xpath, value)
-        else:
-            self._local_set_by_xpath(xpath, value)
+    def set_by_xpath(self, xpath:str, value:object, name=None):
+        # if sign == Sign.GLOBAL.name:
+        #     self._global_set_by_xpath(xpath, value)
+        # else:
+        self._local_set_by_xpath(name, xpath, value)
 
     # ==========================================================================
-    def get_by_xpath(self, xpath:str, sign:str, raise_exception=False):
+    def get_by_xpath(self, xpath:str, option: dict, raise_exception=False):
         # 시스템 예약 변수 사용
         if self.is_reserved_keys(xpath):
-            value = self.reserved_call(xpath, sign)
+            value = self.reserved_call(xpath, option)
             return value
 
-        if sign == Sign.GLOBAL.name:
-            value = self._global_get_by_xpath(xpath)
-        else:
-            value = self._local_get_by_xpath(xpath, raise_exception)
+        name = option['namespace']
+        value = self._local_get_by_xpath(name, xpath, raise_exception)
+
+        # if option == Sign.GLOBAL.name:
+        #     value = self._global_get_by_xpath(xpath)
+        # else:
+        #     value = self._local_get_by_xpath(xpath, raise_exception)
         return value
 
     # ==========================================================================
-    def _local_set_by_xpath(self, xpath:str, value:object)-> None:
+    def _local_set_by_xpath(self, name: str, xpath: str, value: object)-> None:
         """
         주어진 xpath에 값을 입력
         :param xpath: 'a/b/e/f/g'
         :param value: object
         :return:
         """
-        set_xpath(self, xpath, value)
+        if name not in self:
+            self[name] = dict()
 
+        set_xpath(self[name], xpath, value)
 
     # ==========================================================================
-    def _local_get_by_xpath(self, xpath:str, raise_exception=False):
+    def _local_get_by_xpath(self, name: str, xpath: str, raise_exception=True):
         """
+        :param name:
         :param xpath: 'a/b/e/f/g'
         :return: object
         """
-        return get_xpath(self, xpath, raise_exception=raise_exception)
-
+        if name not in self:
+            self[name] = dict()
+        data = self[name]
+        return get_xpath(data, xpath, raise_exception=raise_exception)
 
     # ==========================================================================
     def _global_set_by_xpath(self, xpath: str, value: object) -> None:
@@ -382,7 +452,7 @@ class Variables(dict):
             stack = list()
             parsed = str()
         if not option:
-            option = dict(store='LOCAL')
+            option = dict(store='LOCAL', namespace=None)
 
         # 탈출
         if not data:
@@ -390,24 +460,24 @@ class Variables(dict):
                 raise ParsingError("{}".format(str(stack)))
             path = parsed.replace('.', '/')
 
-            store = option.setdefault('store', 'LOCAL')
+            # store = option.setdefault('store', 'LOCAL')
             array_function = option.setdefault('array_function', None)
 
             if not array_function:
-                value = self.get_by_xpath(path, store)
+                value = self.get_by_xpath(path, option)
 
             elif array_function in ArrayFunction.COUNT.value:
-                value = len(self.get_by_xpath(path, store))
+                value = len(self.get_by_xpath(path, option))
 
             elif array_function in ArrayFunction.LAST.value:
                 # TODO: OUT OF INDEX 처리 필요
-                temporary_value = self.get_by_xpath(path, store)
+                temporary_value = self.get_by_xpath(path, option)
                 value = temporary_value[-1]
                 path += "[{}]".format(len(temporary_value) - 1)
 
             elif array_function in ArrayFunction.APPEND.value:
                 # TODO: OUT OF INDEX 처리 필요
-                temporary_value = self.get_by_xpath(path, store)
+                temporary_value = self.get_by_xpath(path, option)
                 value = temporary_value[-1]
                 path += "[{}]".format(len(temporary_value))
 
@@ -420,6 +490,17 @@ class Variables(dict):
         t = data.pop(0)
         if t == '{{':
             stack.append(t)
+
+        elif stack and data and stack[-1] == '{{' and \
+                data[0] == Sign.GLOBAL.value and t != '}}':
+            opt = copy.deepcopy(option)  # 이전 Namespace 유지
+            opt['namespace'] = t
+            return self.parse(data, stack, parsed, opt)
+
+        # Sign
+        elif t == Sign.GLOBAL.value:
+            option['store'] = Sign.GLOBAL.name
+
         elif t == '(':
             stack.append(t)
             result = self.parse(data, stack, option=option)
@@ -430,29 +511,31 @@ class Variables(dict):
                           for x in result.split(",")]
                 parsed += ''.join(["[{}]".format(x) for x in result])
 
-        # Sign
-        elif t == Sign.GLOBAL.value:
-            option['store'] = Sign.GLOBAL.name
-
         # List 처리
         elif t == ',':
             parsed += ','
             parsed += self.parse(data, stack, option=option)
             return parsed
 
-        elif t.upper() in [item for sublist in list(ArrayFunction)
-                           for item in sublist.value]:
-            option['array_function'] = t.upper()
-
         # t의 값이 '}}', 값을 요청하여 리턴
         # 조건: 스택 마지막이 '{{' 이거나 ')'일 경우
         elif t == ')' and stack[-1] == '(':
             stack.pop()
             return parsed
+
+        elif not t.isdigit() and stack[-1] == '(':
+            if t.upper() in [item for sublist in list(ArrayFunction)
+                             for item in sublist.value]:
+                option['array_function'] = t.upper()
+            else:
+                raise ValueError(
+                    "{} is not a supported array function'".format(t))
+
         elif t == '}}':
             stack.pop()
             if stack:
-                v = self.get_by_xpath(parsed.replace('.', '/'), option['store'])
+                old_option = copy.deepcopy(option)
+                v = self.get_by_xpath(parsed.replace('.', '/'), option)
                 return self.parse(data, stack, str(v), option)
         else:
             parsed = t
@@ -461,5 +544,14 @@ class Variables(dict):
         # 가장 깊이 중첩되어 있는 값 부터 처리
         return self.parse(data, stack, parsed, option)
 
-
+    # ==========================================================================
+    def calculate(self, state, name):
+        """
+        Argos 변수가 포함된 수식 계산
+        :param state: {{ABC}} + {{DEF}}
+        :param name: Namespace
+        :return: 결과 값
+        """
+        state = self.convert(state, name)
+        return calc(state)
 

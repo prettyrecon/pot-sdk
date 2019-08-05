@@ -53,7 +53,7 @@ def locate_image(mcxt, argspec):
     mcxt.logger.info('>>>starting...')
     # 이미지 좌표 구하기
     location = find_image_loacation(mcxt, argspec)
-    print("LOCATION:: ", location)
+
     if not location:
         raise ValueError("COULDN'T FIND LOCATION")
     x, y, *_ = location
@@ -66,7 +66,6 @@ def locate_image(mcxt, argspec):
     x += cx; y += cy
     action = getattr(pyautogui, motion)
     action(button=button, x=x, y=y)
-
     mcxt.logger.info('>>>end...')
     if argspec.verbose:
         print(x, y, motion, button)

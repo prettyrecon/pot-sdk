@@ -15,13 +15,11 @@ from alabs.pam.la.bot.app.status import api as api_status
 def main(api_port=8082, *args):
     app = None
     try:
-        # Flask app
         app = Flask(__name__)
         api = Api(
             title='ARGOS BOT-REST-Server',
             version='1.0',
-            description='BOT RESTful Server',
-        )
+            description='BOT RESTful Server')
         api.add_namespace(api_status, path='/%s/%s/%s' % ('api', 'v1.0', 'pam'))
 
         app.logger.info("Start RestAPI from [%s]..." % __name__)

@@ -1,7 +1,10 @@
 import unittest
+import os
+from requests import Response
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
-from alabs.pam.variable_manager import ResponseData, ResponseErrorData
+# from alabs.pam.variable_manager import ResponseData, ResponseErrorData
+
 
 import warnings
 
@@ -63,7 +66,8 @@ def ignore_warnings(test_func):
 class TestUnit(unittest.TestCase):
     # ==========================================================================
     def setUp(self):
-        self.vars = VariableManagerAPI()
+        self.pid = os.getpid()
+        self.vars = VariableManagerAPI(pid=self.pid)
 
     # ==========================================================================
     def tearDown(self):
@@ -73,36 +77,96 @@ class TestUnit(unittest.TestCase):
     def test_100_create(self):
         value = "Hello"
         # 성공 케이스
-        self.assertIsInstance(
-            self.vars.create("{{DEF.GHI}}", value), ResponseData)
+        code, data = self.vars.create("{{DEF.GHI}}", value)
+        self.assertEqual(200, code)
 
+    # ==========================================================================
+    def test_101_create_incorrect_path(self):
         # 실패 케이스
-        self.assertIsInstance(
-            self.vars.create("{DEF.GHI}}", value), ResponseErrorData)
+        value = "Hello"
+        code, data = self.vars.create("{DEF.GHI}}", value)
+        expect = {'message': '{DEF.GHI}} is a wrong variable name'}
+        self.assertEqual(400, code)
+        self.assertDictEqual(expect, data)
 
     # ==========================================================================
     def test_200_get(self):
         value = "Hello"
         path = "{{DEF.GHI}}"
-        wrong_path = "{{EF.GHI}}"
 
         # 데이터가 있고, 값이 올바를 경우
-        data = self.vars.create(path, value)
-        self.assertEqual(200, data['code'])
-        self.assertEqual(value, data['data'])
+        code, data = self.vars.create(path, value)
+        self.assertEqual(200, code)
 
-        # 데이터가 없을 경우 404
-        self.assertEqual(404, self.vars.get(wrong_path)['code'])
+        code, data = self.vars.get(path)
+        self.assertEqual(200, code)
+        self.assertEqual(value, data)
+
+    # ==========================================================================
+    def test_201_get_non_existent(self):
+        non_existent_path = "{{EF.GHI}}"
+        # 데이터가 없을 경우 207
+        code, data = self.vars.get(non_existent_path)
+        self.assertEqual(207, code)
+
+    # ==========================================================================
+    def test_202_get_incorrect_path(self):
+        non_existent_path = "{{EF.GHI}"
+        # 잘못된 변수형태
+        code, data = self.vars.get(non_existent_path)
+        self.assertEqual(400, code)
+
+    # ==========================================================================
+    def test_203_using_incorrect_or_not_supported_array_function(self):
+        non_existent_path = "{{EF.GHI(COUN)}}"
+        # 잘못된 변수형태
+        code, data = self.vars.get(non_existent_path)
+        self.assertEqual(400, code)
 
     # ==========================================================================
     def test_300_convert_local(self):
         value = 'Hello'
         statement = '{{DEF.GHI}} World!'
-        statement2 = '{{DEF.ABC}} World!'
         path = "{{DEF.GHI}}"
 
         self.vars.create(path, value)
-        self.assertEqual('Hello World!', self.vars.convert(statement)['data'])
+        code, data = self.vars.convert(statement)
+        self.assertEqual(200, code)
+        self.assertEqual('Hello World!', data)
 
+    # ==========================================================================
+    def test_301_convert_non_existent_path(self):
+        value = 'Hello'
+        statement = '{{DE.ABC}} World!'
+        path = "{{DEF.ABC}}"
+        expect = {'message': "ftjson.get_xpath: Invalid Key <'DE'>"}
+
+        code, data = self.vars.create(path, value)
+        self.assertEqual(200, code)
+
+        code, data = self.vars.convert(statement)
+        self.assertEqual(207, code)
         # 데이터가 없을 때는 None 이라고 기록
-        self.assertEqual('None World!', self.vars.convert(statement2)['data'])
+        self.assertDictEqual(expect, data)
+
+    # ==========================================================================
+    def test_302_convert_incorrect_path(self):
+        value = 'Hello'
+        statement = '{DEF.ABC}} World!'
+        path = "{{DEF.ABC}}"
+
+        self.vars.create(path, value)
+        code, data = self.vars.convert(statement)
+        # 데이터가 없을 때는 None 이라고 기록
+        self.assertEqual(statement, data)
+
+    # ==========================================================================
+    def test_400_long_data(self):
+        path = "{{DEF.ABC}}"
+        with open("mailoutput.txt", 'r') as fs:
+            d = fs.read()
+        code, data = self.vars.create(path, d)
+        self.assertEqual(200, code)
+
+        code, data = self.vars.get(path)
+        self.assertEqual(200, code)

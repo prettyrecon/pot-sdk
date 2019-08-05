@@ -75,7 +75,7 @@ from flask import current_app
 # from functools import wraps
 # from alabs.common.util.vvprint import PrettyPrinter
 from requests.utils import requote_uri
-from alabs.pam.variable_manager import ResponseErrorData, ResponseData
+# from alabs.pam.variable_manager import ResponseErrorData, ResponseData
 
 ################################################################################
 # default LIMIT for get_all
@@ -280,6 +280,7 @@ class RestClient(object):
         self.api_name = api_name
         self.api_version = api_version
         self.session = requests.Session()
+        self.session.trust_env = False
         self.set_resource(table)
 
     # ========================================================================
@@ -470,10 +471,7 @@ class RestClient(object):
             response = self.session.delete(url, **_kwargs)
         else:
             raise RuntimeError("Invalid HTTP method <%s>" % method.upper())
-
-        if response.status_code not in (200, 201, 202, 204, 205, 206, 207):
-            return ResponseErrorData(response)
-        return ResponseData(response)
+        return response
 
 
 ################################################################################
