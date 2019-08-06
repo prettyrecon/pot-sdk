@@ -59,6 +59,8 @@ class Variables(Resource):
     def get(self):
         args = variables_parser.parse_args()
         try:
+            if args['debug']:
+                return variables
             retv = variables.get_by_argos_variable(
                 args['path'], args['name'], raise_exception=True)
             return retv
