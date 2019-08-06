@@ -82,7 +82,6 @@ class PamManager(Resource):
 
         try:
             args = pam_parser.parse_args()
-            print(args)
             if args['bot_index'] is None:
                 raise ValueError("Bot Index Needed ")
             bh = ScenarioRepoHandler()

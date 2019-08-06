@@ -123,12 +123,10 @@ def _main(*args):
                               ClickType.LEFT.name,
                               ClickType.NONE.name, ],
                           help='')
-        print("ARGS: ", args)
         argspec = mcxt.parse_args(args)
         return locate_image(mcxt, argspec)
 
 ################################################################################
 def main(*args):
-    print("MAIN_ARGS: ", args)
     return _main(*args)
 

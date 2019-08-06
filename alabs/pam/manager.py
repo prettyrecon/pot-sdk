@@ -163,7 +163,6 @@ class PamManager(list):
     def remove_runners(self, idx: list):
         idx.sort()
         idx.reverse()
-        print(idx)
         for i in idx:
             self.remove_runner(i)
         return True

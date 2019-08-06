@@ -263,7 +263,6 @@ class Scenario(dict):
     # ==========================================================================
     def backward(self, n: int):
         quotient = self._current_item_index - n
-        print("q: ", quotient)
         # 아이템의 첫번째를 벗어나는 경우, 이전 스텝으로 이동
         if quotient < 0:
             if self._current_step_index == 0:

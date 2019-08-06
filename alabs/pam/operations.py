@@ -163,7 +163,6 @@ class ExecuteProcess(Items):
             self['executeProcess']['executeFilePath'])
         if code != 200:
             raise ValueError(str(data))
-        print(data)
         return data,
 
     # ==========================================================================
