@@ -24,6 +24,7 @@ Change Log
 """
 
 ################################################################################
+import sys
 import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
@@ -53,11 +54,12 @@ def find_image_loacation(mcxt, argspec):
     mcxt.logger.info('>>>starting...')
     location = pyautogui.locateOnScreen(argspec.filename, region=argspec.region)
     if not location:
-        raise ValueError("Can't find image location")
+        sys.stderr.write('Failed to find the location')
+        return False
+
     mcxt.logger.info('>>>end...')
-    if argspec.verbose:
-        print(location)
-    return location
+    sys.stdout.write(str(location))
+    return True
 
 ################################################################################
 def _main(*args):
