@@ -6,19 +6,13 @@ import json
 import csv
 from io import StringIO
 from functools import wraps
+
 from alabs.rpa.desktop.execute_process import main as execute_process
 from alabs.rpa.desktop.delay import main as delay
-from alabs.rpa.autogui.locate_image import main as locate_image
-from alabs.rpa.autogui.scroll import main as scroll
-from alabs.rpa.autogui.click import main as click
-from alabs.rpa.autogui.type_text import main as type_text
-from alabs.rpa.autogui.send_shortcut import main as send_short_cut
-from alabs.rpa.autogui.find_image_location import main as image_match
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
-
-from alabs.pam.runner import ResultHandler
+from alabs.pam.runner import ResultHandler, ResultAction
 
 
 ################################################################################
@@ -75,6 +69,30 @@ def arguments_options_fileout(f):
         return tuple(arguments)
     return func
 
+################################################################################
+def request_handler(f):
+    @wraps(f)
+    def func(*args, **kwargs):
+        action = dict((x.value, x.name) for x in list(ResultAction))
+        result_data, result, message = f(*args, **kwargs)
+
+        status = True
+        function = None
+        message = ''
+
+        if action[result] == ResultAction.MoveOn.value:
+            pass
+        elif action[result] == ResultAction.TreatAsError.value:
+            status = False
+            message = message
+        elif action[result] == ResultAction.IgnoreFailure.value:
+            function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
+        elif action[result] == ResultAction.AbortScenarioButNoError.value:
+            function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        else:
+            pass
+        return make_follow_job_request(status, function, message)
+    return func
 
 ################################################################################
 def make_follow_job_request(status, function=None, message=''):
@@ -264,6 +282,7 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # filename
@@ -277,8 +296,32 @@ class ImageMatch(Items):
         return tuple(cmd)
 
     # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return image_match(*self.arguments)
+        cmd = 'python -m alabs.rpa.autogui.find_image_location {}'.format(
+            ' '.join(self.arguments))
+
+        with subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                shell=True) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            returncode = proc.returncode
+
+        if stderr:
+            message = stderr.decode()
+            return self['verifyResultAction'], \
+                   self['verifyResultAction']['failActionType'], \
+                   message
+
+        message = stdout.decode()
+        return self['verifyResultAction'], \
+               self['verifyResultAction']['successActionType'], \
+               message
+
+        # stdout = b'10, 3'
+        # act = stdout.decode().split(',')[1]
+
 
 
 ################################################################################
@@ -356,6 +399,7 @@ class TypeText(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         _type = self['typeText']['typeTextType']
         if "Text" == _type:
@@ -375,14 +419,13 @@ class TypeText(Items):
             # raise ValueError("Not Supported Yet")
         # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
         value = value.replace('`', '\`')
-        return value,
+        return tuple([json.dumps(value),])
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.type_text {}'.format(
-            json.dumps(' '.join(self.arguments)))
-        subprocess.Popen(cmd, shell=True)
-        # return type_text(*self.arguments)
+            ' '.join(self.arguments))
+        subprocess.check_call(cmd, shell=True)
         return make_follow_job_request(True, None, '')
 
 
@@ -402,16 +445,21 @@ class TypeKeys(Items):
         value = list()
         for k in self['keycodes']:
             value.append(('--txt', k['txt']))
+        res = list()
+        for d in value:
+            res.append(self.add_options(d))
+        return tuple(res)
 
-        return tuple(value)
+    @arguments_options_fileout
+    def add_options(self, arg):
+        return tuple(arg)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         for arg in self.arguments:
             cmd = 'python -m alabs.rpa.autogui.send_shortcut {}'.format(
                 ' '.join(arg))
-            subprocess.Popen(cmd, shell=True)
-            # send_short_cut(*arg)
+            subprocess.check_call(cmd, shell=True)
         return make_follow_job_request(True, None, '')
 
 

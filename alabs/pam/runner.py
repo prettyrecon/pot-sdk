@@ -14,7 +14,22 @@ from alabs.pam.variable_manager.rc_api_variable_manager import \
 from alabs.common.util.vvlogger import get_logger
 
 
+################################################################################
+class ResultAction(enum.Enum):
+    MoveOn = 'Go'
+    TreatAsError = 'Error'
+    IgnoreFailure = 'FinishStep'
+    AbortScenarioButNoError = 'FinishScenario'
+    JumpForward = 'Jump'
+    JumpBackward = 'BackJump'
+    JumpToOperation = 'Goto'
+    JumpToStep = 'StepJump'
+    RestartFromTop = 'Restart'
+
+
+################################################################################
 class ResultHandler(enum.Enum):
+
     # ==========================================================================
     SCENARIO_SET_ITEM = "_result_handler_set_item"
     SCENARIO_SET_STEP = "_result_handler_set_step"
@@ -24,6 +39,7 @@ class ResultHandler(enum.Enum):
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
+
 
 ################################################################################
 class ExceptionTreatAsError(Exception):

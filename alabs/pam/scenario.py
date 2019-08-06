@@ -79,6 +79,27 @@ class Scenario(dict):
             filename=scn_filename))
 
         self._scenario_image_dir = str(pathlib.Path(scn_filename).parent)
+        self.update(self.get_modules_list())
+
+    # ==========================================================================
+    def get_modules_list(self):
+        ret = dict()
+        ret['pluginVersion'] = list()
+        ret['pluginVersion'].append(
+            {"name": "alabs.common", "version": "1.515.1543"})
+        for step in self['stepList']:
+            for item in step['items']:
+                if item['itemDivisionType'] != 'Plugin':
+                    continue
+                dumpspec = json.loads(item['pluginDumpspec'])
+                ret['pluginVersion'].append(
+                    {"name": item['pluginType'],
+                     'version': dumpspec['plugin_version']})
+        return ret
+
+
+
+
 
     # ==========================================================================
     @staticmethod
