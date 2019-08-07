@@ -247,18 +247,18 @@ class Runner(mp.Process):
     def _call_item(self, item):
         info = "{step} / {operator} "
         # Status Message
-        self.status_message.set_status(
-            self.Code.NORMAL.value, self.Status.RUNNING.value,
-            self.scenario.info,
-            "Running... " + info.format(**self._scenario.info))
+        # self.status_message.set_status(
+        #     self.Code.NORMAL.value, self.Status.RUNNING.value,
+        #     self.scenario.info,
+        #     "Running... " + info.format(**self._scenario.info))
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
         time.sleep(tm * 0.001)
         self.logger.info("Delay before run item for {}".format(str(tm * 0.001)))
-        self._pipe.send(self.status_message)
+        # self._pipe.send(self.status_message)
         # 아이템 실행
-        time.sleep(2)
-        return item()
+        result = item()
+        return result
 
     # ==========================================================================
     def play(self):
@@ -284,7 +284,6 @@ class Runner(mp.Process):
             #     self.Code.NORMAL.value, self.Status.PAUSING.value,
             #     self._scenario.info, "Pausing")
             # print(self.status_message)
-        time.sleep(0.1)
         return self._pause
 
     # ==========================================================================
@@ -323,18 +322,19 @@ class Runner(mp.Process):
             while not self._event.is_set():
                 # 타이머 추가 필요.
                 # 명령어 우선 처리
-                if self._pipe.poll():
-                    cmd, *args = self._pipe.recv()
-                    self.logger.info("Command Received... {}({})".format(cmd, str(args)))
-                    ret = getattr(self, cmd)(*args)
-
-                    self._pipe.send(ret)
-                    continue
+                # if self._pipe.poll():
+                #     cmd, *args = self._pipe.recv()
+                #     self.logger.info("Command Received... {}({})".format(cmd, str(args)))
+                #     ret = getattr(self, cmd)(*args)
+                #
+                #     self._pipe.send(ret)
+                #     continue
 
                 if self._is_pause_needed():
                     continue
 
                 # 아이템 실행
+
                 item = next(self.scenario)
                 # TODO: 후속처리 필요
                 data = self._call_item(item)
@@ -345,7 +345,8 @@ class Runner(mp.Process):
                 #     self.Code.NORMAL.value, self.Status.STOPPING.value,
                 #     self._scenario.info, "The scenario is done.")
                 # print(self.status_message)
-                time.sleep(0.1)
+
+                time.sleep(0.01)
 
         except StopIteration:
             pass
@@ -376,7 +377,7 @@ class Runner(mp.Process):
 
             # 봇 필수 변수 선언
             self.logger.info("Declared Essential Variables...")
-            self._variables.create('{{rp.index}}', value=0)  # Loop Index
+            self._variables.create('{{rp.index}}', value=1)  # Loop Index
             self._variables.create('{{saved_data}}', value=" ")  # Saved Data
 
             # 사용자 변수 선언

@@ -533,24 +533,53 @@ class Repeat(Items):
     # ==========================================================================
     def __init__(self, data:dict, scenario, logger):
         Items.__init__(self, data, scenario, logger)
-        self._scenario._current_item_index  = self.start_index - 1
+        self._variables.create("{{rp.index}}", self.start_index)
+        self._start_item_order = self._scenario.current_item_index + 1
+        self._scenario._repeat_stack.append(self)
+        self._status = True
         self._times = self.repeat_times
+        self._count = 1
+
+    @property
+    def current_item_index(self):
+        return self._scenario.current_item_index
+
+    @property
+    def start_item_order(self):
+        return self._start_item_order
+    @start_item_order.setter
+    def start_item_order(self, idx):
+        self._start_item_order = idx
+
+    @property
+    def end_item_order(self):
+        return int(self._scenario.get_item_order_number_by_index(
+            self['repeat']['endItemNum']))
 
     @property
     def start_index(self):
-        return self['repeat']['startIndex']
+        return int(self['repeat']['startIndex'])
 
     @property
     def end_index(self):
-        return self['repeat']['endIndex']
+        return int(self['repeat']['endIndex'])
 
     @property
     def increment_index(self):
-        return self['repeat']['incrementIndex']
+        return int(self['repeat']['incrementIndex'])
 
     @property
     def repeat_times(self):
-        return self['repeat']['repeatTimes']
+        if self['repeat']['repeatType'] == 'Times':
+            rt = str(self['repeat']['repeatTimesString'])
+        else:
+            rt = str(self['repeat']['repeatTimes'])
+        code, data = self._variables.convert(rt)
+        return int(data)
+
+    @property
+    def is_using_index(self):
+        return self['repeat']['useIndex']
 
     # ==========================================================================
     @property
@@ -559,20 +588,35 @@ class Repeat(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        item = self._scenario.item
-        if self._times == 1:
-            self._scenario.set_current_item_by_index(self.end_index)
-            item = self._scenario.item
-            self._scenario._repeat_item = None
-            return item
+        return make_follow_job_request(True, None, '')
 
-        if self.end_index == item['index']:
-            self._times -= 1
-            self._scenario.set_current_item_by_index(self.start_index)
-            item = self._scenario.item
-            return item
+    # ==========================================================================
+    def get_next(self):
+        """
+        시나리오에서 다음 아이템 오더와 반복문의 조건을 비교
+        current_item_index 에 지정
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
+        if self.current_item_index == self.end_item_order:
+            # 반복 횟 수가 남지 않은 상태
+            if self._times <= self._count:
+                self._scenario._repeat_stack.pop()
 
-        return item
+            order_num = self.start_item_order
+            if self.is_using_index:
+                self.loop_index_increase(step=self.increment_index)
+        else:
+            order_num = self.current_item_index
+        self._count += 1
+        return order_num
+
+    # ==========================================================================
+    def loop_index_increase(self, path="{{rp.index}}", step=1):
+        code, n = self._variables.get(path)
+        self._variables.create("{{rp.index}}", int(n) + step)
 
 
 ################################################################################

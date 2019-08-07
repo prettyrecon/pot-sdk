@@ -2,6 +2,7 @@ import sys
 import time
 import pathlib
 import enum
+import traceback
 from collections import namedtuple
 import multiprocessing as mp
 
@@ -103,7 +104,7 @@ class PamManager(list):
                 get_venv(scenario.plugins)
             runner.RUNNER.venv_path = out.getvalue().strip()
         except Exception as e:
-            print(e)
+            traceback.print_exc()
             return False
         return True
 
