@@ -398,26 +398,50 @@ class Runner(mp.Process):
     # ResultHandler Scenario 관련
     # ==========================================================================
     def _result_handler_set_step(self, args):
+        """
+        STEP 변경
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
 
     # ==========================================================================
     def _result_handler_set_item(self, args):
+        """
+        다음 실행 오퍼레이터 변경
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.set_current_item_by_index(int(args[0]))
 
     # ==========================================================================
     def _result_handler_finish_step(self, args):
+        """
+        STEP 끝내기
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.next_step()
 
     # ==========================================================================
     def _result_handler_jump_forward(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.forward(int(args[0]))
 
     # ==========================================================================
     def _result_handler_jump_backward(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.backward(int(args[0]))
 
     # ==========================================================================
     def _result_handler_finish_scenario(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.finish_scenario()
 
     # ResultHandler Variable 관련
