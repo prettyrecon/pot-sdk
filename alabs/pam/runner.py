@@ -37,6 +37,8 @@ class ResultHandler(enum.Enum):
     SCENARIO_JUMP_BACKWARD = "_result_handler_jump_backward"
     SCENARIO_FINISH_STEP = '_result_handler_finish_step'
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
+    SCENARIO_GOTO = '_result_handler_goto'
+
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
 
@@ -443,6 +445,13 @@ class Runner(mp.Process):
     def _result_handler_finish_scenario(self, args):
         self.scenario._repeat_stack = list()
         self.scenario.finish_scenario()
+
+    # ==========================================================================
+    def _result_handler_goto(self, args):
+        self.scenario._repeat_stack = list()
+        print(args)
+        self.scenario.step = int(args[0]) - 1
+        self.scenario.set_current_item_by_index(int(args[1]) - 1)
 
     # ResultHandler Variable 관련
     # ==========================================================================

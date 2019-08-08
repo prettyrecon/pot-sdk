@@ -525,6 +525,23 @@ class ReadImage(Items):
     def __call__(self, *args, **kwargs):
         return
 
+################################################################################
+class Goto(Items):
+    references = ('gotoAction',)
+    # "gotoAction":{
+    #   "stepDisplayName":"1","itemDisplayName":"[1] Operation 1",
+    #   "stepNum":1,"itemNum":1},
+
+    # ==========================================================================
+    @property
+    def arguments(self):
+        return self['gotoAction']['stepNum'], self['gotoAction']['itemNum']
+
+    # ==========================================================================
+    def __call__(self):
+        function = (ResultHandler.SCENARIO_GOTO.value, self.arguments)
+        return make_follow_job_request(True, function, '')
+
 
 ################################################################################
 class Repeat(Items):
