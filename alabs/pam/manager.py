@@ -120,7 +120,7 @@ class PamManager(list):
         if scenario_path:
             self.set_bot_to_runner(runner, scenario_path)
             # 시나리오 플러그인 목록에 맞는 파이썬 가상환경 생성
-        self.append(runner)
+        self.insert(0, runner)
         return runner
 
     # Runner 에 Bot 설정 #######################################################
