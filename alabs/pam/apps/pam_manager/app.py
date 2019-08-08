@@ -12,6 +12,7 @@ from alabs.pam.manager import PamManager as pm
 from alabs.pam.scenario_repository import ScenarioRepoHandler
 from alabs.pam.apps.pam_manager.parser import pam_parser, file_upload
 from alabs.common.util.vvhash import get_file_md5
+from alabs.rpa.desktop.screenshot import main as screenshot
 
 
 from alabs.pam.runner import is_timeout
@@ -196,6 +197,14 @@ class PamActions(Resource):
         global PAM_MANAGER
         pass
 
+
+################################################################################
+@api.route('/screenshot')
+class PamScreenShot(Resource):
+    def get(self):
+        buffer = screenshot()
+        return send_file(
+            buffer, attachment_filename='a.png', mimetype='image/png')
 
 # ################################################################################
 # @api.route('/<int:uid>/start')
