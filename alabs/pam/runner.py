@@ -336,8 +336,10 @@ class Runner(mp.Process):
                     continue
 
                 # 아이템 실행
-
                 item = next(self.scenario)
+                if item['Disabled']:
+                    continue
+
                 # TODO: 후속처리 필요
                 data = self._call_item(item)
                 self._follow_up(data)
