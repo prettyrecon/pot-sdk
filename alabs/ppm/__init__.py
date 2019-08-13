@@ -16,6 +16,12 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/08/08]
+#     - argoslabs.time.workanlendar 같은 경우 ephem 모듈은 C컴파일러가 필요하므로
+#       prebuilt 버전이 필요함. 이에 따라 로컬에 가져온 다음 필요에 따라
+#       requirements.txt를 미리 설치하도록 함
+#  * [2019/08/06]
+#     - PAM 이 맥주소를 넘길 수 있도록 --pam-id 추가
 #  * [2019/07/29]
 #     - upload 시 user 및 암호 받아오기
 #  * [2019/07/27]
@@ -594,11 +600,21 @@ class PPM(object):
     def _get_private_repositories(self):
         try:
             url = 'https://api-chief.argos-labs.com/chief/repositories'
+
             headers = {
                 'Accept': 'application/json',
-                'authorization': self.args.user_auth,
             }
-            r = requests.get(url,headers=headers)
+            r = None
+            if not self.args.pam_id:
+                headers['authorization'] = self.args.user_auth
+                r = requests.get(url, headers=headers)
+            else:
+                params = (
+                    ('user_id', self.args.user),
+                    ('pam_auth_key', self.args.user_auth),
+                    ('pam_mac_address', self.args.pam_id),
+                )
+                r = requests.get(url, headers=headers, params=params)
             if r.status_code // 10 != 20:
                 msg = 'Get private plugin for user "%s" Error: API result is %s' \
                       % (self.args.user, r.status_code)
@@ -868,6 +884,76 @@ class PPM(object):
         return True
 
     # ==========================================================================
+    def _pre_requirements_install(self, new_venv, _tmpdir, whlfile, modname,
+                                  prefix='argoslabs.'):
+        with zipfile.ZipFile(whlfile) as zf:
+            rqt = modname.replace('.', '/') + '%s%s' % ('/', 'requirements.txt')
+            rqt_f = '%s/requirements.txt' % _tmpdir
+            # noinspection PyBroadException
+            try:
+                with zf.open(rqt) as ifp:
+                    with open(rqt_f, 'w', encoding='utf-8') as ofp:
+                        ofp.write(ifp.read().decode('utf-8'))
+                r = new_venv.venv_pip('install', '-r', rqt_f, *self.ndx_param)
+                if r != 0:
+                    self.logger.error('_pre_requirements_install: '
+                                      'install "%s" error!' % rqt_f)
+            except Exception as err:
+                self.logger.error('_pre_requirements_install: '
+                                  'install "%s" error: %s' % (rqt_f, str(err)))
+
+        r = new_venv.venv_pip('install', whlfile, *self.ndx_param)
+        return r
+
+    # ==========================================================================
+    def _check_cache_download_and_install(self, new_venv, modname, op, version):
+        _cachedir = tempfile.gettempdir()
+        _tmpdir = tempfile.mkdtemp(prefix='down_install_')
+        try:
+            if op == '==' and version:
+                gl = glob.glob('%s/%s-%s-*.whl' % (_cachedir, modname, version))
+                for f in gl:
+                    return self._pre_requirements_install(new_venv, _tmpdir, f, modname)
+            modspec = modname
+            if op and version:
+                modspec += '%s%s' % (op, version)
+            new_venv.venv_pip('download', modspec,
+                              '--dest', _tmpdir,
+                              '--no-deps',
+                              *self.ndx_param)
+            gl = glob.glob('%s/%s-*.whl' % (_tmpdir, modname))
+            for f in gl:
+                r = self._pre_requirements_install(new_venv, _tmpdir, f, modname)
+                if r != 0:
+                    self.logger.error('_check_cache_download_and_install: '
+                                      'install "%s" error!' % f)
+                try:
+                    shutil.move(f, _cachedir)
+                except:
+                    self.logger.error('"%s" is exists in "%s"'
+                                      % (os.path.basename(f), _cachedir))
+                return r
+        finally:
+            if os.path.exists(_tmpdir):
+                shutil.rmtree(_tmpdir)
+
+    # ==========================================================================
+    def _download_and_install(self, new_venv, requirements_txt):
+        r = -1
+        _modspec = {}
+        with open(requirements_txt) as ifp:
+            for req in requirements.parse(ifp):
+                _modspec[req.name] = req.specs
+        for modname, speclist in _modspec.items():
+            if speclist:
+                for op, ver in speclist:
+                    r = self._check_cache_download_and_install(new_venv, modname, op, ver)
+                    break
+            else:
+                r =self._check_cache_download_and_install(new_venv, modname, None, None)
+        return r
+
+    # ==========================================================================
     def _get_venv(self, new_d):
         _tmpdir = None
         try:
@@ -883,8 +969,9 @@ class PPM(object):
                     ofp.write('# pip dependent packages\n')
                     for pm in self.args.plugin_module:
                         ofp.write('%s\n' % pm)
-            r = new_venv.venv_pip('install', '-r', requirements_txt,
-                                  *self.ndx_param, getstdout=True)
+            # r = new_venv.venv_pip('install', '-r', requirements_txt,
+            #                       *self.ndx_param, getstdout=True)
+            r = self._download_and_install(new_venv, requirements_txt)
             if r == 0:
                 outfile = os.path.join(new_d, 'freeze.txt')
                 new_venv.venv_pip('freeze', outfile=outfile, getstdout=True)
@@ -900,7 +987,9 @@ class PPM(object):
                 freeze_f = os.path.join(new_d, 'freeze.json')
                 with open(freeze_f, 'w') as ofp:
                     json.dump(freeze_d, ofp)
-            return True
+            else:
+                raise RuntimeError('PPM._get_venv: install %s error' % requirements_txt)
+            return r
         finally:
             if _tmpdir and os.path.exists(_tmpdir):
                 shutil.rmtree(_tmpdir)
@@ -1407,6 +1496,9 @@ six [('==', '1.10.0')]
             if self.args.user and self.args.pr_user_pass and not self.args.pr_user_auth:
                 setattr(self.args, 'user_auth',
                         self._get____tk____(self.args.user, self.args.pr_user_pass))
+            # pam_id 처리
+            if not hasattr(self.args, 'pam_id'):
+                setattr(self.args, 'pam_id', None)
 
             if self.args.command in ('upload',):
                 # 만약 upload 에서 --pr-user 옵션을 안 준 경우, 사용자를 물어서 가져옴
@@ -1912,6 +2004,8 @@ set {conf_path} as follows:
                         help="user id for plugin command")
         sp.add_argument('--user-auth',
                         help="user authentication for plugin command")
+        sp.add_argument('--pam-id',
+                        help="PAM ID(mac addr or uuid) for plugin command")
         sp.add_argument('--startswith',
                         help="module filter to start with")
         sp.add_argument('--official-only', action="store_true",

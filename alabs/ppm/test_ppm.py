@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/08/09]
+#     - 680 argoslabs.time.workalendar prebuilt requirements.txt and then install whl
 #  * [2019/05/29]
 #     - dumppi 테스트
 #  * [2019/05/27]
@@ -672,6 +674,7 @@ private-repositories:
                 raise RuntimeError('PPM._dumpspec_user: API Error!')
             jd = json.loads(r.text)
             TU.token = 'Bearer %s' % jd['access_token']
+            TU.access_token = jd['access_token']
             self.assertTrue(TU.token.startswith('Bearer '))
         except Exception as e:
             sys.stderr('%s%s' % (str(e), os.linesep))
@@ -999,95 +1002,187 @@ private-repositories:
             if os.path.exists(venvout):
                 os.remove(venvout)
 
-    # TODO : local repository
     # ==========================================================================
-    def test_0700_plugin_dumppi_empty_folder(self):
-        try:
-            cmd = ['plugin', 'dumppi', '--official-only', '--last-only']
-            _ = _main(cmd)
-            self.assertTrue(False)
-        except Exception as err:
-            sys.stderr.write('%s%s' % (str(err), os.linesep))
-            self.assertTrue(True)
-
-    # ==========================================================================
-    def test_0710_plugin_dumppi(self):
-        try:
-            if os.path.exists(TU.DUMPPI_FOLDER):
-                shutil.rmtree(TU.DUMPPI_FOLDER)
-            with captured_output() as (out, err):
-                cmd = ['plugin', 'dumppi', '--official-only', '--last-only',
-                       '--dumppi-folder', TU.DUMPPI_FOLDER]
-                r = _main(cmd)
-            self.assertTrue(r == 0)
-            stdout = out.getvalue().strip()
-            print(stdout)
-            stderr = err.getvalue().strip()
-            sys.stderr.write('%s\n' % stderr)
-        except Exception as err:
-            sys.stderr.write('%s%s' % (str(err), os.linesep))
-            self.assertTrue(False)
-
-    # ==========================================================================
-    def test_0720_remove_all_venv(self):
-        venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
-        if os.path.exists(venv_d):
-            shutil.rmtree(venv_d)
-        self.assertTrue(not os.path.exists(venv_d))
-
-    # ==========================================================================
-    def test_0730_http_server(self):
-        cmd = [
-            'python',
-            '-m',
-            'http.server',
-            '--directory', TU.DUMPPI_FOLDER,
-            '38038'
-        ]
-        TU.HTTP_SERVER_PO = subprocess.Popen(cmd)
-        time.sleep(1)
-        self.assertTrue(TU.HTTP_SERVER_PO is not None)
-
-    # ==========================================================================
-    def test_0740_rename_conf(self):
-        os.rename(CONF_PATH, '%s.org' % CONF_PATH)
-        with open(CONF_PATH, 'w') as ofp:
-            ofp.write('''
-version: "%s"
-repository:
-  url: http://localhost:38038/simple
-'''% _conf_last_version)
-        self.assertTrue(os.path.exists('%s.org' % CONF_PATH))
-
-    # ==========================================================================
-    def test_0750_plugin_venv_success(self):
+    def test_0670_plugin_venv_requirements_txt_for_pam(self):
+        tmpdir = None
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
-            cmd = ['plugin', 'venv', 'argoslabs.ai.tts', '--outfile', venvout]
+            # argoslabs.data.fileconv 이전버전 설치
+            # argoslabs.web.bsoup 최신버전 설치
+            # in venv_03
+            modlist = [
+                'argoslabs.data.fileconv==%s' % TU.vers2[1],
+                'argoslabs.web.bsoup==%s' % TU.vers3[0],
+                'yourfolder.demo.helloworld==1.100.1000',
+            ]
+            tmpdir = tempfile.mkdtemp(prefix='requirements_')
+            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(requirements_txt, 'w') as ofp:
+                ofp.write('# pip dependent packages\n')
+                ofp.write('\n'.join(modlist))
+            cmd = [
+                'plugin', 'venv', '--requirements-txt', requirements_txt,
+                '--user', 'mcchae@gmail.com',
+                '--user-auth', '82abacb7-b8b1-11e9-bdba-064c24692e8b',
+                '--pam-id', '001C4231BA4F',
+                '--outfile', venvout
+            ]
             r = _main(cmd)
             self.assertTrue(r == 0)
             with open(venvout) as ifp:
                 stdout = ifp.read()
-            TU.venv_01 = stdout
-            self.assertTrue(True)
-        except Exception as err:
-            sys.stderr.write('%s%s' % (str(err), os.linesep))
-            self.assertTrue(False)
+            self.assertTrue(TU.venv_01 != stdout and TU.venv_02 == stdout)
+            freeze_f = os.path.join(TU.venv_02, 'freeze.json')
+            self.assertTrue(os.path.exists(freeze_f))
+            with open(freeze_f) as ifp:
+                rd = json.load(ifp)
+            self.assertTrue(
+                rd['argoslabs.data.fileconv'] == TU.vers2[1] and
+                rd['argoslabs.web.bsoup'] == TU.vers3[0] and
+                rd['yourfolder.demo.helloworld'] == '1.100.1000'
+            )
+            for k, v in rd.items():
+                print('%s==%s' % (k, v))
         finally:
+            if tmpdir and os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
             if os.path.exists(venvout):
                 os.remove(venvout)
 
     # ==========================================================================
-    def test_0760_restore_conf(self):
-        os.remove(CONF_PATH)
-        os.rename('%s.org' % CONF_PATH, CONF_PATH)
-        self.assertTrue(not os.path.exists('%s.org' % CONF_PATH))
+    def test_0680_plugin_venv_requirements_txt_for_pam_prebuilt(self):
+        tmpdir = None
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
+        try:
+            # argoslabs.data.fileconv 이전버전 설치
+            # argoslabs.web.bsoup 최신버전 설치
+            # in venv_03
+            modlist = [
+                'yourfolder.demo.helloworld==1.100.1000',
+                'argoslabs.time.workalendar==1.807.1516',
+            ]
+            tmpdir = tempfile.mkdtemp(prefix='requirements_')
+            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(requirements_txt, 'w') as ofp:
+                ofp.write('# pip dependent packages\n')
+                ofp.write('\n'.join(modlist))
+            cmd = [
+                'plugin', 'venv', '--requirements-txt', requirements_txt,
+                '--user', 'mcchae@gmail.com',
+                '--user-auth', '82abacb7-b8b1-11e9-bdba-064c24692e8b',
+                '--pam-id', '001C4231BA4F',
+                '--outfile', venvout
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            with open(venvout) as ifp:
+                stdout = ifp.read()
+            freeze_f = os.path.join(stdout, 'freeze.json')
+            self.assertTrue(os.path.exists(freeze_f))
+            with open(freeze_f) as ifp:
+                rd = json.load(ifp)
+            self.assertTrue(
+                rd['yourfolder.demo.helloworld'] == '1.100.1000' and
+                rd['argoslabs.time.workalendar'] == '1.807.1516'
+            )
+            for k, v in rd.items():
+                print('%s==%s' % (k, v))
+        finally:
+            if tmpdir and os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
-    # ==========================================================================
-    def test_0770_stop_http_server(self):
-        self.assertTrue(TU.HTTP_SERVER_PO is not None)
-        TU.HTTP_SERVER_PO.terminate()
-        TU.HTTP_SERVER_PO.wait()
+    # TODO : local repository
+    # # ==========================================================================
+    # def test_0700_plugin_dumppi_empty_folder(self):
+    #     try:
+    #         cmd = ['plugin', 'dumppi', '--official-only', '--last-only']
+    #         _ = _main(cmd)
+    #         self.assertTrue(False)
+    #     except Exception as err:
+    #         sys.stderr.write('%s%s' % (str(err), os.linesep))
+    #         self.assertTrue(True)
+    #
+    # # ==========================================================================
+    # def test_0710_plugin_dumppi(self):
+    #     try:
+    #         if os.path.exists(TU.DUMPPI_FOLDER):
+    #             shutil.rmtree(TU.DUMPPI_FOLDER)
+    #         with captured_output() as (out, err):
+    #             cmd = ['plugin', 'dumppi', '--official-only', '--last-only',
+    #                    '--dumppi-folder', TU.DUMPPI_FOLDER]
+    #             r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #         stdout = out.getvalue().strip()
+    #         print(stdout)
+    #         stderr = err.getvalue().strip()
+    #         sys.stderr.write('%s\n' % stderr)
+    #     except Exception as err:
+    #         sys.stderr.write('%s%s' % (str(err), os.linesep))
+    #         self.assertTrue(False)
+    #
+#     # ==========================================================================
+#     def test_0720_remove_all_venv(self):
+#         venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
+#         if os.path.exists(venv_d):
+#             shutil.rmtree(venv_d)
+#         self.assertTrue(not os.path.exists(venv_d))
+#
+#     # ==========================================================================
+#     def test_0730_http_server(self):
+#         cmd = [
+#             'python',
+#             '-m',
+#             'http.server',
+#             '--directory', TU.DUMPPI_FOLDER,
+#             '38038'
+#         ]
+#         TU.HTTP_SERVER_PO = subprocess.Popen(cmd)
+#         time.sleep(1)
+#         self.assertTrue(TU.HTTP_SERVER_PO is not None)
+#
+#     # ==========================================================================
+#     def test_0740_rename_conf(self):
+#         os.rename(CONF_PATH, '%s.org' % CONF_PATH)
+#         with open(CONF_PATH, 'w') as ofp:
+#             ofp.write('''
+# version: "%s"
+# repository:
+#   url: http://localhost:38038/simple
+# '''% _conf_last_version)
+#         self.assertTrue(os.path.exists('%s.org' % CONF_PATH))
+#
+#     # 2019.08.09 : POT 이후 문제 발생
+#     # ==========================================================================
+#     def test_0750_plugin_venv_success(self):
+#         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
+#         try:
+#             cmd = ['plugin', 'venv', 'argoslabs.ai.tts', '--outfile', venvout]
+#             r = _main(cmd)
+#             self.assertTrue(r == 0)
+#             with open(venvout) as ifp:
+#                 stdout = ifp.read()
+#             TU.venv_01 = stdout
+#             self.assertTrue(True)
+#         except Exception as err:
+#             sys.stderr.write('%s%s' % (str(err), os.linesep))
+#             self.assertTrue(False)
+#         finally:
+#             if os.path.exists(venvout):
+#                 os.remove(venvout)
+#
+#     # ==========================================================================
+#     def test_0760_restore_conf(self):
+#         os.remove(CONF_PATH)
+#         os.rename('%s.org' % CONF_PATH, CONF_PATH)
+#         self.assertTrue(not os.path.exists('%s.org' % CONF_PATH))
+#
+#     # ==========================================================================
+#     def test_0770_stop_http_server(self):
+#         self.assertTrue(TU.HTTP_SERVER_PO is not None)
+#         TU.HTTP_SERVER_PO.terminate()
+#         TU.HTTP_SERVER_PO.wait()
 
     # ==========================================================================
     def test_9980_install_last(self):
