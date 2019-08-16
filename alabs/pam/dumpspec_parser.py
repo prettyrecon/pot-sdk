@@ -1,5 +1,8 @@
 import os
 import json
+from alabs.pam.variable_manager.rc_api_variable_manager import \
+    VariableManagerAPI
+
 
 
 ################################################################################
@@ -108,6 +111,7 @@ def get_plugin_dumpspec(dumpspec):
 ################################################################################
 def plugin_spec_parser(dumpspec: dict):
     # 플러그인 실행과 관련없는 항목
+    variables = VariableManagerAPI(pid=str(os.getpid()), )
     exclude_specs = ('dumpspec', 'help', 'outfile', 'infile', 'errfile',
                     'statfile', 'logfile', 'loglevel', 'verbose', 'fileread',)
 
@@ -142,5 +146,8 @@ def plugin_spec_parser(dumpspec: dict):
 
     ret = [spec['name'], ] + args
     ret = list(filter(None, ret))
+
     ret = ' '.join(ret)
-    return ret
+    # TODO: 잘못된 값일 경우 처리 필요
+    code, data = variables.convert(ret)
+    return data

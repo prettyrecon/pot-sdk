@@ -13,6 +13,7 @@ from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 from alabs.pam.runner import ResultHandler, ResultAction
+from alabs.common.util.vvtest import captured_output
 
 
 ################################################################################
@@ -209,10 +210,10 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # filename
-        import pathlib
         parent = pathlib.Path(self._scenario._scenario_image_dir)
         filename = get_image_path(self._scenario._scenario_filename) + '/' + \
                    self['imageMatch']['cropImageFileName']
@@ -248,9 +249,15 @@ class SearchImage(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+
         cmd = 'python -m alabs.rpa.autogui.locate_image {}'.format(
             ' '.join(self.arguments))
-        subprocess.Popen(cmd, shell=True)
+        with subprocess.Popen(cmd, shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+
         # return locate_image(*self.arguments)
 
 
@@ -443,7 +450,7 @@ class TypeKeys(Items):
     def arguments(self) -> tuple:
         value = list()
         for k in self['keycodes']:
-            value.append(('--txt', k['txt']))
+            value.append(('--txt', json.dumps(k['txt'])))
         res = list()
         for d in value:
             res.append(self.add_options(d))
@@ -555,7 +562,9 @@ class Repeat(Items):
         self._scenario._repeat_stack.append(self)
         self._status = True
         self._times = self.repeat_times
-        self._count = 1
+        print(self._times)
+        self.logger.info(self._times)
+        self._count = 0
 
     @property
     def current_item_index(self):
@@ -619,7 +628,7 @@ class Repeat(Items):
         # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
         if self.current_item_index == self.end_item_order:
             # 반복 횟 수가 남지 않은 상태
-            if self._times <= self._count:
+            if self._times < self._count:
                 self._scenario._repeat_stack.pop()
 
             order_num = self.start_item_order
@@ -733,6 +742,84 @@ class TextMatch(Items):
 
 
 ################################################################################
+class CompareText(Items):
+    # OCR
+    references = ('compareText', 'verifyResultAction')
+    # "compareText": {"compareTextValues": [
+    #     {"relationalOperator": null, "logicalOperator": "==",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "{{ABC.ABC}}", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "DEF",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.DEF}}"}},
+    #     {"relationalOperator": "And", "logicalOperator": "==",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "1", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.ABC}}"}},
+    #     {"relationalOperator": "Or", "logicalOperator": ">",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "2", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.ABC}}"}},
+    #     {"relationalOperator": "And", "logicalOperator": "<",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "1", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "DEF",
+    #                     "VariableText": "2", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.DEF}}"}}]
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        result = list()
+        for value in self['compareText']['compareTextValues']:
+            v = value['relationalOperator']
+            if v:
+                result.append("-c")
+                result.append(v.upper())
+            _, v = self._variables.convert(value['leftValue']['VariableText'])
+            result.append(v if v.isdigit() else json.dumps(v))
+            # '>', '<' 리다이렉트 문자 보호
+            v = value['logicalOperator']
+            result.append(json.dumps(v) if len(v) == 1 else v)
+            _, v = self._variables.convert(value['rightValue']['VariableText'])
+            result.append(v if v.isdigit() else json.dumps(v))
+
+        return tuple(result)
+
+    # ==========================================================================
+    @request_handler
+    def __call__(self, *args, **kwargs):
+        cmd = 'python -m alabs.rpa.desktop.compare_text {}'.format(
+            ' '.join(self.arguments))
+        proc = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+
+        if stderr:
+            message = json.loads(stderr.decode())
+            return self['verifyResultAction'], \
+                   self['verifyResultAction']['failActionType'], \
+                   message
+
+        result = json.loads(stdout.decode())
+        message = ''
+        action = {True: 'successActionType', False: 'failActionType'}[result]
+        return self['verifyResultAction'], \
+               self['verifyResultAction'][action], \
+               message
+
+
+
+################################################################################
 class WaitingPopup(Items):
     # OCR
     references = ('imageMatch',)
@@ -809,7 +896,7 @@ class UserParams(Items):
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
             returncode = proc.returncode
-
+        print(stdout)
         if stderr:
             return make_follow_job_request(False, message=stderr.decode())
         status, function, message = self.get_result_handler(

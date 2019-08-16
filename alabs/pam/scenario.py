@@ -79,7 +79,7 @@ class Scenario(dict):
             filename=scn_filename))
 
         self._scenario_image_dir = str(pathlib.Path(scn_filename).parent)
-        self.update(self.get_modules_list())
+        # self.update(self.get_modules_list())
 
     # ==========================================================================
     def get_modules_list(self):
