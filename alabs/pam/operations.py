@@ -857,9 +857,10 @@ class EndScenario(Items):
     references = ()
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        return
-
+    def __call__(self):
+        from alabs.pam.runner import ResultHandler
+        function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        return make_follow_job_request(True, function, '')
 
 ################################################################################
 class UserParams(Items):
