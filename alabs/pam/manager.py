@@ -60,7 +60,7 @@ class PamManager(list):
     def start_runner(self, idx):
         runner_info: PamManager.RunnerInfo() = self[idx]
         # 파이썬 인터프리터 지정
-        if not runner_info.RUNNER.scenario:
+        if not runner_info.RUNNER.venv_python:
             raise Exception("SET A BOT BEFORE START PAM")
         mp.set_executable(runner_info.RUNNER.venv_python)
         # 프로세스 생성
@@ -69,6 +69,8 @@ class PamManager(list):
         runner_info.RUNNER._debug_step_over = False
         runner_info.RUNNER._pause = False
         runner_info.RUNNER.start()
+        runner_info.PIPE.send(runner_info.RUNNER.scenario_path)
+
         runner_info.PIPE.send(('play', ))
 
         for _ in is_timeout(3):
@@ -95,14 +97,24 @@ class PamManager(list):
         :return:
         """
         try:
+            # 러너에서 사용하게될 시나리오 파일 주소
+            runner.RUNNER.scenario_path = scenario_path
+
+            # PPM을 통해 venv 생성 또는 위치 구하기
             scenario = Scenario()
             scenario.load_scenario(scenario_path)
-            runner.RUNNER.scenario = scenario
             # caution: alabs.ppm의 반환 값은 처리상태 값을 반환한다.
             # print() 를 통해서 원하는 결과 값이 반환되므로 stdout을 따로 캐치하여 사용
+            # with captured_output() as (out, _):
+            #     get_venv(scenario.plugins)
+            # runner.RUNNER.venv_path = out.getvalue().strip()
+
             with captured_output() as (out, _):
                 get_venv(scenario.plugins)
-            runner.RUNNER.venv_path = out.getvalue().strip()
+            out = out.getvalue().strip().split('\n')[-1]
+            out = out[:2] + out[3:]
+            runner.RUNNER.venv_path = out
+
         except Exception as e:
             traceback.print_exc()
             return False
@@ -235,7 +247,17 @@ def get_venv(requirements):
         raise TypeError
     # PPM에 가상환경 생성 요청
     # requirements = ['alabs.common==1.515.1543']
-    req = ' '.join(requirements)
+    essensial_modules = list()
+    essensial_modules.append('alabs.common')
+    essensial_modules.append('pyautogui')
+    essensial_modules.append('bs4')
+    if sys.platform == 'win32':
+        essensial_modules.append('opencv-python')
+        essensial_modules.append('opencv-contrib-python')
+
+    essensial_modules += requirements
+    # requirements.insert(0, 'alabs.common')
+    req = ' '.join(essensial_modules)
     args = 'plugin venv {}'.format(req)
     venv_path = ppm(args.split())
     return venv_path

@@ -9,6 +9,9 @@ import datetime
 from functools import wraps
 import multiprocessing as mp
 
+import platform
+from alabs.pam.scenario import Scenario
+from alabs.common.definitions.platforms import Platforms
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 from alabs.common.util.vvlogger import get_logger
@@ -137,6 +140,9 @@ def activate_virtual_environment(f):
                 new_sys_path.append(item)
                 sys.path.remove(item)
         sys.path[:0] = new_sys_path
+        if sys.platform == 'win32':
+            sys.path.insert(0, sys.path.pop(1))
+            os.environ['PYTHONPATH'] = sys.path[0]
 
         # 실제 함수 실행
         f(*args, **kwargs)
@@ -166,10 +172,12 @@ class Runner(mp.Process):
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         self._venv_path = None
         self._scenario_name = None
+        self._scenario_path = None
         self._scenario = scenario if scenario else None
         self._variables = None
         self._pipe = pipe
         self._event = event
+        self._run = True
 
         self._breakpoints = set()
         self._debug_step_over = False
@@ -186,6 +194,14 @@ class Runner(mp.Process):
     @property
     def scenario(self):
         return self._scenario
+
+    @property
+    def scenario_path(self):
+        return self._scenario_path
+
+    @scenario_path.setter
+    def scenario_path(self, path):
+        self._scenario_path = path
 
     @scenario.setter
     def scenario(self, scenario_file: str):
@@ -209,8 +225,12 @@ class Runner(mp.Process):
     def venv_python(self):
         if not self.venv_path:
             return None
-        # TODO: Platform 별로 나눠야 함
-        path = self.venv_path / pathlib.Path('bin/python')
+
+        _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
+        if _platform == Platforms.WINDOWS.value:
+            path = self.venv_path / pathlib.Path('Scripts/python.exe')
+        else:
+            path = self.venv_path / pathlib.Path('bin/python')
         return str(path)
 
     # 브레이크 포인트 ===========================================================
@@ -313,6 +333,12 @@ class Runner(mp.Process):
     def run(self, *args, **kwargs):
         self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
         self.logger.info("Runner Started")
+        # TODO: PIPE에 뭐가 들어있을지 알 수 없음
+        scenario_path = self._pipe.recv()
+        scenario = Scenario()
+        scenario.load_scenario(scenario_path)
+        self.scenario = scenario
+
         if not self.scenario:
             self.logger.error("Bot must be set before running.")
             raise Exception("A BOT HAS TO BE SET BEFORE RUN.")
@@ -321,16 +347,16 @@ class Runner(mp.Process):
         self.init_variables()
         # self._scenario.__iter__()
         try:
-            while not self._event.is_set():
-                # 타이머 추가 필요.
+            while self._run:
+                # TODO: 타이머 추가 필요.
                 # 명령어 우선 처리
-                # if self._pipe.poll():
-                #     cmd, *args = self._pipe.recv()
-                #     self.logger.info("Command Received... {}({})".format(cmd, str(args)))
-                #     ret = getattr(self, cmd)(*args)
-                #
-                #     self._pipe.send(ret)
-                #     continue
+                if self._pipe.poll():
+                    cmd, *args = self._pipe.recv()
+                    self.logger.info("Command Received... {}({})".format(cmd, str(args)))
+                    ret = getattr(self, cmd)(*args)
+
+                    self._pipe.send(ret)
+                    continue
 
                 if self._is_pause_needed():
                     continue
@@ -365,7 +391,7 @@ class Runner(mp.Process):
             print(e)
         finally:
             print(self.pid, "is done")
-            self._event.set()
+            self._run = False
         return
 
     # ==========================================================================
