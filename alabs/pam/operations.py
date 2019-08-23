@@ -236,9 +236,9 @@ class SearchImage(Items):
         m = self['imageMatch']['clickMotionType']
         m = vars(ClickMotionType)['_value2member_map_'][m].name
 
-        if m == ClickType['DOUBLE'].name:
-            b = ClickType['DOUBLE'].name
-            m = ClickType['LEFT'].name
+        if b == ClickType['DOUBLE'].name:
+            m = ClickType['DOUBLE'].name
+            b = ClickType['LEFT'].name
 
         cmd.append('--button')
         cmd.append(b)
@@ -249,14 +249,18 @@ class SearchImage(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-
         cmd = 'python -m alabs.rpa.autogui.locate_image {}'.format(
             ' '.join(self.arguments))
+        self.logger.info(cmd)
         with subprocess.Popen(cmd, shell=True,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
+        if stderr:
+            self.logger.info(stderr)
+        self.logger.info(stdout)
+
 
         # return locate_image(*self.arguments)
 
