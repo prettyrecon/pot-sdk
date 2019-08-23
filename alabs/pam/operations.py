@@ -4,6 +4,7 @@ import subprocess
 import os
 import json
 import csv
+import locale
 from io import StringIO
 from functools import wraps
 
@@ -135,6 +136,7 @@ class Items(dict):
         self.logger = logger
         self._variables = VariableManagerAPI(pid=str(os.getpid()),
                                              logger=logger)
+        self.locale = locale.getdefaultlocale()[1]
 
     # ==========================================================================
     def __call__(self):
@@ -785,7 +787,7 @@ class CompareText(Items):
     def arguments(self):
         result = list()
         for value in self['compareText']['compareTextValues']:
-            v = value['relationalOperator']
+            v = value.setdefault('relationalOperator', None)
             if v:
                 result.append("-c")
                 result.append(v.upper())
@@ -809,12 +811,12 @@ class CompareText(Items):
         stdout, stderr = proc.communicate()
 
         if stderr:
-            message = json.loads(stderr.decode())
+            message = stderr.decode(self.locale)
             return self['verifyResultAction'], \
                    self['verifyResultAction']['failActionType'], \
                    message
 
-        result = json.loads(stdout.decode())
+        result = json.loads(stdout.decode(self.locale))
         message = ''
         action = {True: 'successActionType', False: 'failActionType'}[result]
         return self['verifyResultAction'], \
