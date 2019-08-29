@@ -13,7 +13,6 @@ from alabs.rpa.desktop.delay import main as delay
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
-from alabs.pam.runner import ResultHandler, ResultAction
 from alabs.common.util.vvtest import captured_output
 
 
@@ -161,7 +160,7 @@ class ExecuteProcess(Items):
 
     # ==========================================================================
     @property
-    @arguments_options_fileout
+    # @arguments_options_fileout
     def arguments(self)-> tuple:
         code, data = self._variables.convert(
             self['executeProcess']['executeFilePath'])
@@ -171,7 +170,11 @@ class ExecuteProcess(Items):
 
     # ==========================================================================
     def __call__(self):
-        execute_process(' '.join(self.arguments))
+        cmd = 'python -m alabs.rpa.desktop.execute_process {}'.format(
+            ' '.join(self.arguments))
+        self.logger.info(cmd)
+        subprocess.Popen(cmd, shell=True)
+
         return make_follow_job_request(True, None, '')
 
 
