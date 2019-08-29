@@ -903,7 +903,6 @@ class UserParams(Items):
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
             returncode = proc.returncode
-        print(stdout)
         if stderr:
             return make_follow_job_request(False, message=stderr.decode())
         status, function, message = self.get_result_handler(
@@ -927,6 +926,7 @@ class UserParams(Items):
             name = variable_form.format(data['group'], v[0])
             value = v[1]
             values.append((name, value))
+        from alabs.pam.runner import ResultHandler
         function = (ResultHandler.VARIABLE_SET_VALUES.value, values)
         return status, function, ""
 

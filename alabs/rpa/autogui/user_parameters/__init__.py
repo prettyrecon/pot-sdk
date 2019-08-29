@@ -47,7 +47,8 @@ def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
     if _platform == Platforms.LINUX.value:
         from alabs.rpa.autogui.user_parameters.linux import main as _main
-
+    elif _platform == Platforms.WINDOWS.value:
+        from alabs.rpa.autogui.user_parameters.linux import main as _main
     elif _platform == Platforms.MAC.value:
         from alabs.rpa.autogui.user_parameters.linux import main as _main
 
