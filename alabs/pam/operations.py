@@ -191,7 +191,11 @@ class Delay(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        delay(self.arguments[0])
+        cmd = 'python -m alabs.rpa.desktop.delay {}'.format(
+            ' '.join(self.arguments))
+        self.logger.info(cmd)
+        with subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
         return make_follow_job_request(True, None, '')
 
 
@@ -565,6 +569,7 @@ class Goto(Items):
 
     # ==========================================================================
     def __call__(self):
+        from alabs.pam.runner import ResultHandler
         function = (ResultHandler.SCENARIO_GOTO.value, self.arguments)
         return make_follow_job_request(True, function, '')
 
