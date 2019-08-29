@@ -982,7 +982,7 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-
+        from alabs.pam.runner import ResultHandler
         file = os.environ.setdefault('ACTION_STDOUT_FILE', 'action_stdout.log')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
@@ -998,7 +998,8 @@ class PopupInteraction(Items):
             returncode = proc.returncode
 
         if stderr:
-            return make_follow_job_request(False, message=stderr.decode())
+            return make_follow_job_request(
+                False, message=stderr.decode(self.locale))
 
         # stdout = b'Button3,JumpForward'
         act = stdout.decode().split(',')[1]
