@@ -75,6 +75,7 @@ def arguments_options_fileout(f):
 def request_handler(f):
     @wraps(f)
     def func(*args, **kwargs):
+        from alabs.pam.runner import ResultHandler, ResultAction
         action = dict((x.value, x.name) for x in list(ResultAction))
         result_data, result, message = f(*args, **kwargs)
 
@@ -367,6 +368,7 @@ class MouseClick(Items):
     #                'IsActivvateWindow': False, 'classPath': None},
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # coordinates
@@ -380,9 +382,9 @@ class MouseClick(Items):
         m = self['mouseClick']['clickMotionType']
         m = vars(ClickMotionType)['_value2member_map_'][m].name
 
-        if m == ClickType['DOUBLE'].name:
-            b = ClickType['DOUBLE'].name
-            m = ClickType['LEFT'].name
+        if b == ClickType['DOUBLE'].name:
+            m = ClickType['DOUBLE'].name
+            b = ClickType['LEFT'].name
 
         cmd.append('--button')
         cmd.append(b)
@@ -393,11 +395,19 @@ class MouseClick(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-
         cmd = 'python -m alabs.rpa.autogui.click {}'.format(
             ' '.join(self.arguments))
-        subprocess.Popen(cmd, shell=True)
-        # return click(*self.arguments)
+        self.logger.info(cmd)
+        with subprocess.Popen(cmd, shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+        if stderr:
+            self.logger.info(stderr.decode(self.locale))
+        self.logger.info(stdout.decode(self.locale))
+
+
 
 ################################################################################
 class TypeText(Items):
