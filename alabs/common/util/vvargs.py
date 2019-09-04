@@ -17,6 +17,8 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2019/09/20]
+#     - add flush() on _close() : sys.stdout.flush(), sys.stderr.flush()
 #  * [2019/04/25]
 #     - console method 추가
 #  * [2019/04/25]
@@ -652,6 +654,8 @@ class ModuleContext(ArgumentParser):
     # ==========================================================================
     def _close(self):
         if self._isopened:
+            sys.stdout.flush()
+            sys.stderr.flush()
             if self._stdin is not None and self._stdin != self._org_stdin \
                     and self._stdin.fileno() > 2:
                 self._stdin.close()

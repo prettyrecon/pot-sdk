@@ -7,3 +7,7 @@ PyYAML
 requests
 requirements-parser
 beautifulsoup4
+
+# for installer STU & PAM pakcaging
+PyInstaller
+pypiwin32

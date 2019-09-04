@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/08/26]
+#   - ppm exe로 만들어 테스트 하기: for STU & PAM
 #  * [2019/08/09]
 #     - 680 argoslabs.time.workalendar prebuilt requirements.txt and then install whl
 #  * [2019/05/29]
@@ -28,13 +30,14 @@
 ################################################################################
 import os
 import sys
+import glob
 import json
-import time
+# import time
 import shutil
 import tempfile
 import requests
 import datetime
-import subprocess
+# import subprocess
 import urllib3
 from tempfile import gettempdir
 # from urllib.parse import quote
@@ -87,6 +90,9 @@ class TU(TestCase):
                 TU.TS_LAST = load(ifp)
         ts_diff = datetime.datetime.now() - TU.TS_LAST
         TU.TS_CLEAR = True if ts_diff.total_seconds() > 86400 else False
+        sta_f = os.path.join(str(Path.home()), '.argos-rpa.sta')
+        if os.path.exists(sta_f):
+            os.remove(sta_f)
 
     # ==========================================================================
     def test_0005_check_apm_conf(self):
@@ -193,21 +199,23 @@ private-repositories:
             print(e)
             self.assertTrue(True)
 
-    # ==========================================================================
-    def test_0055_submit_with_key(self):
-        try:
-            _main(['submit', '--submit-key', 'aL0PK2Rhs6ed0mgqLC42'])
-            self.assertTrue(True)
-        except Exception as e:
-            print(e)
-            self.assertTrue(False)
+    # TODO
+    # # ==========================================================================
+    # def test_0055_submit_with_key(self):
+    #     try:
+    #         _main(['submit', '--submit-key', 'aL0PK2Rhs6ed0mgqLC42'])
+    #         self.assertTrue(True)
+    #     except Exception as e:
+    #         print(e)
+    #         self.assertTrue(False)
 
-    # ==========================================================================
-    def test_0060_upload(self):
-        # 사설 저장소에 wheel upload (내부 QC를 거친 후)
-        r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
-                   '--venv', 'upload'])
-        self.assertTrue(r == 0)
+    # TODO
+    # # ==========================================================================
+    # def test_0060_upload(self):
+    #     # 사설 저장소에 wheel upload (내부 QC를 거친 후)
+    #     r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+    #                '--venv', 'upload'])
+    #     self.assertTrue(r == 0)
 
     # ==========================================================================
     def test_0070_clear_all_after_upload(self):
@@ -460,6 +468,8 @@ private-repositories:
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
                 self.assertTrue('last_modify_datetime' in vd[0])
@@ -486,6 +496,8 @@ private-repositories:
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
                 self.assertTrue('last_modify_datetime' in vd[0])
@@ -515,6 +527,8 @@ private-repositories:
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'] == 'ARGOS-LABS')
                 self.assertTrue('last_modify_datetime' in vd)
@@ -542,6 +556,8 @@ private-repositories:
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'] == 'ARGOS-LABS')
                 self.assertTrue('last_modify_datetime' in vd)
@@ -733,6 +749,8 @@ private-repositories:
                 rd = json.load(ifp)
             # pprint(rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue(vd['name'] == k)
@@ -758,6 +776,8 @@ private-repositories:
                 rd = json.load(ifp)
             # pprint(rd)
             for k, vd in rd.items():
+                if not k.startswith('argoslabs.'):
+                    continue
                 self.assertTrue(k.startswith('argoslabs.'))
                 self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue(vd['name'] == k)
@@ -1059,7 +1079,7 @@ private-repositories:
             # in venv_03
             modlist = [
                 'yourfolder.demo.helloworld==1.100.1000',
-                'argoslabs.time.workalendar==1.807.1516',
+                'argoslabs.time.workalendar==1.830.2039',
             ]
             tmpdir = tempfile.mkdtemp(prefix='requirements_')
             requirements_txt = os.path.join(tmpdir, 'requirements.txt')
@@ -1083,7 +1103,7 @@ private-repositories:
                 rd = json.load(ifp)
             self.assertTrue(
                 rd['yourfolder.demo.helloworld'] == '1.100.1000' and
-                rd['argoslabs.time.workalendar'] == '1.807.1516'
+                rd['argoslabs.time.workalendar'] == '1.830.2039'
             )
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
@@ -1092,6 +1112,70 @@ private-repositories:
                 shutil.rmtree(tmpdir)
             if os.path.exists(venvout):
                 os.remove(venvout)
+
+    # ==========================================================================
+    def test_0690_pip_download(self):
+        # tmpdir = tempfile.mkdtemp(prefix='down_install_')
+        tmpdir = r'C:\Users\Administrator\AppData\Local\Temp\foobar'
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
+        try:
+            cmd = [
+                'pip', 'download',
+                'argoslabs.ai.tts',
+                '--dest', tmpdir,
+                '--no-deps',
+                '--index', 'https://pypi-official.argos-labs.com/pypi',
+                '--trusted-host', 'pypi-official.argos-labs.com',
+                '--extra-index-url', 'https://pypi-test.argos-labs.com/simple',
+                '--trusted-host', 'pypi-test.argos-labs.com',
+                '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
+                '--trusted-host', 'pypi-demo.argos-labs.com',
+                # '--outfile', venvout,
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            fl = glob.glob(os.path.join(tmpdir, 'argoslabs.ai.tts-*.whl'))
+            self.assertTrue(len(fl) == 1)
+        finally:
+            # if tmpdir and os.path.exists(tmpdir):
+            #     shutil.rmtree(tmpdir)
+            if os.path.exists(venvout):
+                os.remove(venvout)
+
+    # ==========================================================================
+    def test_0700_pip_install(self):
+        try:
+            cmd = [
+                'pip', 'install',
+                'argoslabs.time.workalendar==1.830.2039',
+                # 'argoslabs.ai.tts',
+                # '--index', 'https://pypi-official.argos-labs.com/pypi',
+                # '--trusted-host', 'pypi-official.argos-labs.com',
+                # '--extra-index-url', 'https://pypi-test.argos-labs.com/simple',
+                # '--trusted-host', 'pypi-test.argos-labs.com',
+                # '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
+                # '--trusted-host', 'pypi-demo.argos-labs.com',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # # ==========================================================================
+    # def test_0710_stu_issue(self):
+    #     try:
+    #         cmd = [
+    #             '--self-upgrade',
+    #             'plugin', 'dumpspec',
+    #             '--official-only',
+    #             '--last-only',
+    #             '--user', 'taejin.kim@vivans.net',
+    #             '--user-auth', "Bearer fed39c5c-3b1e-402d-ab0c-035ea30bcc6c",
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
 
     # TODO : local repository
     # # ==========================================================================
