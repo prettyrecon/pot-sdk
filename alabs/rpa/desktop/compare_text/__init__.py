@@ -2,19 +2,19 @@
 # coding=utf8
 """
 ====================================
- :mod:`alabs.pam.la.bot2py
+ :mod:`alabs.pam.rap.autogui.dialogue
 ====================================
-.. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
+.. moduleauthor:: Deokyu Lim
 .. note:: VIVANS License
 
 Description
 ===========
-ARGOS LABS PAM For LA
+ARGOS LABS PAM
 
 Authors
 ===========
 
-* Injoong Kim
+* Deokyu Lim
 
 Change Log
 --------
@@ -29,9 +29,6 @@ import platform
 import enum
 from alabs.common.definitions.platforms import Platforms
 
-
-
-
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -40,28 +37,55 @@ __version__ = VERSION
 
 OWNER = 'ARGOS-LABS'
 GROUP = 'Pam'
-PLATFORM = ['darwin']
+PLATFORM = ['darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
+
+class Action(enum.IntEnum):
+    TITLE = 0
+    NAME = 1
+    PARAMS = 2
+
+ACTION = {
+    'Resume': 2,  # Resume scenario
+    'MoveOn': 2,  # Go
+    'TreatAsError': 2,
+    'IgnoreFailure': 2,
+    'AbortScenarioButNoError': 2,  # FinishScenario
+    'JumpForward': 3,
+    'JumpBackward': 3,
+    'JumpToOperation': 3,
+    'JumpToStep': 3,
+    'RestartFromTop': 2
+}
+
+
+def check_args(argspec):
+    global ACTION
+    for arg in argspec.button:
+        if arg[0] not in ACTION:
+            raise ValueError("'{}' is not ButtonAction.".format(arg[0]))
+        if len(arg) < ACTION[arg[0]]:
+            raise ValueError("{} takes exactly {} arguments, ({} given)".format(
+                arg[0], ACTION[arg[0]], len(arg)))
+    return True
 
 
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
     if _platform == Platforms.LINUX.value:
-        from alabs.rpa.autogui.scroll.linux import main as _main
+        from alabs.rpa.desktop.compare_text.linux import main as _main
 
     elif _platform == Platforms.WINDOWS.value:
-        from alabs.rpa.autogui.scroll.linux import main as _main
+        from alabs.rpa.desktop.compare_text.linux import main as _main
 
     elif _platform == Platforms.MAC.value:
-        from alabs.rpa.autogui.scroll.macos import main as _main
+        from alabs.rpa.desktop.compare_text.linux import main as _main
 
     elif _platform == Platforms.IOS.value:
-        from alabs.rpa.autogui.scroll.ios import main as _main
+        from alabs.rpa.autogui.click.ios import main as _main
         # return _main('--wda_url', url, '--wda_port', port)
     else:
         raise Exception("{} is Not Supported Platform".format(_platform))
     return _main(*args)
-
-

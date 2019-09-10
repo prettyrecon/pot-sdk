@@ -3,20 +3,17 @@ import enum
 import subprocess
 import os
 import json
+import csv
+import locale
+from io import StringIO
 from functools import wraps
+
 from alabs.rpa.desktop.execute_process import main as execute_process
 from alabs.rpa.desktop.delay import main as delay
-from alabs.rpa.autogui.locate_image import main as locate_image
-from alabs.rpa.autogui.scroll import main as scroll
-from alabs.rpa.autogui.click import main as click
-from alabs.rpa.autogui.type_text import main as type_text
-from alabs.rpa.autogui.send_shortcut import main as send_short_cut
-from alabs.rpa.autogui.find_image_location import main as image_match
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
-
-from alabs.pam.runner import ResultHandler
+from alabs.common.util.vvtest import captured_output
 
 
 ################################################################################
@@ -73,6 +70,31 @@ def arguments_options_fileout(f):
         return tuple(arguments)
     return func
 
+################################################################################
+def request_handler(f):
+    @wraps(f)
+    def func(*args, **kwargs):
+        from alabs.pam.runner import ResultHandler, ResultAction
+        action = dict((x.value, x.name) for x in list(ResultAction))
+        result_data, result, message = f(*args, **kwargs)
+
+        status = True
+        function = None
+        message = ''
+
+        if action[result] == ResultAction.MoveOn.value:
+            pass
+        elif action[result] == ResultAction.TreatAsError.value:
+            status = False
+            message = message
+        elif action[result] == ResultAction.IgnoreFailure.value:
+            function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
+        elif action[result] == ResultAction.AbortScenarioButNoError.value:
+            function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        else:
+            pass
+        return make_follow_job_request(status, function, message)
+    return func
 
 ################################################################################
 def make_follow_job_request(status, function=None, message=''):
@@ -114,6 +136,7 @@ class Items(dict):
         self.logger = logger
         self._variables = VariableManagerAPI(pid=str(os.getpid()),
                                              logger=logger)
+        self.locale = locale.getdefaultlocale()[1]
 
     # ==========================================================================
     def __call__(self):
@@ -137,14 +160,22 @@ class ExecuteProcess(Items):
 
     # ==========================================================================
     @property
-    @arguments_options_fileout
+    # @arguments_options_fileout
     def arguments(self)-> tuple:
-        return self['executeProcess']['executeFilePath']
+        code, data = self._variables.convert(
+            self['executeProcess']['executeFilePath'])
+        if code != 200:
+            raise ValueError(str(data))
+        return data,
 
     # ==========================================================================
     def __call__(self):
-        execute_process(self.arguments)
-        return
+        cmd = 'python -m alabs.rpa.desktop.execute_process {}'.format(
+            ' '.join(self.arguments))
+        self.logger.info(cmd)
+        subprocess.Popen(cmd, shell=True)
+
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -160,7 +191,12 @@ class Delay(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return delay(self.arguments[0])
+        cmd = 'python -m alabs.rpa.desktop.delay {}'.format(
+            ' '.join(self.arguments))
+        self.logger.info(cmd)
+        with subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -184,10 +220,10 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # filename
-        import pathlib
         parent = pathlib.Path(self._scenario._scenario_image_dir)
         filename = get_image_path(self._scenario._scenario_filename) + '/' + \
                    self['imageMatch']['cropImageFileName']
@@ -210,9 +246,9 @@ class SearchImage(Items):
         m = self['imageMatch']['clickMotionType']
         m = vars(ClickMotionType)['_value2member_map_'][m].name
 
-        if m == ClickType['DOUBLE'].name:
-            b = ClickType['DOUBLE'].name
-            m = ClickType['LEFT'].name
+        if b == ClickType['DOUBLE'].name:
+            m = ClickType['DOUBLE'].name
+            b = ClickType['LEFT'].name
 
         cmd.append('--button')
         cmd.append(b)
@@ -225,7 +261,17 @@ class SearchImage(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.locate_image {}'.format(
             ' '.join(self.arguments))
-        subprocess.Popen(cmd, shell=True)
+        self.logger.info(cmd)
+        with subprocess.Popen(cmd, shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+        if stderr:
+            self.logger.info(stderr)
+        self.logger.info(stdout)
+
+
         # return locate_image(*self.arguments)
 
 
@@ -256,6 +302,7 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # filename
@@ -269,8 +316,32 @@ class ImageMatch(Items):
         return tuple(cmd)
 
     # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return image_match(*self.arguments)
+        cmd = 'python -m alabs.rpa.autogui.find_image_location {}'.format(
+            ' '.join(self.arguments))
+
+        with subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                shell=True) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            returncode = proc.returncode
+
+        if stderr:
+            message = stderr.decode()
+            return self['verifyResultAction'], \
+                   self['verifyResultAction']['failActionType'], \
+                   message
+
+        message = stdout.decode()
+        return self['verifyResultAction'], \
+               self['verifyResultAction']['successActionType'], \
+               message
+
+        # stdout = b'10, 3'
+        # act = stdout.decode().split(',')[1]
+
 
 
 ################################################################################
@@ -304,6 +375,7 @@ class MouseClick(Items):
     #                'IsActivvateWindow': False, 'classPath': None},
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
         # coordinates
@@ -317,9 +389,9 @@ class MouseClick(Items):
         m = self['mouseClick']['clickMotionType']
         m = vars(ClickMotionType)['_value2member_map_'][m].name
 
-        if m == ClickType['DOUBLE'].name:
-            b = ClickType['DOUBLE'].name
-            m = ClickType['LEFT'].name
+        if b == ClickType['DOUBLE'].name:
+            m = ClickType['DOUBLE'].name
+            b = ClickType['LEFT'].name
 
         cmd.append('--button')
         cmd.append(b)
@@ -330,11 +402,19 @@ class MouseClick(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-
         cmd = 'python -m alabs.rpa.autogui.click {}'.format(
             ' '.join(self.arguments))
-        subprocess.Popen(cmd, shell=True)
-        # return click(*self.arguments)
+        self.logger.info(cmd)
+        with subprocess.Popen(cmd, shell=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+        if stderr:
+            self.logger.info(stderr.decode(self.locale))
+        self.logger.info(stdout.decode(self.locale))
+
+
 
 ################################################################################
 class TypeText(Items):
@@ -348,29 +428,34 @@ class TypeText(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         _type = self['typeText']['typeTextType']
         if "Text" == _type:
-            value = self['typeText']['keyValue']
+            # TODO: 없는 자료일 경우 처리
+            code, data = self._variables.convert(self['typeText']['keyValue'])
+            value = data
         elif "UserVariable" == _type:
+            # TODO: 없는 자료일 경우 처리
             variable_name = "{{%s.%s}}" % (
                 self['typeText']['userVariableGroup'],
                 self['typeText']['userVariableName'])
             code, value = self._variables.get(variable_name)
         else:
+            # TODO: 없는 자료일 경우 처리
             # Saved Data
-            value = ""
+            code, value = self._variables.get("{{saved_data}}")
             # raise ValueError("Not Supported Yet")
         # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
         value = value.replace('`', '\`')
-        return value,
+        return tuple([json.dumps(value),])
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.type_text {}'.format(
-            json.dumps(' '.join(self.arguments)))
-        subprocess.Popen(cmd, shell=True)
-        # return type_text(*self.arguments)
+            ' '.join(self.arguments))
+        subprocess.check_call(cmd, shell=True)
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -388,18 +473,23 @@ class TypeKeys(Items):
     def arguments(self) -> tuple:
         value = list()
         for k in self['keycodes']:
-            value.append(('--txt', k['txt']))
+            value.append(('--txt', json.dumps(k['txt'])))
+        res = list()
+        for d in value:
+            res.append(self.add_options(d))
+        return tuple(res)
 
-        return tuple(value)
+    @arguments_options_fileout
+    def add_options(self, arg):
+        return tuple(arg)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         for arg in self.arguments:
             cmd = 'python -m alabs.rpa.autogui.send_shortcut {}'.format(
                 ' '.join(arg))
-            subprocess.Popen(cmd, shell=True)
-            # send_short_cut(*arg)
-        return True
+            subprocess.check_call(cmd, shell=True)
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -465,6 +555,24 @@ class ReadImage(Items):
     def __call__(self, *args, **kwargs):
         return
 
+################################################################################
+class Goto(Items):
+    references = ('gotoAction',)
+    # "gotoAction":{
+    #   "stepDisplayName":"1","itemDisplayName":"[1] Operation 1",
+    #   "stepNum":1,"itemNum":1},
+
+    # ==========================================================================
+    @property
+    def arguments(self):
+        return self['gotoAction']['stepNum'], self['gotoAction']['itemNum']
+
+    # ==========================================================================
+    def __call__(self):
+        from alabs.pam.runner import ResultHandler
+        function = (ResultHandler.SCENARIO_GOTO.value, self.arguments)
+        return make_follow_job_request(True, function, '')
+
 
 ################################################################################
 class Repeat(Items):
@@ -473,24 +581,55 @@ class Repeat(Items):
     # ==========================================================================
     def __init__(self, data:dict, scenario, logger):
         Items.__init__(self, data, scenario, logger)
-        self._scenario._current_item_index  = self.start_index - 1
+        self._variables.create("{{rp.index}}", self.start_index)
+        self._start_item_order = self._scenario.current_item_index + 1
+        self._scenario._repeat_stack.append(self)
+        self._status = True
         self._times = self.repeat_times
+        print(self._times)
+        self.logger.info(self._times)
+        self._count = 0
+
+    @property
+    def current_item_index(self):
+        return self._scenario.current_item_index
+
+    @property
+    def start_item_order(self):
+        return self._start_item_order
+    @start_item_order.setter
+    def start_item_order(self, idx):
+        self._start_item_order = idx
+
+    @property
+    def end_item_order(self):
+        return int(self._scenario.get_item_order_number_by_index(
+            self['repeat']['endItemNum']))
 
     @property
     def start_index(self):
-        return self['repeat']['startIndex']
+        return int(self['repeat']['startIndex'])
 
     @property
     def end_index(self):
-        return self['repeat']['endIndex']
+        return int(self['repeat']['endIndex'])
 
     @property
     def increment_index(self):
-        return self['repeat']['incrementIndex']
+        return int(self['repeat']['incrementIndex'])
 
     @property
     def repeat_times(self):
-        return self['repeat']['repeatTimes']
+        if self['repeat']['repeatType'] == 'Times':
+            rt = str(self['repeat']['repeatTimesString'])
+        else:
+            rt = str(self['repeat']['repeatTimes'])
+        code, data = self._variables.convert(rt)
+        return int(data)
+
+    @property
+    def is_using_index(self):
+        return self['repeat']['useIndex']
 
     # ==========================================================================
     @property
@@ -499,20 +638,35 @@ class Repeat(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        item = self._scenario.item
-        if self._times == 1:
-            self._scenario.set_current_item_by_index(self.end_index)
-            item = self._scenario.item
-            self._scenario._repeat_item = None
-            return item
+        return make_follow_job_request(True, None, '')
 
-        if self.end_index == item['index']:
-            self._times -= 1
-            self._scenario.set_current_item_by_index(self.start_index)
-            item = self._scenario.item
-            return item
+    # ==========================================================================
+    def get_next(self):
+        """
+        시나리오에서 다음 아이템 오더와 반복문의 조건을 비교
+        current_item_index 에 지정
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
+        if self.current_item_index == self.end_item_order:
+            # 반복 횟 수가 남지 않은 상태
+            if self._times < self._count:
+                self._scenario._repeat_stack.pop()
 
-        return item
+            order_num = self.start_item_order
+            if self.is_using_index:
+                self.loop_index_increase(step=self.increment_index)
+        else:
+            order_num = self.current_item_index
+        self._count += 1
+        return order_num
+
+    # ==========================================================================
+    def loop_index_increase(self, path="{{rp.index}}", step=1):
+        code, n = self._variables.get(path)
+        self._variables.create("{{rp.index}}", int(n) + step)
 
 
 ################################################################################
@@ -552,10 +706,13 @@ class SetVariable(Items):
             self['setVariable']['GroupName'],
             self['setVariable']['VariableName'])
         return variable_name
+
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        self._variables.create(self.arguments, self['textValue'])
-        return
+        self._variables.create(self.arguments, self['setVariable']['textValue'])
+        # TODO: 플러그인 아웃풋 처리
+        return make_follow_job_request(True, None, '')
+
 
 
 ################################################################################
@@ -609,6 +766,84 @@ class TextMatch(Items):
 
 
 ################################################################################
+class CompareText(Items):
+    # OCR
+    references = ('compareText', 'verifyResultAction')
+    # "compareText": {"compareTextValues": [
+    #     {"relationalOperator": null, "logicalOperator": "==",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "{{ABC.ABC}}", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "DEF",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.DEF}}"}},
+    #     {"relationalOperator": "And", "logicalOperator": "==",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "1", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.ABC}}"}},
+    #     {"relationalOperator": "Or", "logicalOperator": ">",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "2", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                     "VariableText": "1", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.ABC}}"}},
+    #     {"relationalOperator": "And", "logicalOperator": "<",
+    #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
+    #                    "VariableText": "1", "IsArray": false,
+    #                    "varFormattedText": "{{ABC.ABC}}"},
+    #      "rightValue": {"GroupName": "ABC", "VariableName": "DEF",
+    #                     "VariableText": "2", "IsArray": false,
+    #                     "varFormattedText": "{{ABC.DEF}}"}}]
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        result = list()
+        for value in self['compareText']['compareTextValues']:
+            v = value.setdefault('relationalOperator', None)
+            if v:
+                result.append("-c")
+                result.append(v.upper())
+            _, v = self._variables.convert(value['leftValue']['VariableText'])
+            result.append(v if v.isdigit() else json.dumps(v))
+            # '>', '<' 리다이렉트 문자 보호
+            v = value['logicalOperator']
+            result.append(json.dumps(v) if len(v) == 1 else v)
+            _, v = self._variables.convert(value['rightValue']['VariableText'])
+            result.append(v if v.isdigit() else json.dumps(v))
+
+        return tuple(result)
+
+    # ==========================================================================
+    @request_handler
+    def __call__(self, *args, **kwargs):
+        cmd = 'python -m alabs.rpa.desktop.compare_text {}'.format(
+            ' '.join(self.arguments))
+        proc = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+
+        if stderr:
+            message = stderr.decode(self.locale)
+            return self['verifyResultAction'], \
+                   self['verifyResultAction']['failActionType'], \
+                   message
+
+        result = json.loads(stdout.decode(self.locale))
+        message = ''
+        action = {True: 'successActionType', False: 'failActionType'}[result]
+        return self['verifyResultAction'], \
+               self['verifyResultAction'][action], \
+               message
+
+
+
+################################################################################
 class WaitingPopup(Items):
     # OCR
     references = ('imageMatch',)
@@ -642,9 +877,10 @@ class EndScenario(Items):
     references = ()
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        return
-
+    def __call__(self):
+        from alabs.pam.runner import ResultHandler
+        function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        return make_follow_job_request(True, function, '')
 
 ################################################################################
 class UserParams(Items):
@@ -685,7 +921,6 @@ class UserParams(Items):
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
             returncode = proc.returncode
-
         if stderr:
             return make_follow_job_request(False, message=stderr.decode())
         status, function, message = self.get_result_handler(
@@ -709,6 +944,7 @@ class UserParams(Items):
             name = variable_form.format(data['group'], v[0])
             value = v[1]
             values.append((name, value))
+        from alabs.pam.runner import ResultHandler
         function = (ResultHandler.VARIABLE_SET_VALUES.value, values)
         return status, function, ""
 
@@ -764,7 +1000,7 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-
+        from alabs.pam.runner import ResultHandler
         file = os.environ.setdefault('ACTION_STDOUT_FILE', 'action_stdout.log')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
@@ -780,7 +1016,8 @@ class PopupInteraction(Items):
             returncode = proc.returncode
 
         if stderr:
-            return make_follow_job_request(False, message=stderr.decode())
+            return make_follow_job_request(
+                False, message=stderr.decode(self.locale))
 
         # stdout = b'Button3,JumpForward'
         act = stdout.decode().split(',')[1]
@@ -803,6 +1040,51 @@ class PopupInteraction(Items):
         return make_follow_job_request(status, function, message)
 
 
+################################################################################
+def excel_column_calculate(n:int, d:list):
+    """
+    Excel의 `A`, `AA` 와 같은 값을 Column 값을 쉽게 구할 수 있습니다.
+    :param n: 첫 번째 Column 기준으로 1 이상의 수
+    :param d: 빈 list
+    :return: str
+    >>> excel_column_calculate(1, []))
+    'A'
+    >>> excel_column_calculate(27, [])
+    'AA'
+    >>> excel_column_calculate(1000, [])
+    'ALL'
+    """
+    if not n:
+        return ''.join(d)
+    n -= 1
+    r = n // 26
+    m = (n % 26)
+    d.insert(0, chr(65 + m))
+    return excel_column_calculate(r, d)
+
+
+################################################################################
+def result_as_csv(group, data:str, header=True):
+    var_form = '{{{{{}.{}}}}}'
+    # 줄 단위로 분리
+    # [['name', 'address', 'data'],
+    # ['Raven', 'deokyu@argos-labs.com', '1234'],
+    # ['Benny', 'bkpark@argos-labs.com', '5678'],
+    # ['Brad', 'brad@argos-labs.com', 'hello']]
+
+    data = StringIO(data)
+    data = csv.reader(data, delimiter=',')
+    data = list(data)
+
+    # 변수 이름 만들기
+    # 헤더가 없다면 엑셀컬럼 순서로 생성
+    if header:
+        name = data.pop(0)
+        name = [var_form.format(group, n) for n in name]
+    else:
+        name = [var_form.format(group, excel_column_calculate(i, []))
+                for i, _ in enumerate(data[0], 1)]
+    return tuple(zip(name, list(zip(*data))))
 
 
 ################################################################################
@@ -816,9 +1098,9 @@ class Plugin(Items):
         cmd = plugin_spec_parser(self['pluginDumpspec'])
         return cmd
 
+    # ==========================================================================
     def return_value(self):
-
-        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin_stdout.log')
+        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         with open(file, 'r') as f:
             value = f.read()
 
@@ -826,13 +1108,16 @@ class Plugin(Items):
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, value)
         elif self['pluginResultType'] == 'CSV':
-            pass
+            group = self['pluginResultGroupName']
+            data = result_as_csv(group, value)
+            for path, v in data:
+                self._variables.create(path, v)
         else:
             # File
             pathlib.Path(self['pluginResultFilePath']).write_text(value)
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, self['pluginResultFilePath'])
-        pass
+
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
@@ -849,10 +1134,13 @@ class Plugin(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
 
+        if stderr:
+            return make_follow_job_request(False, message=stderr.decode())
+
         # TODO: 플러그인 아웃풋 처리
         self.return_value()
+        return make_follow_job_request(True, None, '')
 
-        return
 
 
 

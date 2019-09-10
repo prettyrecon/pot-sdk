@@ -9,12 +9,30 @@ import datetime
 from functools import wraps
 import multiprocessing as mp
 
+import platform
+from alabs.pam.scenario import Scenario
+from alabs.common.definitions.platforms import Platforms
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 from alabs.common.util.vvlogger import get_logger
 
 
+################################################################################
+class ResultAction(enum.Enum):
+    MoveOn = 'Go'
+    TreatAsError = 'Error'
+    IgnoreFailure = 'FinishStep'
+    AbortScenarioButNoError = 'FinishScenario'
+    JumpForward = 'Jump'
+    JumpBackward = 'BackJump'
+    JumpToOperation = 'Goto'
+    JumpToStep = 'StepJump'
+    RestartFromTop = 'Restart'
+
+
+################################################################################
 class ResultHandler(enum.Enum):
+
     # ==========================================================================
     SCENARIO_SET_ITEM = "_result_handler_set_item"
     SCENARIO_SET_STEP = "_result_handler_set_step"
@@ -22,8 +40,11 @@ class ResultHandler(enum.Enum):
     SCENARIO_JUMP_BACKWARD = "_result_handler_jump_backward"
     SCENARIO_FINISH_STEP = '_result_handler_finish_step'
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
+    SCENARIO_GOTO = '_result_handler_goto'
+
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
+
 
 ################################################################################
 class ExceptionTreatAsError(Exception):
@@ -73,9 +94,9 @@ def get_env():
     env.append(("OPERATION_STDOUT_FILE",
                 str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
     env.append(("PLUGIN_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin_stdout.log")))
+                str(CURRENT_PAM_LOG_DIR / "plugin.stdout")))
     env.append(("PLUGIN_STDERR_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin_stderr.log")))
+                str(CURRENT_PAM_LOG_DIR / "plugin.stderr")))
     env.append(("PAM_LOG", str(CURRENT_PAM_LOG_DIR / "pam.log")))
     return env
 
@@ -119,6 +140,9 @@ def activate_virtual_environment(f):
                 new_sys_path.append(item)
                 sys.path.remove(item)
         sys.path[:0] = new_sys_path
+        if sys.platform == 'win32':
+            sys.path.insert(0, sys.path.pop(1))
+            os.environ['PYTHONPATH'] = sys.path[0]
 
         # 실제 함수 실행
         f(*args, **kwargs)
@@ -148,10 +172,12 @@ class Runner(mp.Process):
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         self._venv_path = None
         self._scenario_name = None
+        self._scenario_path = None
         self._scenario = scenario if scenario else None
         self._variables = None
         self._pipe = pipe
         self._event = event
+        self._run = True
 
         self._breakpoints = set()
         self._debug_step_over = False
@@ -168,6 +194,14 @@ class Runner(mp.Process):
     @property
     def scenario(self):
         return self._scenario
+
+    @property
+    def scenario_path(self):
+        return self._scenario_path
+
+    @scenario_path.setter
+    def scenario_path(self, path):
+        self._scenario_path = path
 
     @scenario.setter
     def scenario(self, scenario_file: str):
@@ -191,8 +225,12 @@ class Runner(mp.Process):
     def venv_python(self):
         if not self.venv_path:
             return None
-        # TODO: Platform 별로 나눠야 함
-        path = self.venv_path / pathlib.Path('bin/python')
+
+        _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
+        if _platform == Platforms.WINDOWS.value:
+            path = self.venv_path / pathlib.Path('Scripts/python.exe')
+        else:
+            path = self.venv_path / pathlib.Path('bin/python')
         return str(path)
 
     # 브레이크 포인트 ===========================================================
@@ -231,18 +269,18 @@ class Runner(mp.Process):
     def _call_item(self, item):
         info = "{step} / {operator} "
         # Status Message
-        self.status_message.set_status(
-            self.Code.NORMAL.value, self.Status.RUNNING.value,
-            self.scenario.info,
-            "Running... " + info.format(**self._scenario.info))
+        # self.status_message.set_status(
+        #     self.Code.NORMAL.value, self.Status.RUNNING.value,
+        #     self.scenario.info,
+        #     "Running... " + info.format(**self._scenario.info))
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
         time.sleep(tm * 0.001)
         self.logger.info("Delay before run item for {}".format(str(tm * 0.001)))
-        self._pipe.send(self.status_message)
+        # self._pipe.send(self.status_message)
         # 아이템 실행
-        time.sleep(2)
-        return item()
+        result = item()
+        return result
 
     # ==========================================================================
     def play(self):
@@ -268,7 +306,6 @@ class Runner(mp.Process):
             #     self.Code.NORMAL.value, self.Status.PAUSING.value,
             #     self._scenario.info, "Pausing")
             # print(self.status_message)
-        time.sleep(0.1)
         return self._pause
 
     # ==========================================================================
@@ -296,6 +333,12 @@ class Runner(mp.Process):
     def run(self, *args, **kwargs):
         self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
         self.logger.info("Runner Started")
+        # TODO: PIPE에 뭐가 들어있을지 알 수 없음
+        scenario_path = self._pipe.recv()
+        scenario = Scenario()
+        scenario.load_scenario(scenario_path)
+        self.scenario = scenario
+
         if not self.scenario:
             self.logger.error("Bot must be set before running.")
             raise Exception("A BOT HAS TO BE SET BEFORE RUN.")
@@ -304,8 +347,8 @@ class Runner(mp.Process):
         self.init_variables()
         # self._scenario.__iter__()
         try:
-            while not self._event.is_set():
-                # 타이머 추가 필요.
+            while self._run:
+                # TODO: 타이머 추가 필요.
                 # 명령어 우선 처리
                 if self._pipe.poll():
                     cmd, *args = self._pipe.recv()
@@ -320,6 +363,9 @@ class Runner(mp.Process):
 
                 # 아이템 실행
                 item = next(self.scenario)
+                if item['Disabled']:
+                    continue
+
                 # TODO: 후속처리 필요
                 data = self._call_item(item)
                 self._follow_up(data)
@@ -329,7 +375,8 @@ class Runner(mp.Process):
                 #     self.Code.NORMAL.value, self.Status.STOPPING.value,
                 #     self._scenario.info, "The scenario is done.")
                 # print(self.status_message)
-                time.sleep(0.1)
+
+                time.sleep(0.01)
 
         except StopIteration:
             pass
@@ -344,7 +391,7 @@ class Runner(mp.Process):
             print(e)
         finally:
             print(self.pid, "is done")
-            self._event.set()
+            self._run = False
         return
 
     # ==========================================================================
@@ -360,7 +407,7 @@ class Runner(mp.Process):
 
             # 봇 필수 변수 선언
             self.logger.info("Declared Essential Variables...")
-            self._variables.create('{{rp.index}}', value=0)  # Loop Index
+            self._variables.create('{{rp.index}}', value=1)  # Loop Index
             self._variables.create('{{saved_data}}', value=" ")  # Saved Data
 
             # 사용자 변수 선언
@@ -381,27 +428,58 @@ class Runner(mp.Process):
     # ResultHandler Scenario 관련
     # ==========================================================================
     def _result_handler_set_step(self, args):
+        """
+        STEP 변경
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
 
     # ==========================================================================
     def _result_handler_set_item(self, args):
+        """
+        다음 실행 오퍼레이터 변경
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.set_current_item_by_index(int(args[0]))
 
     # ==========================================================================
     def _result_handler_finish_step(self, args):
+        """
+        STEP 끝내기
+        * 모든 반복문은 초기화
+        :param args:
+        :return:
+        """
+        self.scenario._repeat_stack = list()
         self.scenario.next_step()
 
     # ==========================================================================
     def _result_handler_jump_forward(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.forward(int(args[0]))
 
     # ==========================================================================
     def _result_handler_jump_backward(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.backward(int(args[0]))
 
     # ==========================================================================
     def _result_handler_finish_scenario(self, args):
+        self.scenario._repeat_stack = list()
         self.scenario.finish_scenario()
+
+    # ==========================================================================
+    def _result_handler_goto(self, args):
+        self.scenario._repeat_stack = list()
+        print(args)
+        self.scenario.step = int(args[0]) - 1
+        self.scenario.set_current_item_by_index(int(args[1]) - 1)
 
     # ResultHandler Variable 관련
     # ==========================================================================

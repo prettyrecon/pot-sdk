@@ -49,6 +49,9 @@ def main(*args):
     if _platform == Platforms.LINUX.value:
         from alabs.rpa.autogui.type_text.linux import main as _main
 
+    elif _platform == Platforms.WINDOWS.value:
+        from alabs.rpa.autogui.type_text.linux import main as _main
+
     elif _platform == Platforms.MAC.value:
         from alabs.rpa.autogui.type_text.linux import main as _main
 

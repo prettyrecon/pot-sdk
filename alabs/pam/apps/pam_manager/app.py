@@ -1,5 +1,8 @@
 import pathlib
+import zipfile
+import tempfile
 from flask_restplus import Namespace, Resource
+from flask import request, send_file
 api = Namespace('manager', description="PAM MANAGER")
 # from alabs.pam.scenario import Scenario
 import traceback
@@ -7,7 +10,9 @@ import traceback
 from flask import jsonify, make_response
 from alabs.pam.manager import PamManager as pm
 from alabs.pam.scenario_repository import ScenarioRepoHandler
-from alabs.pam.apps.pam_manager.parser import pam_parser
+from alabs.pam.apps.pam_manager.parser import pam_parser, file_upload
+from alabs.common.util.vvhash import get_file_md5
+from alabs.rpa.desktop.screenshot import main as screenshot
 
 
 from alabs.pam.runner import is_timeout
@@ -64,15 +69,15 @@ class PamManager(Resource):
         return result
 
     # PAM 생성 #################################################################
-    @api.expect(pam_parser, validate=True)
+    @api.expect(file_upload, validate=True)
     def post(self):
         """
         @startuml
         actor USER
-        USER -> PamManager: PAM 생성 요청
-        activate PamManager
-        PamManager -> PamManager: PAM 생성
-        PamManager -> PamManager: PAM 목록에 추가
+        USER -> Pam: Runner 생성 요청
+        activate Pam
+        Pam -> Pam: Runner 생성
+        Pam -> Pam: Runner 목록에 추가
         return Boolean
         @enduml
         :return:
@@ -81,14 +86,40 @@ class PamManager(Resource):
         global PAM_MANAGER
 
         try:
-            args = pam_parser.parse_args()
-            print(args)
-            if args['bot_index'] is None:
-                raise ValueError("Bot Index Needed ")
-            bh = ScenarioRepoHandler()
-            bot_path = bh.get_bot_with_zip_file(args['bot_index'])
-            PAM_MANAGER.create(bot_path)
+            # PAM 초기화
+            for runner in PAM_MANAGER:
+                del runner
+
+
+            # 파일 받기 ---------------------------------------------------------
+            file = request.files['file']
+            filename = request.form['fileName']
+            tempdir = tempfile.gettempdir()
+            filepath = str(pathlib.Path(tempdir, filename))
+            file.save(filepath)
+            print(filepath)
+
+            # HASH 검사
+            source_hash = request.form['md5'].lower()
+            target_hash = get_file_md5(filepath)
+            # if source_hash != target_hash:
+            #     raise ValueError("The hashes are not equal. {} != {}".format(
+            #         source_hash, target_hash))
+
+            # tempdir 생성
+            tempdir = pathlib.Path(tempfile.gettempdir()) / \
+                      pathlib.Path(ScenarioRepoHandler.STORE_DIR)
+            # 압축해제할 위치명 생성
+            name = pathlib.Path(filepath).name
+            name = name.split('.')[0]
+            path = str(pathlib.Path(tempdir, '', name))
+            # 압축해제 후 Runner 생성
+            with zipfile.ZipFile(filepath) as file:
+                file.extractall(path)
+            path = pathlib.Path(path, name + '.json')
+            PAM_MANAGER.create(path)
             return True
+
         except IndexError as e:
             message = 'Failed to make a PAM with scenario: {}'
             api.abort(api.abort(
@@ -166,6 +197,14 @@ class PamActions(Resource):
         global PAM_MANAGER
         pass
 
+
+################################################################################
+@api.route('/screenshot')
+class PamScreenShot(Resource):
+    def get(self):
+        buffer = screenshot()
+        return send_file(
+            buffer, attachment_filename='a.png', mimetype='image/png')
 
 # ################################################################################
 # @api.route('/<int:uid>/start')

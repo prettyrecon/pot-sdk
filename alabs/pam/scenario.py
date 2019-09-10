@@ -1,20 +1,20 @@
 import codecs
-import json
 from alabs.common.util.vvlogger import get_logger
-
 from alabs.pam.operations import *
-# from alabs.pam.operations import ExecuteProcess
 
 
-################################################################################
-class Scenario(dict):
-    ITEM_DIVISION_TYPE = {
+ITEM_DIVISION_TYPE = {
         "SystemCall": "systemCallType",
         "Event": "eventType",
         "Verification": "verifyType",
         "DebugReport": "debugReportType",
         "Plugin": "pluginType"}
-    VIRTUAL_ENV_PATH = None
+
+VIRTUAL_ENV_PATH = None
+
+
+################################################################################
+class Scenario(dict):
 
     # ==========================================================================
     def __init__(self):
@@ -27,7 +27,7 @@ class Scenario(dict):
         self._current_item_index = 0
 
         # Repeat
-        self._repeat_item = None
+        self._repeat_stack = list()
 
         # 변수 선언
         self._variables = None
@@ -79,6 +79,27 @@ class Scenario(dict):
             filename=scn_filename))
 
         self._scenario_image_dir = str(pathlib.Path(scn_filename).parent)
+        # self.update(self.get_modules_list())
+
+    # ==========================================================================
+    def get_modules_list(self):
+        ret = dict()
+        ret['pluginVersion'] = list()
+        ret['pluginVersion'].append(
+            {"name": "alabs.common", "version": "1.515.1543"})
+        for step in self['stepList']:
+            for item in step['items']:
+                if item['itemDivisionType'] != 'Plugin':
+                    continue
+                dumpspec = json.loads(item['pluginDumpspec'])
+                ret['pluginVersion'].append(
+                    {"name": item['pluginType'],
+                     'version': dumpspec['plugin_version']})
+        return ret
+
+
+
+
 
     # ==========================================================================
     @staticmethod
@@ -163,12 +184,13 @@ class Scenario(dict):
     @property
     def item(self):
         data = self.items[self._current_item_index]
-        class_name = data[self.ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
         # 플러그인 타입의 class_name은 플러그인 이름이 적혀있음
-        if 'pluginType' == self.ITEM_DIVISION_TYPE[data['itemDivisionType']]:
+        if 'pluginType' == ITEM_DIVISION_TYPE[data['itemDivisionType']]:
             class_name = 'Plugin'
         _class = globals()[class_name]
-        return _class(data, self, logger=self.logger)
+        item = _class(data, self, logger=self.logger)
+        return item
 
     # ==========================================================================
     def __iter__(self):
@@ -178,6 +200,10 @@ class Scenario(dict):
 
     # ==========================================================================
     def __next__(self):
+        # 반복문 스택 존재 검사
+        if self._repeat_stack:
+            self._current_item_index = self._repeat_stack[-1].get_next()
+
         if len(self.items) - 1 < self._current_item_index:
             # 시나리오 끝
             if len(self.steps) - 1 <= self._current_step_index:
@@ -186,34 +212,29 @@ class Scenario(dict):
             self._current_step_index += 1
             self._current_item_index = 0
 
-        # 반복문 상태일 경우
-        if isinstance(self._repeat_item, Repeat):
-            item = self._repeat_item()
-        else:
-            item = self.item
+        item = self.item
 
         # 현재 정보 저장
-        info = dict()
-        info['scenario'] = self['name']
-        info['step'] = "[{:d}] {}".format(
-            self.current_step_index, self.step['name'])
-        data = self.items[self._current_item_index]
-        class_name = data[self.ITEM_DIVISION_TYPE[data['itemDivisionType']]]
-        info['operator'] = "[{:d}] {} - {}".format(
-            self.current_item_index,
-            class_name,
-            self.item['itemName'])
-        self.info = info
+        # info = dict()
+        # info['scenario'] = self['name']
+        # info['step'] = "[{:d}] {}".format(
+        #     self.current_step_index, self.step['name'])
+        # data = self.items[self._current_item_index]
+        # class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        # info['operator'] = "[{:d}] {} - {}".format(
+        #     self.current_item_index,
+        #     class_name,
+        #     self.item['itemName'])
+        # self.info = info
 
         self._current_item_index += 1
-        if isinstance(item, Repeat):
-            self._repeat_item = item
         return item
 
     # ==========================================================================
     def set_current_item_by_index(self, index: int):
         """
         인덱스 번호로 현제 아이템 번호 설정
+        오더번호임
         :param index:
         :return:
         """
@@ -223,15 +244,15 @@ class Scenario(dict):
         return self._current_item_index
 
     # ==========================================================================
-    def get_item_by_id(self, _id):
+    def get_item_order_number_by_index(self, _id):
         """
-        아이템의 고유 아이디를 검색하여 찾은 아이템의 인덱스 번호를 리턴
+        아이템의 인덱를 검색하여 찾은 아이템의 오더 번호를 리턴
         :param _id:
         :return:
         """
         for i, item in enumerate(self.items):
-            if item['id'] == _id:
-                return i
+            if item['index'] == _id:
+                return item['order']
         return None
 
     # ==========================================================================
@@ -242,7 +263,6 @@ class Scenario(dict):
     # ==========================================================================
     def backward(self, n: int):
         quotient = self._current_item_index - n
-        print("q: ", quotient)
         # 아이템의 첫번째를 벗어나는 경우, 이전 스텝으로 이동
         if quotient < 0:
             if self._current_step_index == 0:
@@ -260,9 +280,11 @@ class Scenario(dict):
 
     # ==========================================================================
     def finish_scenario(self):
-        self.set_step_by_index(len(self.steps) - 1)
-        self.set_current_item_by_index(len(self.items) - 1)
-        next(self)
+        raise StopIteration
+
+        # self.set_step_by_index(len(self.steps) - 1)
+        # self.set_current_item_by_index(len(self.items) - 1)
+        # next(self)
 
 
 
