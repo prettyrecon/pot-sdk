@@ -25,7 +25,7 @@ Change Log
 
 import sys
 import pdb
-
+import pathlib
 from gevent import monkey
 monkey.patch_all()
 from gevent.pywsgi import WSGIServer
@@ -45,6 +45,28 @@ from alabs.pam.apps.variables_manager.app import api as variables_mgr_api
 from alabs.pam.apps.variables_manager.app import VAR_API_NAME
 from alabs.pam.apps.variables_manager.app import VAR_API_PREFIX
 from alabs.pam.apps.variables_manager.app import VAR_API_VERSION
+
+def get_env():
+    env = list()
+    ARGOS_RPA_VENV_DIR = pathlib.Path.home() / ".argos-rpa.venv"
+    ARGOS_RPA_BOTS_DIR = pathlib.Path.home() / ".argos-rpa.bots"
+    # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
+    ARGOS_RPA_PAM_LOG_DIR = pathlib.Path.home() / ".argos-rpa.logs"
+    # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
+    CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
+    # CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
+
+    env.append(("CURRENT_PAM_LOG_DIR", str(CURRENT_PAM_LOG_DIR)))
+    env.append(('USER_PARAM_VARIABLES',
+                str(CURRENT_PAM_LOG_DIR / "user_param_variables.json")))
+    env.append(("OPERATION_STDOUT_FILE",
+                str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
+    env.append(("PLUGIN_STDOUT_FILE",
+                str(CURRENT_PAM_LOG_DIR / "plugin.stdout")))
+    env.append(("PLUGIN_STDERR_FILE",
+                str(CURRENT_PAM_LOG_DIR / "plugin.stderr")))
+    env.append(("PAM_LOG", str(CURRENT_PAM_LOG_DIR / "pam.log")))
+    return env
 
 ################################################################################
 # Version
@@ -152,4 +174,7 @@ def _main(*args):
 
 ################################################################################
 def main(*args):
+    import os
+    for env in get_env():
+        os.environ[env[0]] = env[1]
     return _main(*args)

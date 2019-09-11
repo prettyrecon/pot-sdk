@@ -10,7 +10,7 @@ from alabs.ppm import _main as ppm
 from alabs.pam.runner import Runner
 from alabs.pam.runner import is_timeout
 from alabs.pam.scenario import Scenario
-
+from alabs.common.util.vvlogger import get_logger
 from contextlib import contextmanager
 from io import StringIO
 
@@ -50,6 +50,8 @@ class PamManager(list):
     ############################################################################
     def __init__(self, *args):
         list.__init__(self, *args)
+        self.logger = get_logger(os.environ.setdefault("PAM_LOG", "pam.log"))
+        self.logger.info("PamManager Start...")
 
     def __del__(self):
         if isinstance(self, PamManager):
@@ -58,11 +60,16 @@ class PamManager(list):
 
     # Runner 시작 ##############################################################
     def start_runner(self, idx):
+        self.logger.info("Runner Setting Start...")
         runner_info: PamManager.RunnerInfo() = self[idx]
         # 파이썬 인터프리터 지정
         if not runner_info.RUNNER.venv_python:
+            self.logger.error("THE FILE IS NOT A ARGOS BOT FORMAT.")
             raise Exception("SET A BOT BEFORE START PAM")
         mp.set_executable(runner_info.RUNNER.venv_python)
+        self.logger.info("Set python executable path... {}".format(
+            str(runner_info.RUNNER.venv_python)))
+
         # 프로세스 생성
         if runner_info.RUNNER.is_alive():
             return False
@@ -103,12 +110,16 @@ class PamManager(list):
             # PPM을 통해 venv 생성 또는 위치 구하기
             scenario = Scenario()
             scenario.load_scenario(scenario_path)
+            self.logger.info(
+                'Scenario is Loaded... {}'.format(scenario_path))
+
             # caution: alabs.ppm의 반환 값은 처리상태 값을 반환한다.
             # print() 를 통해서 원하는 결과 값이 반환되므로 stdout을 따로 캐치하여 사용
             # with captured_output() as (out, _):
             #     get_venv(scenario.plugins)
             # runner.RUNNER.venv_path = out.getvalue().strip()
 
+            scenario.update(scenario.get_modules_list())
             with captured_output() as (out, _):
                 get_venv(scenario.plugins)
             out = out.getvalue().strip().split('\n')[-1]
