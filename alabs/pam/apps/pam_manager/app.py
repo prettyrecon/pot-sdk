@@ -116,7 +116,8 @@ class PamManager(Resource):
             # 압축해제 후 Runner 생성
             with zipfile.ZipFile(filepath) as file:
                 file.extractall(path)
-            path = pathlib.Path(path, name + '.json')
+            # path = pathlib.Path(path, name + '.json')
+            path = pathlib.Path(path, 'Scenario.json')
             PAM_MANAGER.create(path)
             return True
 

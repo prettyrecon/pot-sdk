@@ -1102,7 +1102,8 @@ def result_as_csv(group, data:str, header=True):
 class Plugin(Items):
 
     references = ('pluginDumpspec', 'pluginResultType', 'pluginResultGroupName',
-                  'pluginResultVariable', 'pluginResultFilePath')
+                  'pluginResultVariable', 'pluginResultFilePath',
+                  'pluginResultHasHeader')
     # ==========================================================================
     @property
     def arguments(self):

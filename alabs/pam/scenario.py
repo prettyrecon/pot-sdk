@@ -93,7 +93,8 @@ class Scenario(dict):
                     continue
                 dumpspec = json.loads(item['pluginDumpspec'])
                 ret['pluginVersion'].append(
-                    {"name": item['pluginType'],
+                    # {"name": item['pluginType'],
+                    {"name": item['pluginType'][3:] if item['pluginType'][0] == '(' else item['pluginType'] ,
                      'version': dumpspec['plugin_version']})
         return ret
 
