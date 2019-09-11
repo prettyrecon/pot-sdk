@@ -496,11 +496,21 @@ class TypeKeys(Items):
 ################################################################################
 class StopProcess(Items):
     references = ('stopProcess',)
-    # 'mouseScroll': {'scrollX': '0', 'scrollY': '0', 'scrollLines': '40'}
+    # "stopProcess": {"processName": "notepad"}
+    # ==========================================================================
+    @property
+    def arguments(self) -> tuple:
+        res = list()
+        res.append('--process_name')
+        res.append(self['stopProcess']['processName'])
+        return tuple(res)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        cmd = 'python -m alabs.rpa.desktop.stop_process {}'.format(
+            ' '.join(self.arguments))
+        subprocess.check_call(cmd, shell=True)
+        return make_follow_job_request(True, None, '')
 
 ################################################################################
 class ReadImageText(Items):

@@ -57,10 +57,18 @@ def for_window(mcxt, argspec):
     return cmd.format(option_1[method], target, option_2)
 
 def for_darwin(mcxt, argspec):
-    raise NotImplementedError
+    target = argspec.process_name
+    cmd = '{} {}'.format('killall', target)
+    return cmd
+
 
 def for_linux(mcxt, argspec):
-    raise NotImplementedError
+    # method = 'killall' if argspec.process_name in vars(
+    #     argspec) else 'kill'
+    target = argspec.process_name
+    cmd = '{} {}'.format('killall', target)
+    return cmd
+
 
 CALLER = {'Windows': for_window, 'Linux': for_linux, 'Darwin': for_darwin}
 
