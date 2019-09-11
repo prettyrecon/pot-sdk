@@ -132,7 +132,8 @@ class Items(dict):
         for r in self.item_ref:
             self[r] = data[r]
         for r in self.references:
-            self[r] = data[r]
+            data = data.setdefault(r, None)
+            self[r] = data
         self.logger = logger
         self._variables = VariableManagerAPI(pid=str(os.getpid()),
                                              logger=logger)
