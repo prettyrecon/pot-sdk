@@ -1121,7 +1121,8 @@ class Plugin(Items):
             self._variables.create(path, value)
         elif self['pluginResultType'] == 'CSV':
             group = self['pluginResultGroupName']
-            data = result_as_csv(group, value)
+            header = self['pluginResultHasHeader']
+            data = result_as_csv(group, value, header=header)
             for path, v in data:
                 self._variables.create(path, v)
         else:
@@ -1134,7 +1135,7 @@ class Plugin(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         # 플러그인 결과파일 삭제
-        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin_stdout.log')
+        file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
 
