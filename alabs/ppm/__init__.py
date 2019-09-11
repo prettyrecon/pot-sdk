@@ -119,7 +119,7 @@ import urllib.parse
 # noinspection PyUnresolvedReferences
 import setuptools
 # noinspection PyUnresolvedReferences,PyPackageRequirements,PyProtectedMember
-from pip._internal import main as pipmain
+# from pip._internal import main as pipmain
 # from random import randint
 from threading import Thread
 from queue import Queue, Empty
@@ -553,6 +553,8 @@ class VEnv(object):
                 msg_l[-1] = os.path.basename(msg_l[-1])
             except Exception:
                 pass
+        if msg_l[0] == 'freeze':
+            msg_l[0] = 'finishing...'
         if self.sta is None:
             self.sta = StatLogger()
         self.sta.log(StatLogger.LT_2, ' '.join(msg_l))

@@ -21,14 +21,6 @@ namespace argos_pbtail
         public fmMain()
         {
             InitializeComponent();
-            log1.Parent = pictureBox1;
-            log1.BackColor = System.Drawing.Color.Transparent;
-            log2.Parent = pictureBox1;
-            log2.BackColor = System.Drawing.Color.Transparent;
-            log3.Parent = pictureBox1;
-            log3.BackColor = System.Drawing.Color.Transparent;
-            cpb.Parent = pictureBox1;
-            cpb.BackColor = System.Drawing.Color.Transparent;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -45,16 +37,6 @@ namespace argos_pbtail
                 tm.Enabled = false;
                 bgw3.CancelAsync();
                 bgw2.CancelAsync();
-                //var logfile = "";
-                //logfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\.argos-rpa.sta.1";
-                //if (File.Exists(logfile))
-                //    File.Delete(logfile);
-                //logfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\.argos-rpa.sta.2";
-                //if (File.Exists(logfile))
-                //    File.Delete(logfile);
-                //logfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\.argos-rpa.sta.3";
-                //if (File.Exists(logfile))
-                //    File.Delete(logfile);
                 this.Close();
             }
         }
@@ -67,7 +49,7 @@ namespace argos_pbtail
             {
                 Thread.Sleep(500);
                 cnt += 1;
-                if (cnt > 50)
+                if (cnt > 10)
                     return;
             }
             FileStream fs = File.Open(logfile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
