@@ -7,6 +7,7 @@
 .. module author:: 임덕규 <hong18s@gmail.com>
 .. note:: MIT License
 """
+import os
 import json
 import urllib.parse
 from requests import Response
@@ -30,7 +31,11 @@ def get_response_data(resp: Response):
 ################################################################################
 class VariableManagerAPI:
     # ==========================================================================
-    def __init__(self, ip="127.0.0.1", port="8012", pid=0, logger=None):
+    def __init__(self, ip=None, port=None, pid=0, logger=None):
+        if not ip:
+            os.environ.setdefault("VARIABLE_MANAGER_IP", "127.0.0.1")
+        if not port:
+            os.environ.setdefault("VARIABLE_MANAGER_PORT", "8013")
         self.rc_api = RestClient(ip, port, "",
                                  url_prefix=REST_API_PREFIX,
                                  api_version=REST_API_NAME,
