@@ -661,16 +661,16 @@ class Repeat(Items):
         """
         # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
         if self.current_item_index == self.end_item_order:
+            self._count += 1
             # 반복 횟 수가 남지 않은 상태
-            if self._times < self._count:
+            if self._times == self._count:
                 self._scenario._repeat_stack.pop()
-
+                return self.current_item_index
             order_num = self.start_item_order
             if self.is_using_index:
                 self.loop_index_increase(step=self.increment_index)
         else:
             order_num = self.current_item_index
-        self._count += 1
         return order_num
 
     # ==========================================================================
