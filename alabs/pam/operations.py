@@ -586,6 +586,11 @@ class Goto(Items):
 
 ################################################################################
 class Repeat(Items):
+    """
+    @startuml
+    Runner ->
+    @enduml
+    """
     references = ('repeat',)
 
     # ==========================================================================
@@ -1122,6 +1127,8 @@ class Plugin(Items):
             group = self['pluginResultGroupName']
             header = self['pluginResultHasHeader']
             data = result_as_csv(group, value, header=header)
+            if not data:
+                return None
             for path, v in data:
                 self._variables.create(path, v)
         else:
@@ -1147,7 +1154,13 @@ class Plugin(Items):
             returncode = proc.returncode
 
         if stderr:
-            return make_follow_job_request(False, message=stderr.decode())
+            # TODO: 플러그인 에러시 처리할 방법 필요
+            try:
+                print(stderr.decode())
+            except Exception as e:
+                pass
+            return make_follow_job_request(True, None, '')
+            # return make_follow_job_request(False, message=stderr.decode())
 
         # TODO: 플러그인 아웃풋 처리
         self.return_value()
