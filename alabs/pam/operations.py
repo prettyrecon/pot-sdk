@@ -1093,6 +1093,8 @@ def result_as_csv(group, data:str, header=True):
 
     # 변수 이름 만들기
     # 헤더가 없다면 엑셀컬럼 순서로 생성
+    if not data:
+        return None
     if header:
         name = data.pop(0)
         name = [var_form.format(group, n) for n in name]
