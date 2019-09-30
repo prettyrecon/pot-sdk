@@ -5,16 +5,19 @@ import pathlib
 import copy
 import enum
 import datetime
-
+import pprint
 from functools import wraps
 import multiprocessing as mp
-
+import traceback
 import platform
+
 from alabs.pam.scenario import Scenario
 from alabs.common.definitions.platforms import Platforms
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
-from alabs.common.util.vvlogger import get_logger
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat
+from alabs.common.util.vvtest import captured_output
+from alabs.pam.conf import get_conf
 
 
 ################################################################################
@@ -77,29 +80,6 @@ def is_timeout(t):
         if t:
             st += t
 
-################################################################################
-def get_env():
-    env = list()
-    ARGOS_RPA_VENV_DIR = pathlib.Path.home() / ".argos-rpa.venv"
-    ARGOS_RPA_BOTS_DIR = pathlib.Path.home() / ".argos-rpa.bots"
-    # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
-    ARGOS_RPA_PAM_LOG_DIR = pathlib.Path.home() / ".argos-rpa.logs"
-    # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
-    CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
-    # CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
-
-    env.append(("CURRENT_PAM_LOG_DIR", str(CURRENT_PAM_LOG_DIR)))
-    env.append(('USER_PARAM_VARIABLES',
-                str(CURRENT_PAM_LOG_DIR / "user_param_variables.json")))
-    env.append(("OPERATION_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
-    env.append(("PLUGIN_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin.stdout")))
-    env.append(("PLUGIN_STDERR_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin.stderr")))
-    env.append(("PAM_LOG", str(CURRENT_PAM_LOG_DIR / "pam.log")))
-    return env
-
 
 ################################################################################
 def activate_virtual_environment(f):
@@ -115,7 +95,7 @@ def activate_virtual_environment(f):
         base = os.path.dirname(os.path.dirname(os.path.abspath(exec_path)))
 
         # 환경변수 설정
-        for env in get_env():
+        for env in get_conf().get('/PATH').items():
             os.environ[env[0]] = env[1]
 
         # 플랫폼에 따른 site-packages 위치
@@ -167,7 +147,7 @@ class Runner(mp.Process):
         # super(Runner, self).__init__(*args, **kwargs)
         super(Runner, self).__init__()
         self._name = str(os.getpid())
-        self.logger = None
+        self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'pam.log'))
 
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         self._venv_path = None
@@ -240,9 +220,11 @@ class Runner(mp.Process):
 
     @break_points.setter
     def break_points(self, bp: list):
-        self.logger.info("Set breakpoints... {}".format(str(bp)))
+        self.logger.info("Set breakpoints... ")
+        self.logger.debug(StructureLogFormat(STREQUEST_BREAK_POINTS=bp))
         # 같은 값이 또 들어오면 삭제, 없는 값이면 추가
         self._breakpoints ^= set(bp)
+        self.logger.debug(StructureLogFormat(CURRENT_BREAK=self._breakpoints))
 
     def is_break_point(self, cur: tuple, bp_list: tuple):
         cur = hash(cur)
@@ -267,18 +249,15 @@ class Runner(mp.Process):
 
     # ==========================================================================
     def _call_item(self, item):
-        info = "{step} / {operator} "
-        # Status Message
-        # self.status_message.set_status(
-        #     self.Code.NORMAL.value, self.Status.RUNNING.value,
-        #     self.scenario.info,
-        #     "Running... " + info.format(**self._scenario.info))
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
+        self.logger.info("Delaying before running the item")
+        self.logger.debug(StructureLogFormat(
+            BEFORE_DELAY_MSEC=int(item['beforeDelayTime'])))
         time.sleep(tm * 0.001)
-        self.logger.info("Delay before run item for {}".format(str(tm * 0.001)))
-        # self._pipe.send(self.status_message)
+
         # 아이템 실행
+        self.logger.info('The item is calling.')
         result = item()
         return result
 
@@ -298,14 +277,7 @@ class Runner(mp.Process):
                    self._scenario.current_item_index)
         if self.is_break_point(cur_idx, self.break_points):
             self._pause = True
-            # 위의 어떠한 조건이라도 만족한 경우 `멈춤`
-            # 탈출 조건은 `시작` 요청에 의한 self._pause의 False 전환
 
-            # Status Message
-            # self.status_message.set_status(
-            #     self.Code.NORMAL.value, self.Status.PAUSING.value,
-            #     self._scenario.info, "Pausing")
-            # print(self.status_message)
         return self._pause
 
     # ==========================================================================
@@ -324,6 +296,9 @@ class Runner(mp.Process):
             return
         if not hasattr(self, data['function'][0]):
             raise ValueError
+        self.logger.info('Calling the result job function.')
+        self.logger.debug(FUNCTION=data['function'][0],
+                          ARGUMENTS=data['function'][1])
         f = getattr(self, data['function'][0])
         ret = f(data['function'][1])
         return ret
@@ -332,29 +307,33 @@ class Runner(mp.Process):
     @activate_virtual_environment
     def run(self, *args, **kwargs):
         self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
-        self.logger.info("Runner Started")
-        # TODO: PIPE에 뭐가 들어있을지 알 수 없음
-        scenario_path = self._pipe.recv()
-        scenario = Scenario()
-        scenario.load_scenario(scenario_path)
-        self.scenario = scenario
+        self.logger.info("====================================================")
+        self.logger.info("Runner is running.")
 
-        if not self.scenario:
-            self.logger.error("Bot must be set before running.")
-            raise Exception("A BOT HAS TO BE SET BEFORE RUN.")
-
-        # 변수 초기화
-        self.init_variables()
-        # self._scenario.__iter__()
         try:
+            # TODO: PIPE에 뭐가 들어있을지 알 수 없음
+            scenario_path = self._pipe.recv()
+            scenario = Scenario()
+            scenario.load_scenario(scenario_path)
+            self.scenario = scenario
+            if not self.scenario:
+                self.logger.error("Scenario must be set before running.")
+
+            # 변수 초기화
+            self.init_variables()
+            self.logger.info('Initialized variables.')
+
+            # 시나리오 루틴 시작 ================================================
             while self._run:
                 # TODO: 타이머 추가 필요.
                 # 명령어 우선 처리
                 if self._pipe.poll():
+                    self.logger.info('Received command and arguments.')
                     cmd, *args = self._pipe.recv()
-                    self.logger.info("Command Received... {}({})".format(cmd, str(args)))
+                    from pprint import pformat
+                    self.logger.debug(StructureLogFormat(PIPE_CMD=cmd,
+                                                         PIPE_ARGS=args))
                     ret = getattr(self, cmd)(*args)
-
                     self._pipe.send(ret)
                     continue
 
@@ -364,34 +343,31 @@ class Runner(mp.Process):
                 # 아이템 실행
                 item = next(self.scenario)
                 if item['Disabled']:
+                    self.logger.info('The item is disabled to call.')
                     continue
 
-                # TODO: 후속처리 필요
                 data = self._call_item(item)
+                self.logger.info("Done to run item.")
+                self.logger.debug(StructureLogFormat(RESULT=data))
                 self._follow_up(data)
 
-                # Status Message
-                # self.status_message.set_status(
-                #     self.Code.NORMAL.value, self.Status.STOPPING.value,
-                #     self._scenario.info, "The scenario is done.")
-                # print(self.status_message)
-
-                time.sleep(0.01)
+                time.sleep(0.001)
 
         except StopIteration:
             pass
         except ExceptionTreatAsError as e:
             print(e)
         except KeyboardInterrupt:
-            print("Keyboard Int")
+            self.logger.info('Keyboard Interrupt.')
         except Exception as e:
             print("Exception!!!!")
             import traceback
             traceback.print_exc()
             print(e)
         finally:
-            print(self.pid, "is done")
+            self.logger.info('Process is done.')
             self._run = False
+            self.logger.debug(StructureLogFormat(PID=self.pid, RUN=self._run))
         return
 
     # ==========================================================================
@@ -400,29 +376,30 @@ class Runner(mp.Process):
         변수매니져와 연결 및 변수 선언
         :return:
         """
-        self.logger.info('Start initializing variables...')
+        self.logger.info('Start initializing variables.')
         pid = os.getpid()
         try:
             self._variables = VariableManagerAPI(pid=pid, logger=self.logger)
 
             # 봇 필수 변수 선언
-            self.logger.info("Declared Essential Variables...")
             self._variables.create('{{rp.index}}', value=1)  # Loop Index
             self._variables.create('{{saved_data}}', value=" ")  # Saved Data
+            self.logger.info("Declared Essential Variables...")
 
             # 사용자 변수 선언
-            self.logger.info("Declared User Variables...")
             variable_list = self.scenario['userVariableList']
             for var in variable_list:
                 variable = "{{%s.%s}}" % (var['GroupName'], var['VariableName'])
                 self._variables.create(variable, None)
+            self.logger.info("Declared User Variables...")
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self.logger.info("ERROR: Initialize Variable - {}".format(str(e)))
-            raise Exception
+            with captured_output() as (out, _):
+                traceback.print_exc(file=out)
+            self.logger.error(out.getvalue())
+            return False
         self.logger.info('End Initializing variables...')
+        return True
 
     # 아이템 실행결과에 따른 다음 동작
     # ResultHandler Scenario 관련
@@ -434,8 +411,16 @@ class Runner(mp.Process):
         :param args:
         :return:
         """
+        self.logger.info('ResultHandler: Set Step')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "STEP": self.scenario.step}
+
         self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
+
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "STEP": self.scenario.step}
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
 
     # ==========================================================================
     def _result_handler_set_item(self, args):
@@ -445,8 +430,17 @@ class Runner(mp.Process):
         :param args:
         :return:
         """
+        self.logger.info('ResultHandler: Set Item')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
         self.scenario._repeat_stack = list()
         self.scenario.set_current_item_by_index(int(args[0]))
+
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
 
     # ==========================================================================
     def _result_handler_finish_step(self, args):
@@ -456,36 +450,88 @@ class Runner(mp.Process):
         :param args:
         :return:
         """
+        self.logger.info('ResultHandler: Finish Step')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_step_index}
+
         self.scenario._repeat_stack = list()
         self.scenario.next_step()
 
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_step_index}
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
+
     # ==========================================================================
     def _result_handler_jump_forward(self, args):
+        self.logger.info('ResultHandler: Jump Forward')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
         self.scenario._repeat_stack = list()
         self.scenario.forward(int(args[0]))
 
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
+
     # ==========================================================================
     def _result_handler_jump_backward(self, args):
+        self.logger.info('ResultHandler: Jump Backward')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
         self.scenario._repeat_stack = list()
         self.scenario.backward(int(args[0]))
 
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_item_index}
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
+
     # ==========================================================================
     def _result_handler_finish_scenario(self, args):
+        self.logger.info('ResultHandler: Finish Scenario')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_item_index,
+                  "CUR_STEP_INDEX": self.scenario.current_step_index,}
+
         self.scenario._repeat_stack = list()
         self.scenario.finish_scenario()
 
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_item_index,
+                 "CUR_STEP_INDEX": self.scenario.current_step_index,}
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
+
     # ==========================================================================
     def _result_handler_goto(self, args):
+        self.logger.info('ResultHandler: Goto')
+        before = {"REPEAT_STACK": self.scenario._repeat_stack,
+                  "CUR_ITEM_INDEX": self.scenario.current_item_index,
+                  "CUR_STEP_INDEX": self.scenario.current_step_index, }
+
         self.scenario._repeat_stack = list()
-        print(args)
         self.scenario.step = int(args[0]) - 1
         self.scenario.set_current_item_by_index(int(args[1]) - 1)
+
+        after = {"REPEAT_STACK": self.scenario._repeat_stack,
+                 "CUR_ITEM_INDEX": self.scenario.current_item_index,
+                 "CUR_STEP_INDEX": self.scenario.current_step_index, }
+
+        self.logger.debug(StructureLogFormat(BEFORE=before, AFTER=after))
 
     # ResultHandler Variable 관련
     # ==========================================================================
     def _result_handler_set_variables(self, args):
+        self.logger.info('ResultHandler: Set Variables')
+
         for name, value in args:
             self._variables.create(name, value)
+
+        self.logger.debug(StructureLogFormat(SET_VARIABLES=args))
 
 
 

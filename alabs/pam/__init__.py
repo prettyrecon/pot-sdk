@@ -22,18 +22,21 @@ Change Log
  * [2019/04/24]
     - starting
 """
-
+import os
 import sys
 import pdb
 import pathlib
+import argparse
 from gevent import monkey
+
 monkey.patch_all()
 from gevent.pywsgi import WSGIServer
 
 from flask import Flask
 from flask_restplus import Api
 
-from alabs.common.util.vvargs import ModuleContext
+
+from alabs.common.util.vvlogger import StructureLogFormat, get_logger
 from alabs.pam.apps.pam_manager.app import api as ns_manager
 
 from alabs.pam.apps.bot_store_handler.app import api as bot_store_api
@@ -46,27 +49,7 @@ from alabs.pam.apps.variables_manager.app import VAR_API_NAME
 from alabs.pam.apps.variables_manager.app import VAR_API_PREFIX
 from alabs.pam.apps.variables_manager.app import VAR_API_VERSION
 
-def get_env():
-    env = list()
-    ARGOS_RPA_VENV_DIR = pathlib.Path.home() / ".argos-rpa.venv"
-    ARGOS_RPA_BOTS_DIR = pathlib.Path.home() / ".argos-rpa.bots"
-    # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
-    ARGOS_RPA_PAM_LOG_DIR = pathlib.Path.home() / ".argos-rpa.logs"
-    # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
-    CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
-    # CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
-
-    env.append(("CURRENT_PAM_LOG_DIR", str(CURRENT_PAM_LOG_DIR)))
-    env.append(('USER_PARAM_VARIABLES',
-                str(CURRENT_PAM_LOG_DIR / "user_param_variables.json")))
-    env.append(("OPERATION_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "operation.stdout")))
-    env.append(("PLUGIN_STDOUT_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin.stdout")))
-    env.append(("PLUGIN_STDERR_FILE",
-                str(CURRENT_PAM_LOG_DIR / "plugin.stderr")))
-    env.append(("PAM_LOG", str(CURRENT_PAM_LOG_DIR / "pam.log")))
-    return env
+from alabs.pam.conf import get_conf
 
 ################################################################################
 # Version
@@ -101,7 +84,7 @@ class ForkedPdb(pdb.Pdb):
 
 
 ################################################################################
-def pam_manager(mcxt, argspec):
+def pam_manager(argspec, logger):
     try:
         # Flask app
         app = Flask(__name__)
@@ -124,57 +107,37 @@ def pam_manager(mcxt, argspec):
             VERSION=VAR_API_VERSION,
             NAME=VAR_API_NAME))
 
-        mcxt.logger.info("Start PAM-Manager from [%s]..." % __name__)
-        mcxt.logger.info("Start BOT-Handler from [%s]..." % __name__)
-        mcxt.logger.info("Start VAR-Manager from [%s]..." % __name__)
-
         api.init_app(app)
+        logger.info('Starting PAM Manager...')
+
+        http = WSGIServer((argspec.host, argspec.port), app.wsgi_app)
+        http.serve_forever()
     except Exception as err:
-        if mcxt.logger:
-            mcxt.logger.error('Error: %s' % str(err))
+        logger.error(str(err))
         raise
-
-    http = WSGIServer((argspec.host, argspec.port), app.wsgi_app)
-    http.serve_forever()
-
 
 
 ################################################################################
 def _main(*args):
-    """
-    Build user argument and options and call plugin job function
-    :param args: user arguments
-    :return: return value from plugin job function
+    # 설정 파일
+    parser = argparse.ArgumentParser()
+    if not os.environ.setdefault('PAM_CONF', None):
+        path = pathlib.Path.home() / '.argos-rpa-pam.conf'
+        os.environ['PAM_CONF'] = path
+    conf = get_conf()
+    logger = get_logger(conf.get('/PATH/PAM_LOG'))
 
-    ..note:: _main 함수에서 사용되는 패러미터(옵션) 정의 방법
-플러그인 모듈은 ModuleContext 을 생성하여 mcxt를 with 문과 함께 사용
-    owner='ARGOS-LABS',
-    group='pam',
-    version='1.0',
-    platform=['darwin'],
-    output_type='text',
-    description='HA Bot for LA',
-    test_class=TU,
-    """
-    with ModuleContext(
-        owner=OWNER,
-        group=GROUP,
-        version=VERSION,
-        platform=PLATFORM,
-        output_type=OUTPUT_TYPE,
-        description=DESCRIPTION,
-    ) as mcxt:
-        mcxt.add_argument('-a', '--host', type=str, default='127.0.0.1',
-                          help='')
-        mcxt.add_argument('-p', '--port', type=int, default=8012, help='')
+    parser.add_argument('-a', '--host', type=str,
+                        default=conf.get('MANAGER/IP'), help='')
+    parser.add_argument('-p', '--port', type=int,
+                        default=conf.get('MANAGER/PORT'), help='')
 
-        argspec = mcxt.parse_args(args)
-        return pam_manager(mcxt, argspec)
+    parser.add_argument('-f', '--filepath', type=str, default='',
+                        help='JSON or BOT type of the scenario file')
+
+    argspec = parser.parse_args()
+    if not argspec.filepath:
+        return pam_manager(argspec, logger)
 
 
-################################################################################
-def main(*args):
-    import os
-    for env in get_env():
-        os.environ[env[0]] = env[1]
-    return _main(*args)
+

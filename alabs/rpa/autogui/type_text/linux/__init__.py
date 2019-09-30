@@ -25,8 +25,8 @@ Change Log
 
 ################################################################################
 import pyautogui
-from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
-    ArgsError, ArgsExit
+from alabs.common.util.vvargs import ModuleContext
+from alabs.common.util.vvlogger import StructureLogFormat
 
 
 ################################################################################
@@ -43,7 +43,6 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 
 ################################################################################
-@func_log
 def type_text(mcxt, argspec):
     """
     plugin job function
@@ -51,10 +50,10 @@ def type_text(mcxt, argspec):
     :param argspec: argument spec
     :return: True
     """
-    mcxt.logger.info('>>>starting...')
+    mcxt.logger.info('TypeText is Running...')
+    mcxt.logger.debug(StructureLogFormat(ARGS_SPEC=argspec.__dict__))
     pyautogui.typewrite(argspec.text)
-    mcxt.logger.info('>>>end...')
-
+    mcxt.logger.info('TypeText is Done.')
     return True
 
 

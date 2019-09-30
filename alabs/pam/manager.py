@@ -11,22 +11,16 @@ from alabs.ppm import _main as ppm
 from alabs.pam.runner import Runner
 from alabs.pam.runner import is_timeout
 from alabs.pam.scenario import Scenario
-from alabs.common.util.vvlogger import get_logger
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat
+from alabs.common.util.vvtest import captured_output
 from contextlib import contextmanager
 from io import StringIO
+from alabs.pam.conf import get_conf
 
 # mp.set_start_method('spawn')
 
 
-@contextmanager
-def captured_output():
-    new_out, new_err = StringIO(), StringIO()
-    old_out, old_err = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = new_out, new_err
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = old_out, old_err
+logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
 
 
 ################################################################################
@@ -51,7 +45,8 @@ class PamManager(list):
     ############################################################################
     def __init__(self, *args):
         list.__init__(self, *args)
-        self.logger = get_logger(os.environ.setdefault("PAM_LOG", "pam.log"))
+        global logger
+        self.logger = logger
         self.logger.info("PamManager Start...")
 
     def __del__(self):
@@ -65,14 +60,19 @@ class PamManager(list):
         runner_info: PamManager.RunnerInfo() = self[idx]
         # 파이썬 인터프리터 지정
         if not runner_info.RUNNER.venv_python:
-            self.logger.error("THE FILE IS NOT A ARGOS BOT FORMAT.")
-            raise Exception("SET A BOT BEFORE START PAM")
+            self.logger.error(
+                "VENV for scenario is not ready. Check the scenario file.")
+            raise Exception
+
+        # 멀티프레세스에서 사용하게 될 파이썬 지정
         mp.set_executable(runner_info.RUNNER.venv_python)
-        self.logger.info("Set python executable path... {}".format(
-            str(runner_info.RUNNER.venv_python)))
+        self.logger.info("Set python executable path for the scenario.")
+        self.logger.debug(
+            StructureLogFormat(venv_python=str(runner_info.RUNNER.venv_python)))
 
         # 프로세스 생성
         if runner_info.RUNNER.is_alive():
+            self.logger.error('Runner process is running already.')
             return False
         runner_info.RUNNER._debug_step_over = False
         runner_info.RUNNER._pause = False
@@ -111,8 +111,9 @@ class PamManager(list):
             # PPM을 통해 venv 생성 또는 위치 구하기
             scenario = Scenario()
             scenario.load_scenario(scenario_path)
-            self.logger.info(
-                'Scenario is Loaded... {}'.format(scenario_path))
+            self.logger.info('Scenario is loaded.')
+            self.logger.debug(
+                StructureLogFormat(SCENARIO_PATH=str(scenario_path)))
 
             # caution: alabs.ppm의 반환 값은 처리상태 값을 반환한다.
             # print() 를 통해서 원하는 결과 값이 반환되므로 stdout을 따로 캐치하여 사용
@@ -128,7 +129,10 @@ class PamManager(list):
             runner.RUNNER.venv_path = out
 
         except Exception as e:
-            traceback.print_exc()
+            with captured_output() as (out, err):
+                traceback.print_exc(file=out)
+            self.logger.error(out.getvalue())
+            self.logger.error(str(e))
             return False
         return True
 
@@ -268,11 +272,19 @@ def get_venv(requirements):
         essensial_modules.append('opencv-contrib-python')
 
     essensial_modules += requirements
-    # requirements.insert(0, 'alabs.common')
     req = ' '.join(essensial_modules)
     args = 'plugin venv {}'.format(req)
-    venv_path = ppm(args.split())
-    return venv_path
+    logger.info('Installing plugins.')
+    logger.debug(StructureLogFormat(PLUGINS=essensial_modules))
+    with captured_output() as (out, err):
+        ppm(args.split())
+    print(out.getvalue())
+    if err.getvalue():
+        logger.error(err.getvalue())
+        return False
+    logger.info('Created python virtual environment.')
+    logger.debug(StructureLogFormat(PATH=out.getvalue()))
+    return True
 
 
 if __name__ == "__main__":

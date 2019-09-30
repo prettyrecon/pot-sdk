@@ -1,7 +1,9 @@
 import codecs
-from alabs.common.util.vvlogger import get_logger
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat
 from alabs.pam.operations import *
+from alabs.pam.conf import get_conf
 
+logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
 
 ITEM_DIVISION_TYPE = {
         "SystemCall": "systemCallType",
@@ -19,7 +21,8 @@ class Scenario(dict):
     # ==========================================================================
     def __init__(self):
         dict.__init__(self)
-        self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
+        global logger
+        self.logger = logger
         self._info = dict()
         # 현재 STEP과 ITEM INDEX
         # 절대 직접 접근하여 값을 바꾸지 말것
@@ -63,23 +66,18 @@ class Scenario(dict):
         self._info.update(v)
 
     # ==========================================================================
-    def set_logger(self, logger):
-        self.logger = logger
-        self.logger.info('>>>Set the logger')
+    # def set_logger(self, logger):
+    #     self.logger = logger
 
     # ==========================================================================
     def load_scenario(self, scn_filename):
         self._scenario_filename = scn_filename
 
         # 시나리오 불러오기
-        self.logger.info('>>>Start Loading the scenario file...{filename}' \
-                         .format(filename=scn_filename))
         self.update(self.load_scenario_file(scn_filename))
-        self.logger.info('>>>End Loading the scenario file...{filename}'.format(
-            filename=scn_filename))
-
         self._scenario_image_dir = str(pathlib.Path(scn_filename).parent)
-        # self.update(self.get_modules_list())
+        self.logger.debug(
+            StructureLogFormat(SCN_IMAGE_DIR=self._scenario_image_dir))
 
     # ==========================================================================
     def get_modules_list(self):
@@ -110,13 +108,15 @@ class Scenario(dict):
         :param filename:
         :return:
         """
-        scn = None
         with codecs.open(filename, 'r', 'utf-8-sig') as f:
             try:
                 scn = json.load(f)
+                logger.info('Scenario is loaded.')
             except Exception as e:
+                logger.error(str(e))
                 raise TypeError('The Scenario File is Something Wrong')
-
+            finally:
+                logger.debug(StructureLogFormat(SCN_FILE_PATH=str(filename)))
         return scn
 
     # ==========================================================================
@@ -184,6 +184,7 @@ class Scenario(dict):
     # ==========================================================================
     @property
     def item(self):
+        self.logger.info('Making a item instance.')
         data = self.items[self._current_item_index]
         class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
         # 플러그인 타입의 class_name은 플러그인 이름이 적혀있음
@@ -200,33 +201,49 @@ class Scenario(dict):
         return self
 
     # ==========================================================================
+    def _get_current_info(self):
+        """
+        현재 시나리오 정보
+        :return:
+        """
+        # 현재 정보 저장
+        info = dict()
+
+        info['scenario'] = {
+            'name': self['name']}
+
+        info['step'] = {
+            'order': self.current_step_index,
+            'name': self.step['name']}
+
+        # data = self.items[self._current_item_index]
+        # class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        info['operator'] = {
+            'order': self.current_item_index,
+            'name': self.item['itemName']}
+        return info
+
+    # ==========================================================================
     def __next__(self):
         # 반복문 스택 존재 검사
         if self._repeat_stack:
+            self.logger.debug(
+                StructureLogFormat(REPEAT_STACK=self._repeat_stack))
             self._current_item_index = self._repeat_stack[-1].get_next()
 
         if len(self.items) - 1 < self._current_item_index:
             # 시나리오 끝
             if len(self.steps) - 1 <= self._current_step_index:
+                self.logger.info('Reached the end of the scenario.')
                 raise StopIteration
             # 다음 스텝이 있는 경우
+            self.logger.infor('Reached the end of the step.')
             self._current_step_index += 1
             self._current_item_index = 0
 
         item = self.item
 
-        # 현재 정보 저장
-        # info = dict()
-        # info['scenario'] = self['name']
-        # info['step'] = "[{:d}] {}".format(
-        #     self.current_step_index, self.step['name'])
-        # data = self.items[self._current_item_index]
-        # class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
-        # info['operator'] = "[{:d}] {} - {}".format(
-        #     self.current_item_index,
-        #     class_name,
-        #     self.item['itemName'])
-        # self.info = info
+        self.info = self._get_current_info()
 
         self._current_item_index += 1
         return item

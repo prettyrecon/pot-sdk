@@ -170,3 +170,17 @@ class TestUnit(unittest.TestCase):
 
         code, data = self.vars.get(path)
         self.assertEqual(200, code)
+
+    # ==========================================================================
+    def test_400_long_data(self):
+        path = "{{DEF.ABC}}"
+        d = "BB,AA"
+        code, data = self.vars.create(path, d)
+        self.assertEqual(200, code)
+        d = "AA, BB"
+        code, data = self.vars.create(path, d)
+        self.assertEqual(200, code)
+
+        code, data = self.vars.get(path)
+        self.assertEqual(200, code)
+        print(data)

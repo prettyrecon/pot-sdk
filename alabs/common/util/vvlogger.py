@@ -35,6 +35,7 @@ import datetime
 import logging.handlers
 import traceback
 import pathlib
+import json
 from functools import wraps
 
 ################################################################################
@@ -43,6 +44,16 @@ __date__ = "2017/04/10"
 __version__ = "1.17.0410"
 __version_info__ = (1, 17, 410)
 __license__ = "MIT"
+
+
+################################################################################
+class StructureLogFormat:
+    def __init__(self, **kwargs):
+        self._data = json.dumps(kwargs)
+
+    # ==========================================================================
+    def __repr__(self):
+        return self._data
 
 
 ################################################################################

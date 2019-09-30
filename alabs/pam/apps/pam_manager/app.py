@@ -1,3 +1,4 @@
+import os
 import pathlib
 import zipfile
 import tempfile
@@ -13,7 +14,10 @@ from alabs.pam.scenario_repository import ScenarioRepoHandler
 from alabs.pam.apps.pam_manager.parser import pam_parser, file_upload
 from alabs.common.util.vvhash import get_file_md5
 from alabs.rpa.desktop.screenshot import main as screenshot
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat
+from alabs.pam.conf import get_conf
 
+logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
 
 from alabs.pam.runner import is_timeout
 
@@ -90,14 +94,14 @@ class PamManager(Resource):
             for runner in PAM_MANAGER:
                 del runner
 
-
             # 파일 받기 ---------------------------------------------------------
             file = request.files['file']
             filename = request.form['fileName']
             tempdir = tempfile.gettempdir()
             filepath = str(pathlib.Path(tempdir, filename))
             file.save(filepath)
-            print(filepath)
+            logger.info('Received the scenario file.')
+            logger.debug(StructureLogFormat(FILE_PATH=filepath))
 
             # HASH 검사
             source_hash = request.form['md5'].lower()

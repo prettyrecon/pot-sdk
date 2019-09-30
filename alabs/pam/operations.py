@@ -5,15 +5,18 @@ import os
 import json
 import csv
 import locale
+from pprint import pformat
 from io import StringIO
 from functools import wraps
 
-from alabs.rpa.desktop.execute_process import main as execute_process
-from alabs.rpa.desktop.delay import main as delay
+# from alabs.rpa.desktop.execute_process import main as execute_process
+# from alabs.rpa.desktop.delay import main as delay
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 from alabs.common.util.vvtest import captured_output
+from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.conf import get_conf
 
 
 ################################################################################
@@ -63,7 +66,9 @@ def arguments_options_fileout(f):
             'OPERATION_STDOUT_FILE', 'operation.stdout')
         if stdout:
             arguments += ['--outfile ', stdout]
-        pam_log = os.environ.setdefault('PAM_LOG', 'pam.log')
+        pam_log = get_conf().get('/PATH/OPERATION_LOG')
+        # pam_log = os.environ.setdefault('OPERATION_LOG', 'operation.log')
+        # pam_log = os.environ.setdefault('PAM_LOG', 'pam.log')
         if pam_log:
             arguments += ['--errfile ', pam_log]
             arguments += ['--logfile', pam_log]
@@ -128,12 +133,19 @@ class Items(dict):
 
     def __init__(self, data:dict, scenario, logger=None):
         dict.__init__(self)
+        self.logger = logger
         self._scenario = scenario
+        t = dict()
+        t['ITEM'] = dict()
         for r in self.item_ref:
             self[r] = data[r]
+            t['ITEM'][r] = data[r]
+        t['REFERENCE'] = dict()
         for r in self.references:
             self[r] = data.setdefault(r, None)
-        self.logger = logger
+            t['REFERENCE'][r] = data.setdefault(r, None)
+        self.logger.debug(StructureLogFormat(DATA=t))
+
         self._variables = VariableManagerAPI(pid=str(os.getpid()),
                                              logger=logger)
         self.locale = locale.getdefaultlocale()[1]
@@ -160,7 +172,7 @@ class ExecuteProcess(Items):
 
     # ==========================================================================
     @property
-    # @arguments_options_fileout
+    @arguments_options_fileout
     def arguments(self)-> tuple:
         code, data = self._variables.convert(
             self['executeProcess']['executeFilePath'])
@@ -172,7 +184,8 @@ class ExecuteProcess(Items):
     def __call__(self):
         cmd = 'python -m alabs.rpa.desktop.execute_process {}'.format(
             ' '.join(self.arguments))
-        self.logger.info(cmd)
+        self.logger.info('ExecuteProcess Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
         subprocess.Popen(cmd, shell=True)
 
         return make_follow_job_request(True, None, '')
@@ -186,6 +199,7 @@ class Delay(Items):
 
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self)->tuple:
         return self['delay']['delay'],
 
@@ -193,7 +207,9 @@ class Delay(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.desktop.delay {}'.format(
             ' '.join(self.arguments))
-        self.logger.info(cmd)
+        self.logger.info('Delay Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         with subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE) as proc:
             stdout = proc.stdout.read()
         return make_follow_job_request(True, None, '')
@@ -261,16 +277,17 @@ class SearchImage(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.locate_image {}'.format(
             ' '.join(self.arguments))
-        self.logger.info(cmd)
+        self.logger.info('LocateImage Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         with subprocess.Popen(cmd, shell=True,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
         if stderr:
-            self.logger.info(stderr)
+            self.logger.error(stderr)
         self.logger.info(stdout)
-
 
         # return locate_image(*self.arguments)
 
@@ -320,6 +337,8 @@ class ImageMatch(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.find_image_location {}'.format(
             ' '.join(self.arguments))
+        self.logger.info('FindImage Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -330,6 +349,7 @@ class ImageMatch(Items):
 
         if stderr:
             message = stderr.decode()
+            self.logger.error(message)
             return self['verifyResultAction'], \
                    self['verifyResultAction']['failActionType'], \
                    message
@@ -351,15 +371,18 @@ class MouseScroll(Items):
     # 'mouseScroll': {'scrollX': '0', 'scrollY': '0', 'scrollLines': '40'}
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         v = int(self['mouseScroll']['scrollLines'])
         return '--vertical', v
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        v = int(self['mouseScroll']['scrollLines'])
         cmd = 'python -m alabs.rpa.autogui.scroll {}'.format(
             ' '.join([str(x) for x in self.arguments]))
+        self.logger.info('MouseScrolling Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         subprocess.Popen(cmd, shell=True)
         # return scroll(*self.arguments)
 
@@ -404,14 +427,16 @@ class MouseClick(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.click {}'.format(
             ' '.join(self.arguments))
-        self.logger.info(cmd)
+        self.logger.info('Click Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         with subprocess.Popen(cmd, shell=True,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
         if stderr:
-            self.logger.info(stderr.decode(self.locale))
+            self.logger.error(stderr.decode(self.locale))
         self.logger.info(stdout.decode(self.locale))
 
 
@@ -454,6 +479,9 @@ class TypeText(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.autogui.type_text {}'.format(
             ' '.join(self.arguments))
+        self.logger.info('TypeText Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         subprocess.check_call(cmd, shell=True)
         return make_follow_job_request(True, None, '')
 
@@ -486,8 +514,10 @@ class TypeKeys(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         for arg in self.arguments:
+            self.logger.info('SendShortcut Calling...')
             cmd = 'python -m alabs.rpa.autogui.send_shortcut {}'.format(
                 ' '.join(arg))
+            self.logger.debug(StructureLogFormat(COMMAND=cmd))
             subprocess.check_call(cmd, shell=True)
         return make_follow_job_request(True, None, '')
 
@@ -508,6 +538,9 @@ class StopProcess(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.desktop.stop_process {}'.format(
             ' '.join(self.arguments))
+        self.logger.info('StopProcess Calling...')
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
         subprocess.check_call(cmd, shell=True)
         return make_follow_job_request(True, None, '')
 
@@ -580,6 +613,8 @@ class Goto(Items):
     # ==========================================================================
     def __call__(self):
         from alabs.pam.runner import ResultHandler
+        self.logger.info('Goto Calling...')
+        self.logger.debug(StructureLogFormat(STEP_ITEM=self.arguments))
         function = (ResultHandler.SCENARIO_GOTO.value, self.arguments)
         return make_follow_job_request(True, function, '')
 
@@ -601,7 +636,6 @@ class Repeat(Items):
         self._scenario._repeat_stack.append(self)
         self._status = True
         self._times = self.repeat_times
-        print(self._times)
         self.logger.info(self._times)
         self._count = 0
 
@@ -667,19 +701,32 @@ class Repeat(Items):
         # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
         if self.current_item_index == self.end_item_order:
             self._count += 1
+            self.logger.info("Reached at the end of this repeat.")
+            self.logger.debug(StructureLogFormat(
+                CUR_ITEM_INDEX=self.current_item_index,
+                END_ITEM_INDEX=self.end_item_order,
+                SET_REPEAT_TIMES=self._times,
+                CUR_REPEAT_COUNT=self._count
+            ))
+
             # 반복 횟 수가 남지 않은 상태
             if self._times == self._count:
+                self.logger.info('Reached at the end of the count.')
                 self._scenario._repeat_stack.pop()
                 return self.current_item_index
+
             order_num = self.start_item_order
             if self.is_using_index:
                 self.loop_index_increase(step=self.increment_index)
+            self.logger.info('Back to the start of the repeat.')
         else:
             order_num = self.current_item_index
+            self.logger.info('Set the next item.')
         return order_num
 
     # ==========================================================================
     def loop_index_increase(self, path="{{rp.index}}", step=1):
+        self.logger.info('Increased The Variable of the loop index.')
         code, n = self._variables.get(path)
         self._variables.create("{{rp.index}}", int(n) + step)
 
@@ -724,6 +771,7 @@ class SetVariable(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self.logger.info('SetVariable Calling...')
         self._variables.create(self.arguments, self['setVariable']['textValue'])
         # TODO: 플러그인 아웃풋 처리
         return make_follow_job_request(True, None, '')
@@ -839,6 +887,9 @@ class CompareText(Items):
     def __call__(self, *args, **kwargs):
         cmd = 'python -m alabs.rpa.desktop.compare_text {}'.format(
             ' '.join(self.arguments))
+        self.logger.info('CompareText Calling...')
+        self.logger.debug(StructureLogFormat(CMD=cmd))
+
         proc = subprocess.Popen(
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
@@ -893,6 +944,7 @@ class EndScenario(Items):
 
     # ==========================================================================
     def __call__(self):
+        self.logger.info('EndScenario Calling...')
         from alabs.pam.runner import ResultHandler
         function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
         return make_follow_job_request(True, function, '')
@@ -921,15 +973,23 @@ class UserParams(Items):
     def __call__(self, *args, **kwargs):
         # Continue to use 를 선택했을 경우 상태를 파일로 저장
         # 저장된 정보에서 Show에 Fasle가 있다면 저장된 값을 계속 사용
+        self.logger.info('UserParams Calling...')
         saved_var_file = os.environ.setdefault(
             'USER_PARAM_VARIABLES', 'user_param_variables.json')
-        if pathlib.Path(saved_var_file).exists():
+        is_exists_saved_var_file = pathlib.Path(saved_var_file).exists()
+        self.logger.debug(StructureLogFormat(
+            SAVED_VAR_FILE_PATH=saved_var_file,
+            IS_EXISTS=is_exists_saved_var_file))
+
+        if is_exists_saved_var_file:
             data = json.loads(saved_var_file)
             status, function, message = self.get_result_handler(data)
             return make_follow_job_request(status, function, message)
 
         cmd = 'python -m alabs.rpa.autogui.user_parameters {}'.format(
             ' '.join(self.arguments))
+        self.logger.debug(StructureLogFormat(CMD=cmd))
+
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 shell=True) as proc:
@@ -937,6 +997,7 @@ class UserParams(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
         if stderr:
+            self.logger.error(stderr.decode())
             return make_follow_job_request(False, message=stderr.decode())
         status, function, message = self.get_result_handler(
             data=json.loads(stdout.decode()))
@@ -1015,6 +1076,7 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self.logger.info('Dialogue Calling...')
         from alabs.pam.runner import ResultHandler
         file = os.environ.setdefault('ACTION_STDOUT_FILE', 'action_stdout.log')
         if pathlib.Path(file).exists():
@@ -1022,6 +1084,7 @@ class PopupInteraction(Items):
 
         cmd = 'python -m alabs.rpa.autogui.dialogue {}'.format(
             ' '.join(self.arguments))
+        self.logger.debug(StructureLogFormat(CMD=cmd))
 
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -1031,11 +1094,14 @@ class PopupInteraction(Items):
             returncode = proc.returncode
 
         if stderr:
+            self.logger.error(stderr.decode())
             return make_follow_job_request(
                 False, message=stderr.decode(self.locale))
 
         # stdout = b'Button3,JumpForward'
+        self.logger.info('User clicked a button.')
         act = stdout.decode().split(',')[1]
+        self.logger.debug(StructureLogFormat(BUTTON=act))
 
         status = True
         function = None
@@ -1112,15 +1178,19 @@ class Plugin(Items):
                   'pluginResultHasHeader')
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self):
         cmd = plugin_spec_parser(self['pluginDumpspec'])
         return cmd
 
     # ==========================================================================
     def return_value(self):
+        self.logger.info('Plugin\'s return value')
+
         file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         with open(file, 'r') as f:
             value = f.read()
+            self.logger.debug(StructureLogFormat(PLUGIN_OUT=value))
 
         if self['pluginResultType'] == 'String':
             path = self['pluginResultVariable']['VariableText']
@@ -1133,21 +1203,27 @@ class Plugin(Items):
                 return None
             for path, v in data:
                 self._variables.create(path, v)
-        else:
+        elif self['pluginResultType'] == 'File':
             # File
             pathlib.Path(self['pluginResultFilePath']).write_text(value)
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, self['pluginResultFilePath'])
+        else:
+            self.logger.warn('pluginResultType is None.')
+            pass
 
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self.logger.info('Plugin Calling...')
         # 플러그인 결과파일 삭제
         file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
 
         cmd = ' '.join(['python', '-m'] + [self.arguments])
+        self.logger.debug(StructureLogFormat(CMD=cmd))
+
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 shell=True) as proc:
@@ -1158,7 +1234,7 @@ class Plugin(Items):
         if stderr:
             # TODO: 플러그인 에러시 처리할 방법 필요
             try:
-                print(stderr.decode())
+                self.logger.error(stderr.decode())
             except Exception as e:
                 pass
             return make_follow_job_request(True, None, '')

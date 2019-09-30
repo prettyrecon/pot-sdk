@@ -149,7 +149,7 @@ class Bot(threading.Thread):
     def _load_scenario(self, filename):
         try:
             self.scenario = Scenario()
-            self.scenario.set_logger(self.logger)
+            # self.scenario.set_logger(self.logger)
             self.scenario.load_scenario(filename)
             self.scenario.__iter__()
         except Exception as e:
