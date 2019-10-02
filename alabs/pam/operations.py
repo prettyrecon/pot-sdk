@@ -1178,7 +1178,7 @@ class Plugin(Items):
                   'pluginResultHasHeader')
     # ==========================================================================
     @property
-    @arguments_options_fileout
+    # @arguments_options_fileout
     def arguments(self):
         cmd = plugin_spec_parser(self['pluginDumpspec'])
         return cmd
@@ -1220,13 +1220,13 @@ class Plugin(Items):
         file = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
-
+        self.logger.debug(StructureLogFormat(CMD=self.arguments))
+        env = os.environ.copy()
         cmd = ' '.join(['python', '-m'] + [self.arguments])
         self.logger.debug(StructureLogFormat(CMD=cmd))
-
         with subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                shell=True) as proc:
+                shell=True, env=env) as proc:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
             returncode = proc.returncode

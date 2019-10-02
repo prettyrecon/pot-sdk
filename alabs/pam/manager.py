@@ -16,7 +16,7 @@ from alabs.common.util.vvtest import captured_output
 from contextlib import contextmanager
 from io import StringIO
 from alabs.pam.conf import get_conf
-
+import site
 # mp.set_start_method('spawn')
 
 
@@ -47,7 +47,7 @@ class PamManager(list):
         list.__init__(self, *args)
         global logger
         self.logger = logger
-        self.logger.info("PamManager Start...")
+        os.environ['PARENT_SITE'] = site.getsitepackages()[1]
 
     def __del__(self):
         if isinstance(self, PamManager):

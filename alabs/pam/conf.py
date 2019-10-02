@@ -65,7 +65,7 @@ class Config(dict):
             if v is None:
                 raise KeyError('{} is not '.format(xpath))
             set_xpath(self, xpath, v)
-            conf_path = os.environ.setdefault('PAM_LOG', '.argos-rpa-pam.conf')
+            conf_path = os.environ.setdefault('PAM_CONF', '.argos-rpa-pam.conf')
             write_conf_file(conf_path, dict(self))
             if self.logger:
                 self.logger.info('Inserted default setting values... ')

@@ -5,7 +5,8 @@ import pathlib
 import copy
 import enum
 import datetime
-import pprint
+import site
+
 from functools import wraps
 import multiprocessing as mp
 import traceback
@@ -89,6 +90,7 @@ def activate_virtual_environment(f):
         logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         logger.info('Activating the virtual environment for the runner...')
         exec_path = sys.executable
+
         # 패스 설정
         old_os_path = os.environ.get('PATH', '')
         old_python_path = os.environ.setdefault('PYTHONPATH', '')
@@ -110,7 +112,6 @@ def activate_virtual_environment(f):
                                          'site-packages')
         # site-package 추가
         prev_sys_path = list(sys.path)
-        import site
 
         site.addsitedir(site_packages)
         sys.real_prefix = sys.prefix

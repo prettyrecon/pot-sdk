@@ -27,10 +27,11 @@ import sys
 import pdb
 import pathlib
 import argparse
+import zipfile
+import tempfile
+from multiprocessing import Process
 
 from alabs.common.util.vvlogger import StructureLogFormat, get_logger
-
-
 from alabs.pam.conf import get_conf
 
 ################################################################################
@@ -117,6 +118,23 @@ def pam_manager(argspec, logger):
         logger.error(str(err))
         raise
 
+def extract_bot_file(filepath, logger):
+    from alabs.pam.scenario_repository import ScenarioRepoHandler
+    # tempdir 생성
+    tempdir = pathlib.Path(tempfile.gettempdir()) / \
+              pathlib.Path(ScenarioRepoHandler.STORE_DIR)
+    # 압축해제할 위치명 생성
+    name = pathlib.Path(filepath).name
+    name = name.split('.')[0]
+    path = str(pathlib.Path(tempdir, '', name))
+    # 압축해제 후 Runner 생성
+    logger.info('Extracting the bot file...')
+    logger.debug(StructureLogFormat(BOT_FILE=filepath,
+                                    TARGET_PATH=path))
+    with zipfile.ZipFile(filepath) as file:
+        file.extractall(path)
+    path = pathlib.Path(path, 'Scenario.json')
+    return path
 
 ################################################################################
 def _main(*args):
@@ -140,31 +158,23 @@ def _main(*args):
     if not argspec.filepath:
         return pam_manager(argspec, logger)
 
-    from multiprocessing import Process
-
-    import zipfile
-    import tempfile
-    from alabs.pam.scenario_repository import ScenarioRepoHandler
+    ############################################################################
     from alabs.pam.manager import PamManager as pm
+    ext = pathlib.Path(argspec.filepath).suffix
+    if 'bot' == ext[1:].lower():
+        path = extract_bot_file(argspec.filepath, logger)
+    elif 'json' == ext[1:].lower():
+        path = argspec.filepath
+    else:
+        logger.error(
+            '{} is not supported scenario format.'.format(argspec.filepath))
+        print('{} is not supported scenario format.'.format(argspec.filepath))
+        exit(-1)
 
     logger.info('Started Variable Manager.')
     p = Process(target=pam_manager, args=(argspec, logger))
     p.start()
 
-    # tempdir 생성
-    tempdir = pathlib.Path(tempfile.gettempdir()) / \
-              pathlib.Path(ScenarioRepoHandler.STORE_DIR)
-    # 압축해제할 위치명 생성
-    name = pathlib.Path(argspec.filepath).name
-    name = name.split('.')[0]
-    path = str(pathlib.Path(tempdir, '', name))
-    # 압축해제 후 Runner 생성
-    logger.info('Extracting the bot file...')
-    logger.debug(StructureLogFormat(BOT_FILE=argspec.filepath,
-                                    TARGET_PATH=path))
-    with zipfile.ZipFile(argspec.filepath) as file:
-        file.extractall(path)
-    path = pathlib.Path(path, 'Scenario.json')
     pam_mgr = pm()
     runner = pam_mgr.create(path)
     pam_mgr.start_runner(0)
