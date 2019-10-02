@@ -86,10 +86,13 @@ def activate_virtual_environment(f):
     # 멀티프로세싱에서 데코레이터를 사용하기 위해서 functools.wraps를 사용
     @wraps(f)
     def func(*args, **kwargs):
+        logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
+        logger.info('Activating the virtual environment for the runner...')
         exec_path = sys.executable
-
         # 패스 설정
         old_os_path = os.environ.get('PATH', '')
+        old_python_path = os.environ.setdefault('PYTHONPATH', '')
+
         os.environ['PATH'] = os.path.dirname(
             os.path.abspath(exec_path)) + os.pathsep + old_os_path
         base = os.path.dirname(os.path.dirname(os.path.abspath(exec_path)))
@@ -122,7 +125,19 @@ def activate_virtual_environment(f):
         sys.path[:0] = new_sys_path
         if sys.platform == 'win32':
             sys.path.insert(0, sys.path.pop(1))
-            os.environ['PYTHONPATH'] = sys.path[0]
+            os.environ['PYTHONPATH'] = ''
+            pp = list()
+            pp.append(sys.path[0])
+            if old_python_path:
+                pp += old_python_path.split(';')
+            os.environ['PYTHONPATH'] = ';'.join(pp)
+
+        logger.debug(StructureLogFormat(
+            PARENT_PATH=old_os_path,
+            PARENT_PYTHONPATH=old_python_path,
+            SITE_PACKAGES=site_packages,
+            RUNNER_PATH=os.environ['PATH'],
+            RUNNER_PYTHONPATH=os.environ['PYTHONPATH']))
 
         # 실제 함수 실행
         f(*args, **kwargs)
@@ -257,7 +272,6 @@ class Runner(mp.Process):
         time.sleep(tm * 0.001)
 
         # 아이템 실행
-        self.logger.info('The item is calling.')
         result = item()
         return result
 
@@ -307,8 +321,11 @@ class Runner(mp.Process):
     @activate_virtual_environment
     def run(self, *args, **kwargs):
         self.logger = get_logger(os.environ.setdefault('PAM_LOG', 'runner.log'))
-        self.logger.info("====================================================")
-        self.logger.info("Runner is running.")
+        self.logger.info("Runner is running ==================================")
+
+        self.logger.debug(StructureLogFormat(
+            PYTHONPATH=os.environ.setdefault('PYTHONPATH', ''),
+            PATH=os.environ.setdefault('PATH', '')))
 
         try:
             # TODO: PIPE에 뭐가 들어있을지 알 수 없음

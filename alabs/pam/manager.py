@@ -124,8 +124,10 @@ class PamManager(list):
             scenario.update(scenario.get_modules_list())
             with captured_output() as (out, _):
                 get_venv(scenario.plugins)
+            self.logger.debug(StructureLogFormat(VENV_PATH=out.getvalue()))
             out = out.getvalue().strip().split('\n')[-1]
-            out = out[:2] + out[3:]
+            # out = out[:2] + out[3:]
+            self.logger.debug(StructureLogFormat(VENV_PATH_EDITED=out))
             runner.RUNNER.venv_path = out
 
         except Exception as e:
@@ -265,11 +267,12 @@ def get_venv(requirements):
     # requirements = ['alabs.common==1.515.1543']
     essensial_modules = list()
     essensial_modules.append('alabs.common')
-    essensial_modules.append('pyautogui')
-    essensial_modules.append('bs4')
+    # essensial_modules.append('pyautogui')
+    # essensial_modules.append('bs4')
     if sys.platform == 'win32':
-        essensial_modules.append('opencv-python')
-        essensial_modules.append('opencv-contrib-python')
+        pass
+        # essensial_modules.append('opencv-python')
+        # essensial_modules.append('opencv-contrib-python')
 
     essensial_modules += requirements
     req = ' '.join(essensial_modules)

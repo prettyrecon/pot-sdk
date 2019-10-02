@@ -27,27 +27,9 @@ import sys
 import pdb
 import pathlib
 import argparse
-from gevent import monkey
-
-monkey.patch_all()
-from gevent.pywsgi import WSGIServer
-
-from flask import Flask
-from flask_restplus import Api
-
 
 from alabs.common.util.vvlogger import StructureLogFormat, get_logger
-from alabs.pam.apps.pam_manager.app import api as ns_manager
 
-from alabs.pam.apps.bot_store_handler.app import api as bot_store_api
-from alabs.pam.apps.bot_store_handler import BOT_API_NAME 
-from alabs.pam.apps.bot_store_handler import BOT_API_PREFIX 
-from alabs.pam.apps.bot_store_handler import BOT_API_VERSION 
-
-from alabs.pam.apps.variables_manager.app import api as variables_mgr_api
-from alabs.pam.apps.variables_manager.app import VAR_API_NAME
-from alabs.pam.apps.variables_manager.app import VAR_API_PREFIX
-from alabs.pam.apps.variables_manager.app import VAR_API_VERSION
 
 from alabs.pam.conf import get_conf
 
@@ -86,6 +68,25 @@ class ForkedPdb(pdb.Pdb):
 ################################################################################
 def pam_manager(argspec, logger):
     try:
+        from gevent import monkey
+        monkey.patch_all()
+        from gevent.pywsgi import WSGIServer
+        from flask import Flask
+        from flask_restplus import Api
+
+        from alabs.pam.apps.pam_manager.app import api as ns_manager
+
+        from alabs.pam.apps.bot_store_handler.app import api as bot_store_api
+        from alabs.pam.apps.bot_store_handler import BOT_API_NAME
+        from alabs.pam.apps.bot_store_handler import BOT_API_PREFIX
+        from alabs.pam.apps.bot_store_handler import BOT_API_VERSION
+
+        from alabs.pam.apps.variables_manager.app import \
+            api as variables_mgr_api
+        from alabs.pam.apps.variables_manager.app import VAR_API_NAME
+        from alabs.pam.apps.variables_manager.app import VAR_API_PREFIX
+        from alabs.pam.apps.variables_manager.app import VAR_API_VERSION
+
         # Flask app
         app = Flask(__name__)
         api = Api(title='ARGOS PAM-Manager', version='1.0',
@@ -121,9 +122,9 @@ def pam_manager(argspec, logger):
 def _main(*args):
     # 설정 파일
     parser = argparse.ArgumentParser()
-    if not os.environ.setdefault('PAM_CONF', None):
+    if not os.environ.setdefault('PAM_CONF', ''):
         path = pathlib.Path.home() / '.argos-rpa-pam.conf'
-        os.environ['PAM_CONF'] = path
+        os.environ['PAM_CONF'] = str(path)
     conf = get_conf()
     logger = get_logger(conf.get('/PATH/PAM_LOG'))
 
@@ -138,6 +139,38 @@ def _main(*args):
     argspec = parser.parse_args()
     if not argspec.filepath:
         return pam_manager(argspec, logger)
+
+    from multiprocessing import Process
+
+    import zipfile
+    import tempfile
+    from alabs.pam.scenario_repository import ScenarioRepoHandler
+    from alabs.pam.manager import PamManager as pm
+
+    logger.info('Started Variable Manager.')
+    p = Process(target=pam_manager, args=(argspec, logger))
+    p.start()
+
+    # tempdir 생성
+    tempdir = pathlib.Path(tempfile.gettempdir()) / \
+              pathlib.Path(ScenarioRepoHandler.STORE_DIR)
+    # 압축해제할 위치명 생성
+    name = pathlib.Path(argspec.filepath).name
+    name = name.split('.')[0]
+    path = str(pathlib.Path(tempdir, '', name))
+    # 압축해제 후 Runner 생성
+    logger.info('Extracting the bot file...')
+    logger.debug(StructureLogFormat(BOT_FILE=argspec.filepath,
+                                    TARGET_PATH=path))
+    with zipfile.ZipFile(argspec.filepath) as file:
+        file.extractall(path)
+    path = pathlib.Path(path, 'Scenario.json')
+    pam_mgr = pm()
+    runner = pam_mgr.create(path)
+    pam_mgr.start_runner(0)
+    runner.RUNNER.join()
+    p.kill()
+    p.join()
 
 
 

@@ -8,27 +8,36 @@ from alabs.common.util.vvjson import get_xpath
 
 
 path = dict()
-ARGOS_RPA_VENV_DIR = pathlib.Path.home() / ".argos-rpa.venv"
-ARGOS_RPA_BOTS_DIR = pathlib.Path.home() / ".argos-rpa.bots"
+ARGOS_RPA_PAM_DIR = pathlib.Path.home() / '.argoslabs-rpa'
+PAM = ARGOS_RPA_PAM_DIR / 'pam'
+ARGOS_RPA_BOTS_DIR = PAM / 'bots'
+ARGOS_RPA_PAM_LOG_DIR = PAM / "logs"
+ARGOS_RPA_VENV_DIR = ARGOS_RPA_PAM_DIR / "venvs"
 # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
-ARGOS_RPA_PAM_LOG_DIR = pathlib.Path.home() / ".argos-rpa.logs"
+
 # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
+CURRENT_PAM_CONF_DIR = PAM
 CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
-# CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR / str(os.getpid())
+
+
+path['PAM_CONF'] = str(CURRENT_PAM_CONF_DIR / "pam.conf")
+path['USER_PARAM_VARIABLES'] = str(CURRENT_PAM_CONF_DIR /
+                                   "user_param_variables.json")
 
 path["CURRENT_PAM_LOG_DIR"] = str(CURRENT_PAM_LOG_DIR)
-path['USER_PARAM_VARIABLES'] = str(CURRENT_PAM_LOG_DIR / "user_param_variables.json")
 path["OPERATION_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.stdout")
 path["PLUGIN_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stdout")
 path["PLUGIN_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stderr")
 path["PAM_LOG"] = str(CURRENT_PAM_LOG_DIR / "pam.log")
 path["OPERATION_LOG"] = str(CURRENT_PAM_LOG_DIR / "operation.log")
-path['PAM_CONF'] = str(CURRENT_PAM_LOG_DIR / "pam.conf")
+
 
 manager = dict()
 manager['IP'] = '127.0.0.1'
 manager['PORT'] = 8012
 manager['LOG_LEVEL'] = 'info'
+manager['VARIABLE_MANAGER_IP'] = '127.0.0.1'
+manager['VARIABLE_MANAGER_PORT'] = 8012
 
 _conf = {
         'PATH': path,

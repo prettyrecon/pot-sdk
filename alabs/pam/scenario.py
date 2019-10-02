@@ -108,13 +108,13 @@ class Scenario(dict):
         :param filename:
         :return:
         """
+        global logger
         with codecs.open(filename, 'r', 'utf-8-sig') as f:
             try:
                 scn = json.load(f)
-                logger.info('Scenario is loaded.')
             except Exception as e:
                 logger.error(str(e))
-                raise TypeError('The Scenario File is Something Wrong')
+                raise TypeError('The Scenario`s json File is Something Wrong')
             finally:
                 logger.debug(StructureLogFormat(SCN_FILE_PATH=str(filename)))
         return scn

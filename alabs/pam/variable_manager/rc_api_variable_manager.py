@@ -22,6 +22,8 @@ from alabs.pam.variable_manager import \
 #     ResponseErrorData
 from alabs.common.util.vvlogger import get_logger, StructureLogFormat
 from alabs.common.util.vvtest import captured_output
+from alabs.pam.conf import get_conf
+
 
 
 
@@ -29,14 +31,15 @@ from alabs.common.util.vvtest import captured_output
 class VariableManagerAPI:
     # ==========================================================================
     def __init__(self, ip=None, port=None, pid=0, logger=None):
-        if not ip:
-            ip = os.environ.setdefault("VARIABLE_MANAGER_IP", "127.0.0.1")
-        if not port:
-            port = os.environ.setdefault("VARIABLE_MANAGER_PORT", "8013")
-
         if logger is None:
             logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         self.logger = logger
+
+        conf = get_conf(self.logger)
+        if not ip:
+            ip = conf.get("/MANAGER/VARIABLE_MANAGER_IP")
+        if not port:
+            port = conf.get("/MANAGER/VARIABLE_MANAGER_PORT")
 
         self.logger.info('Connecting to the variable manager.')
         self.logger.debug(StructureLogFormat(
