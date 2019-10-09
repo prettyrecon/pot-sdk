@@ -1161,6 +1161,21 @@ private-repositories:
         finally:
             pass
 
+    # ==========================================================================
+    def test_0710_plugin_venv(self):
+        try:
+            cmd = [
+                'plugin', 'venv',
+                'alabs.common',
+                'pyautogui',
+                'bs4',
+                'opencv-python',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
     # # ==========================================================================
     # def test_0710_stu_issue(self):
     #     try:
