@@ -43,24 +43,26 @@
             // 
             // log1
             // 
+            this.log1.AutoEllipsis = true;
             this.log1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
             this.log1.Font = new System.Drawing.Font("Times New Roman", 11F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.log1.ForeColor = System.Drawing.SystemColors.HotTrack;
-            this.log1.Location = new System.Drawing.Point(122, 45);
+            this.log1.Location = new System.Drawing.Point(133, 45);
             this.log1.Name = "log1";
-            this.log1.Size = new System.Drawing.Size(1176, 62);
+            this.log1.Size = new System.Drawing.Size(1164, 62);
             this.log1.TabIndex = 2;
             this.log1.Text = "ARGOS RPA + Preparing STU and PAM or POT...";
             this.log1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.log1.UseCompatibleTextRendering = true;
             // 
             // log2
             // 
             this.log2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.log2.Font = new System.Drawing.Font("Times New Roman", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.log2.ForeColor = System.Drawing.SystemColors.ActiveCaption;
-            this.log2.Location = new System.Drawing.Point(122, 103);
+            this.log2.Font = new System.Drawing.Font("Times New Roman", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.log2.ForeColor = System.Drawing.Color.CornflowerBlue;
+            this.log2.Location = new System.Drawing.Point(127, 149);
             this.log2.Name = "log2";
-            this.log2.Size = new System.Drawing.Size(1176, 62);
+            this.log2.Size = new System.Drawing.Size(1170, 62);
             this.log2.TabIndex = 3;
             this.log2.Text = "Processing ...";
             this.log2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -68,11 +70,11 @@
             // log3
             // 
             this.log3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.log3.Font = new System.Drawing.Font("Times New Roman", 7F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.log3.Font = new System.Drawing.Font("Times New Roman", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.log3.ForeColor = System.Drawing.SystemColors.ControlDark;
-            this.log3.Location = new System.Drawing.Point(122, 165);
+            this.log3.Location = new System.Drawing.Point(128, 254);
             this.log3.Name = "log3";
-            this.log3.Size = new System.Drawing.Size(1176, 62);
+            this.log3.Size = new System.Drawing.Size(1170, 68);
             this.log3.TabIndex = 4;
             this.log3.Text = "Starting ...";
             this.log3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -99,9 +101,9 @@
             // pb1
             // 
             this.pb1.Image = global::argos_pbtail.Properties.Resources.progressing;
-            this.pb1.Location = new System.Drawing.Point(26, 82);
+            this.pb1.Location = new System.Drawing.Point(6, 123);
             this.pb1.Name = "pb1";
-            this.pb1.Size = new System.Drawing.Size(104, 104);
+            this.pb1.Size = new System.Drawing.Size(124, 104);
             this.pb1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pb1.TabIndex = 5;
             this.pb1.TabStop = false;
@@ -111,7 +113,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(13F, 24F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.ClientSize = new System.Drawing.Size(1330, 269);
+            this.ClientSize = new System.Drawing.Size(1330, 371);
             this.Controls.Add(this.pb1);
             this.Controls.Add(this.log3);
             this.Controls.Add(this.log2);
