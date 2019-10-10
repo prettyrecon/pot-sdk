@@ -81,9 +81,9 @@ class PamManager(list):
 
         runner_info.PIPE.send(('play', ))
 
-        for _ in is_timeout(3):
-            if runner_info.RUNNER.is_alive():
-                return True
+        # for _ in is_timeout(3):
+        #     if runner_info.RUNNER.is_alive():
+        #         return True
         return False
 
     # Runner 종료 ##############################################################

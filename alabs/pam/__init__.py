@@ -179,8 +179,13 @@ def _main(*args):
     runner = pam_mgr.create(path)
     pam_mgr.start_runner(0)
     runner.RUNNER.join()
+    logger.info('A process is joined gracefully.')
+    logger.info('Trying to destroy the variable manager...')
     p.kill()
     p.join()
+    logger.info('Variable Manager is joined gracefully')
+    logger.info('Finished.')
+
 
 
 

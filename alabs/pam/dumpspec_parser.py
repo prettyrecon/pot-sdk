@@ -1,5 +1,6 @@
 import os
 import json
+from alabs.pam.conf import get_conf
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 
@@ -134,15 +135,15 @@ def plugin_spec_parser(dumpspec: dict):
         if not v:
             continue
         args += v
-
-    stdout = os.environ.setdefault('PLUGIN_STDOUT_FILE', 'plugin.stdout')
+    log = get_conf().get('/PATH/PLUGIN_LOG')
+    stderr = get_conf().get('/PATH/PLUGIN_STDERR_FILE')
+    stdout = get_conf().get('/PATH/PLUGIN_STDOUT_FILE')
     if stdout:
         args += ['--outfile ', stdout]
 
-    pam_log = os.environ.setdefault('PAM_LOG', 'pam.log')
-    if pam_log:
-        args += ['--errfile ', pam_log]
-        args += ['--logfile', pam_log]
+    if log:
+        args += ['--errfile ', stderr]
+        args += ['--logfile', log]
 
     ret = [spec['name'], ] + args
     ret = list(filter(None, ret))

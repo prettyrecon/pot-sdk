@@ -26,6 +26,8 @@ path['USER_PARAM_VARIABLES'] = str(CURRENT_PAM_CONF_DIR /
 
 path["CURRENT_PAM_LOG_DIR"] = str(CURRENT_PAM_LOG_DIR)
 path["OPERATION_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.stdout")
+path["OPERATION_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.stderr")
+path["PLUGIN_LOG"] = str(CURRENT_PAM_LOG_DIR / "plugin.log")
 path["PLUGIN_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stdout")
 path["PLUGIN_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stderr")
 path["PAM_LOG"] = str(CURRENT_PAM_LOG_DIR / "pam.log")
@@ -65,7 +67,7 @@ class Config(dict):
             if v is None:
                 raise KeyError('{} is not '.format(xpath))
             set_xpath(self, xpath, v)
-            conf_path = os.environ.setdefault('PAM_CONF', '.argos-rpa-pam.conf')
+            conf_path = os.environ.setdefault('PAM_CONF', path['PAM_CONF'])
             write_conf_file(conf_path, dict(self))
             if self.logger:
                 self.logger.info('Inserted default setting values... ')

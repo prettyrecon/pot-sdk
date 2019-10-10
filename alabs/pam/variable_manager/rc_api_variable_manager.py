@@ -20,7 +20,8 @@ from alabs.pam.variable_manager.rest import RestClient
 from alabs.pam.variable_manager import \
     REST_API_NAME, REST_API_VERSION, REST_API_PREFIX, RequestData
 #     ResponseErrorData
-from alabs.common.util.vvlogger import get_logger, StructureLogFormat
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
+    LogMessageHelper
 from alabs.common.util.vvtest import captured_output
 from alabs.pam.conf import get_conf
 
@@ -34,6 +35,7 @@ class VariableManagerAPI:
         if logger is None:
             logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         self.logger = logger
+        self.log_msg = LogMessageHelper()
 
         conf = get_conf(self.logger)
         if not ip:
@@ -41,7 +43,8 @@ class VariableManagerAPI:
         if not port:
             port = conf.get("/MANAGER/VARIABLE_MANAGER_PORT")
 
-        self.logger.info('Connecting to the variable manager.')
+        self.logger.info(self.log_msg.format(
+            'Connecting to the variable manager.'))
         self.logger.debug(StructureLogFormat(
             VAR_MGR_IP=ip, VAR_MGR_PORT=port,
             VAR_MGR_END_POINT=''.format('/'.join(
@@ -56,7 +59,8 @@ class VariableManagerAPI:
     # ==========================================================================
     def create(self, path, value):
         try:
-            self.logger.info('Requesting to create a variable.')
+            self.logger.info(self.log_msg.format(
+                'Requesting to create a variable.'))
             self.rc_api.set_resource('variables')
             data = {"path": path, "value": value, "name": str(self._pid)}
             data = RequestData(data)
@@ -77,7 +81,7 @@ class VariableManagerAPI:
 
     # ==========================================================================
     def get(self, path):
-        self.logger.info('Requesting to get a variable.')
+        self.logger.info(self.log_msg.format('Requesting to get a variable.'))
         try:
             self.rc_api.set_resource('variables')
             query = {"path": path, "name": self._pid}
@@ -110,9 +114,11 @@ class VariableManagerAPI:
         if not text:
             text = 'null'
         code, data = resp.status_code, convert_str(json.loads(text))
-        self.logger.info('Received the response from variable manager.')
+        self.logger.info(self.log_msg.format(
+            'Received the response from variable manager.'))
         if 200 < code and not 500 < code:
-            self.logger.error(
+            self.logger.warn(self.log_msg.format('Failed to get the data.'))
+            self.logger.debug(
                 StructureLogFormat(RESPONSE_CODE=code, RESPONSE_DATA=data))
         else:
             self.logger.debug(

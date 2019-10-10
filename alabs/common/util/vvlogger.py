@@ -57,6 +57,76 @@ class StructureLogFormat:
 
 
 ################################################################################
+class LogMessageHelper(object):
+    """
+    로그 메세지 프리픽스
+    >>> log = LogMessageHelper()
+    >>> log.push('Main')
+    'Main'
+    >>> log.push('Initializing Variable')
+    'Main|Initializing Variable'
+    >>> print(log.format('Done'))
+    [Main:Initializing Variable] Done
+    >>> log.pop()
+    'Main'
+    >>> print(log.format('Start'))
+    [Main] Start
+    """
+
+    SEP_CHAR = '|'
+    SEP_DEPTH_CHAR = ' > '
+
+    # ==========================================================================
+    def __init__(self, logger=None, log_env='LOG_PREFIX'):
+        self.log_env = log_env
+        self.logger = logger
+
+    # ==========================================================================
+    @property
+    def prefix(self) -> str:
+        return os.environ.setdefault(self.log_env, '')
+
+    # ==========================================================================
+    def clear(self):
+        os.environ[self.log_env] = ''
+
+    # ==========================================================================
+    def push(self, v):
+        prefix = self.prefix
+        if prefix:
+            prefix = prefix.split(self.SEP_CHAR)
+        else:
+            prefix = list()
+        prefix.append(v)
+        os.environ[self.log_env] = self.SEP_CHAR.join(prefix)
+        if self.logger:
+            self.logger.info(self.format('Start.'))
+        return os.environ[self.log_env]
+
+    # ==========================================================================
+    def pop(self):
+        prefix = self.prefix
+        prefix = prefix.split(self.SEP_CHAR)
+        if self.logger:
+            self.logger.info(self.format('Done.'))
+        if not prefix:
+            return ''
+        prefix.pop()
+        os.environ[self.log_env] = self.SEP_CHAR.join(prefix)
+        return os.environ[self.log_env]
+
+    # ==========================================================================
+    def __repr__(self):
+        return '[{}] '.format(
+            self.SEP_DEPTH_CHAR.join(
+                [x for x in self.prefix.split(self.SEP_CHAR)])) + '{}'
+
+    # ==========================================================================
+    def format(self, message):
+        return repr(self).format(message)
+
+
+################################################################################
 def get_logger(logfile,
                logsize=500*1024, logbackup_count=4,
                logger=None, loglevel=logging.DEBUG):

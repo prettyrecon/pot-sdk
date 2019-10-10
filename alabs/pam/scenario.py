@@ -1,5 +1,6 @@
 import codecs
-from alabs.common.util.vvlogger import get_logger, StructureLogFormat
+from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
+    LogMessageHelper
 from alabs.pam.operations import *
 from alabs.pam.conf import get_conf
 
@@ -23,6 +24,7 @@ class Scenario(dict):
         dict.__init__(self)
         global logger
         self.logger = logger
+        self.log_msg = LogMessageHelper()
         self._info = dict()
         # 현재 STEP과 ITEM INDEX
         # 절대 직접 접근하여 값을 바꾸지 말것
@@ -36,8 +38,6 @@ class Scenario(dict):
         self._variables = None
 
         self._scenario_filename = ""
-        # self.logger.info('>>>Start Initializing')
-
         self._scenario_image_dir = ""
         self.is_skip = False
 
@@ -153,7 +153,8 @@ class Scenario(dict):
         :return:
         """
         if len(self.steps) < order + 1:
-            self.logger.error('Out of the step order number')
+            self.logger.error(self.log_msg.format(
+                'Out of the step order number'))
             raise ValueError('Out of the step order number')
         self._current_step_index = order
         self._current_item_index = 0
@@ -184,7 +185,7 @@ class Scenario(dict):
     # ==========================================================================
     @property
     def item(self):
-        self.logger.info('Making a item instance.')
+        self.logger.info(self.log_msg.format('Making a item instance.'))
         data = self.items[self._current_item_index]
         class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
         # 플러그인 타입의 class_name은 플러그인 이름이 적혀있음
@@ -227,6 +228,7 @@ class Scenario(dict):
     def __next__(self):
         # 반복문 스택 존재 검사
         if self._repeat_stack:
+            self.logger.info(self.log_msg.format('Working in the loop action.'))
             self.logger.debug(
                 StructureLogFormat(REPEAT_STACK=self._repeat_stack))
             self._current_item_index = self._repeat_stack[-1].get_next()
@@ -234,10 +236,12 @@ class Scenario(dict):
         if len(self.items) - 1 < self._current_item_index:
             # 시나리오 끝
             if len(self.steps) - 1 <= self._current_step_index:
-                self.logger.info('Reached the end of the scenario.')
+                self.logger.info(self.log_msg.format(
+                    'Reached at the end of the scenario.'))
                 raise StopIteration
             # 다음 스텝이 있는 경우
-            self.logger.infor('Reached the end of the step.')
+            self.logger.info(self.log_msg.format(
+                'Reached at the end of the step.'))
             self._current_step_index += 1
             self._current_item_index = 0
 
@@ -257,6 +261,8 @@ class Scenario(dict):
         :return:
         """
         if len(self.step) <= index:
+            self.logger.error(self.log_msg.format(
+                "Out of the index of the current step"))
             raise ValueError("Out of the index of the current step")
         self._current_item_index = index
         return self._current_item_index
@@ -284,6 +290,8 @@ class Scenario(dict):
         # 아이템의 첫번째를 벗어나는 경우, 이전 스텝으로 이동
         if quotient < 0:
             if self._current_step_index == 0:
+                self.logger.error(self.log_msg.format(
+                    "Out of the index of the current step"))
                 raise IndexError
             self._current_step_index -= 1
             self._current_item_index = (len(self.items) - 1) - quotient
