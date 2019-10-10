@@ -24,9 +24,8 @@ Change Log
 
 ################################################################################
 import os
-from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
-    ArgsError, ArgsExit
-from pathlib import Path
+import platform
+from alabs.common.definitions.platforms import Platforms
 
 ################################################################################
 # Version
@@ -42,53 +41,25 @@ DESCRIPTION = 'Selecting Window'
 
 
 ################################################################################
-def select_window_for_windows(mcxt, argspec):
-    """
-
-    :param mcxt:
-    :param argspec:
-    :return:
-    """
-
-
-################################################################################
-@func_log
-def select_window(mcxt, argspec):
-    """
-    plugin job function
-    :param mcxt: module context
-    :param argspec: argument spec
-    :return: actual delay seconds
-    """
-    mcxt.logger.info('>>>starting...')
-    files = [Path(f) for f in argspec.files]
-    result = list()
-    for file in files:
-        if not file.exists():
-            result.append((str(file), "file not found"))
-            continue
-        try:
-            os.remove(str(file))
-        except OSError as e:
-            result.append((str(file), e.strerror))
-    mcxt.logger.info('>>>end...')
-    return result
-
-################################################################################
-def _main(*args):
-    with ModuleContext(
-        owner=OWNER,
-        group=GROUP,
-        version=VERSION,
-        platform=PLATFORM,
-        output_type=OUTPUT_TYPE,
-        description=DESCRIPTION,
-    ) as mcxt:
-        mcxt.add_argument('files', type=str, nargs='+', help='Files')
-        argspec = mcxt.parse_args(args)
-        return select_window(mcxt, argspec)
-
-################################################################################
 def main(*args):
+    _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
+    if _platform == Platforms.LINUX.value:
+        raise NotImplemented
+        # from alabs.rpa.desktop.select_window.linux import main as _main
+
+    elif _platform == Platforms.WINDOWS.value:
+        from alabs.rpa.desktop.select_window.windows import main as _main
+
+    elif _platform == Platforms.MAC.value:
+        # from alabs.rpa.desktop.select_window.windows import main as _main
+        raise NotImplemented
+        # from alabs.rpa.desktop.select_window.linux import main as _main
+
+    elif _platform == Platforms.IOS.value:
+        raise NotImplemented
+        # from alabs.rpa.autogui.click.ios import main as _main
+        # return _main('--wda_url', url, '--wda_port', port)
+    else:
+        raise Exception("{} is Not Supported Platform".format(_platform))
     return _main(*args)
 
