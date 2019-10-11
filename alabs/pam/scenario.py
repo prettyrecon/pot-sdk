@@ -41,6 +41,9 @@ class Scenario(dict):
         self._scenario_image_dir = ""
         self.is_skip = False
 
+        # Web Driver
+        self.web_driver = None
+
     # ==========================================================================
     @property
     def name(self):

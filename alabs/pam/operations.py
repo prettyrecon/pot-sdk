@@ -818,11 +818,46 @@ class Excel(Items):
 
 ################################################################################
 class Navigate(Items):
-    # OCR
-    references = ('imageMatch',)
+    # Open Web Browser
+    # 사니리오 인스턴스에 웹드라이버 인스턴스를 등록해서 사용
+    # 이후 관련 오퍼레이션들은 시나리오에 웹드라이버가 등록되어 있는지 검사 후 동작
+    references = ('navigate',)
+    # "navigate": {"URL": "http://www.daum.net", "Width": 0, "Height": 0,
+    #              "IsChageSize": false}
+
+    # ==========================================================================
+    @property
+    def arguments(self):
+        url = self['navigate']['URL']
+        size = {'is_change_size': self['navigate']['IsChageSize'],
+                'width': self['navigate']['Width'],
+                'height': self['navigate']['Height'],}
+        return url, size
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        from selenium import webdriver
+        url, size = self.arguments
+        chrome_driver = get_conf().get('/WEB_DRIVER/CHROME_DRIVER_WINDOWS')
+        options = dict()
+        options['executable_path'] = chrome_driver
+        if size['is_change_size']:
+            from selenium.webdriver.chrome.options import Options
+            c_options = Options()
+            c_options.add_argument(
+                '--window-size={},{}'.format(size['width'], size['height']))
+            options['options'] = c_options
+
+        self.logger.debug(StructureLogFormat(
+            EXECUTABLE_PATH=chrome_driver, SIZE=size))
+
+        with captured_output() as (out, err):
+            wdrv = webdriver.Chrome(**options)
+        if err.getvalue():
+            self.logger.error(self.log_msg.format(err.getvalue()))
+        self.logger.info(self.log_msg.format(out.getvalue()))
+        wdrv.get(url)
+        self._scenario.web_driver = wdrv
         return
 
 

@@ -404,13 +404,13 @@ class Runner(mp.Process):
             self.log_prefix.pop()  # Operation Stepping
         except ExceptionTreatAsError as e:
             with captured_output() as (out, _):
-                traceback.print_exc()
+                traceback.print_exc(file=out)
             self.logger.error(self.log_prefix.format(out.getvalue()))
         except KeyboardInterrupt:
             self.logger.warn(self.log_prefix.format('Keyboard Interrupt.'))
         except Exception as e:
-            with captured_output() as (out, _):
-                traceback.print_exc()
+            with captured_output() as (out, err):
+                traceback.print_exc(file=out)
             self.logger.error(self.log_prefix.format(out.getvalue()))
         finally:
             self.logger.info(self.log_prefix.format('The process has ended.'))

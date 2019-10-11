@@ -15,6 +15,9 @@ ARGOS_RPA_PAM_LOG_DIR = PAM / "logs"
 ARGOS_RPA_VENV_DIR = ARGOS_RPA_PAM_DIR / "venvs"
 # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
 
+PROGRAM = PAM / 'programs'
+PROGRAM_WEB_DRIVER = PROGRAM / 'web_drivers'
+
 # PosixPath('/Users/limdeokyu/.argos-rpa.logs/17880')
 CURRENT_PAM_CONF_DIR = PAM
 CURRENT_PAM_LOG_DIR = ARGOS_RPA_PAM_LOG_DIR
@@ -33,6 +36,9 @@ path["PLUGIN_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stderr")
 path["PAM_LOG"] = str(CURRENT_PAM_LOG_DIR / "pam.log")
 path["OPERATION_LOG"] = str(CURRENT_PAM_LOG_DIR / "operation.log")
 
+web_drv = dict()
+web_drv["CHROME_DRIVER_WINDOWS"] = str(PROGRAM_WEB_DRIVER / 'chromedriver.exe')
+web_drv["WEB_DRIVER_EXECUTOR_URL"] = ''
 
 manager = dict()
 manager['IP'] = '127.0.0.1'
@@ -44,6 +50,7 @@ manager['VARIABLE_MANAGER_PORT'] = 8012
 _conf = {
         'PATH': path,
         'MANAGER': manager,
+        'WEB_DRIVER': web_drv,
     }
 
 
