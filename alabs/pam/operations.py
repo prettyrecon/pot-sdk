@@ -599,10 +599,26 @@ class HtmlAction(Items):
 ################################################################################
 class BrowserScript(Items):
     # OCR
-    references = ('imageMatch',)
+    references = ('browserScript',)
+    # {'browserScript': {'script': 'script'}}
+    # ==========================================================================
+    @property
+    def arguments(self):
+        script = self['browserScript']['script']
+        return script,
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        # OpenBrowser 가 실행되어 있어야 함
+        if not self._scenario.web_driver:
+            self.logger.error(self.log_msg.format(
+                'OpenBrowser must be running before this operation.'))
+            raise Exception('This operation works with selenium web driver.')
+
+        script = self.arguments[0]
+        self.logger.debug(StructureLogFormat(SCRIPT=script))
+
+        self._scenario.web_driver.execute_script(script)
         return
 
 
