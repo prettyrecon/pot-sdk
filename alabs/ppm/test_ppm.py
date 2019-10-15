@@ -1162,6 +1162,7 @@ private-repositories:
             pass
 
     # ==========================================================================
+    # DEBUG
     def test_0710_plugin_venv(self):
         try:
             cmd = [
@@ -1170,6 +1171,19 @@ private-repositories:
                 'pyautogui',
                 'bs4',
                 'opencv-python',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # ==========================================================================
+    # DEBUG : 수정완료
+    def test_0720_plugin_venv_data_rdb(self):
+        try:
+            cmd = [
+                'plugin', 'venv',
+                'argoslabs.data.rdb'
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)

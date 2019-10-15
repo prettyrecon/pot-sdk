@@ -761,7 +761,8 @@ class PPM(object):
                 self._set_private_repositories(json.loads(r.text))
                 return True
         except Exception as err:
-            msg = '_get_private_repositories Error : %s\n' % str(err)
+            self.sta.log(StatLogger.LT_2, 'Error: to connect "https://api-chief.argos-labs.com/chief/repositories"')
+            msg = '_get_private_repositories Error to connect "https://api-chief.argos-labs.com/chief/repositories": \n%s\n' % str(err)
             sys.stderr.write(msg)
             self.logger.error(msg)
             return False
