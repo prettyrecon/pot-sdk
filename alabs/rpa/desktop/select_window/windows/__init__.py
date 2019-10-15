@@ -75,7 +75,7 @@ def select_window(mcxt, argspec):
     if argspec.size is not None:
         change_window_size(handle, argspec.size[0], argspec.size[1])   # 사이즈 조정
     active_window(handle)  # 포커스
-    # 클릭
+    # 클릭은 다른곳에서?
     mcxt.logger.info('>>>end...')
     return
 
@@ -139,9 +139,8 @@ def find_window_in_thread(thread_id, title_pattern, is_browser):
                 if len(temp_strings[len(temp_strings) - 1]) > 0:
                     title_string = title_string[0:last_index].rstrip()
 
-        #와일드 카드를 적용하여 추후 변경.
-        if title_string == title_pattern: #타이틀 값이 같을때 핸들값 리턴
-            #print("Success!!! :")
+        # 와일드 카드를 적용한 타이틀비교. 같을 경우 핸들값 리턴
+        if text_compare_with_wildcard(title_string, title_pattern):
             handle = window_handle
             return True #원래는 False 로 리턴해야하나... 에러가 발생함???? 이유는 모르겠음
         return True
@@ -180,6 +179,39 @@ def check_process_name(process_name):  # c#에서는 프로세스명에 .exe를 
     if not process_name.endswith('.exe'):
         temp_process_name = process_name + '.exe'
     return temp_process_name
+
+
+def text_compare_with_wildcard(origin_text, pattern):
+    if not origin_text or not pattern:
+        return False
+    temp_string = origin_text
+    if '*' in pattern:
+        dividers = pattern.split('*')
+
+        if dividers[0] != "":
+            is_result = temp_string.startswith(dividers[0])
+            temp_string = temp_string.replace(dividers[0], "")
+            if not is_result:
+                return False
+
+        while_index = 1
+        while while_index < len(dividers):
+            if dividers[while_index] == "":
+                while_index += 1
+                continue
+            if while_index == len(dividers) - 1:
+                is_result = temp_string.endswith(dividers[while_index])
+            else:
+                n_index = temp_string.find(dividers[while_index])
+                is_result = n_index > -1
+                if is_result:
+                    temp_string = temp_string[n_index + len(dividers[while_index]):]
+            if not is_result:
+                return False
+            while_index += 1
+
+    return True
+
 
 ################################################################################
 def _main(*args):
