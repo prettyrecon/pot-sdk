@@ -47,7 +47,11 @@ class PamManager(list):
         list.__init__(self, *args)
         global logger
         self.logger = logger
-        os.environ['PARENT_SITE'] = site.getsitepackages()[1]
+        try:
+            os.environ['PARENT_SITE'] = site.getsitepackages()[1]
+        except AttributeError as e:
+            os.environ['PARENT_SITE'] = os.path.dirname(site.__file__) + \
+                                        '/site-packages'
 
     def __del__(self):
         if isinstance(self, PamManager):
@@ -279,14 +283,22 @@ def get_venv(requirements):
     args = 'plugin venv {}'.format(req)
     logger.info('Installing plugins.')
     logger.debug(StructureLogFormat(PLUGINS=essensial_modules))
-    with captured_output() as (out, err):
-        ppm(args.split())
-    print(out.getvalue())
-    if err.getvalue():
-        logger.error(err.getvalue())
+    cmd = 'python -m alabs.ppm {}'.format(args)
+    import subprocess
+    proc = subprocess.Popen(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    # print(out.getvalue())
+    out = out.read()
+    err = err.read()
+    # with captured_output() as (out, err):
+    #     ppm(args.split())
+    print(out)
+    if err:
+        logger.error(err)
         return False
     logger.info('Created python virtual environment.')
-    logger.debug(StructureLogFormat(PATH=out.getvalue()))
+    logger.debug(StructureLogFormat(PATH=out))
     return True
 
 
