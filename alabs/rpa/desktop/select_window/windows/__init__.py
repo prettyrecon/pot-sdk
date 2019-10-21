@@ -88,8 +88,11 @@ def select_window(mcxt, argspec):
     # 포커스
     active_window(handle)
 
+    # 윈도우의 위치 사이즈 정보를 리턴
+    result = get_window_rect(handle)
+
     mcxt.logger.info('>>>end...')
-    return
+    return result
 
 
 ################################################################################
@@ -311,6 +314,19 @@ def text_compare_with_wildcard(origin_text, pattern):
             while_index += 1
 
     return True
+
+
+################################################################################
+def get_window_rect(handle):
+    """
+    특정 handle 의 창 위치와 크기값을 리턴
+    :param handle: window handle
+    :return: x좌표,y좌표,폭,높이
+    """
+    result = win32gui.GetWindowRect(handle)
+    location_string = '%s,%s' % (result[0], result[1])
+    size_string = '%s,%s' % (result[2] - result[0], result[3] - result[1])
+    return location_string + ',' + size_string
 
 
 ################################################################################
