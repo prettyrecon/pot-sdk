@@ -45,7 +45,7 @@
             // 
             this.log1.AutoEllipsis = true;
             this.log1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.log1.Font = new System.Drawing.Font("Times New Roman", 11F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.log1.Font = new System.Drawing.Font("Segoe UI", 10.875F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.log1.ForeColor = System.Drawing.SystemColors.HotTrack;
             this.log1.Location = new System.Drawing.Point(133, 45);
             this.log1.Name = "log1";
@@ -58,7 +58,7 @@
             // log2
             // 
             this.log2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.log2.Font = new System.Drawing.Font("Times New Roman", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.log2.Font = new System.Drawing.Font("Segoe UI", 10.125F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.log2.ForeColor = System.Drawing.Color.CornflowerBlue;
             this.log2.Location = new System.Drawing.Point(127, 149);
             this.log2.Name = "log2";
@@ -70,7 +70,7 @@
             // log3
             // 
             this.log3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(242)))), ((int)(((byte)(242)))), ((int)(((byte)(242)))));
-            this.log3.Font = new System.Drawing.Font("Times New Roman", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.log3.Font = new System.Drawing.Font("Segoe UI", 7.875F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.log3.ForeColor = System.Drawing.SystemColors.ControlDark;
             this.log3.Location = new System.Drawing.Point(128, 254);
             this.log3.Name = "log3";
@@ -103,7 +103,7 @@
             this.pb1.Image = global::argos_pbtail.Properties.Resources.progressing;
             this.pb1.Location = new System.Drawing.Point(6, 123);
             this.pb1.Name = "pb1";
-            this.pb1.Size = new System.Drawing.Size(124, 104);
+            this.pb1.Size = new System.Drawing.Size(114, 104);
             this.pb1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pb1.TabIndex = 5;
             this.pb1.TabStop = false;

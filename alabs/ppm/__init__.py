@@ -932,9 +932,9 @@ class PPM(object):
         # --index http://pypi.argos-labs.com:8080 --trusted-host=pypi.argos-labs.com
         # --dest=C:\tmp\pkg --no-deps
         if not version:
-            log_msg = "Getting specification for plugin %s" % modname
+            log_msg = "Getting specifications for plugin %s" % modname
         else:
-            log_msg = "Getting specification for plugin %s with version %s" % (modname, version)
+            log_msg = "Getting specifications for plugin %s with version %s" % (modname, version)
         self.sta.log(StatLogger.LT_3, log_msg)
         mname = modname
         if not version:
@@ -1366,7 +1366,7 @@ six [('==', '1.10.0')]
             # PAM용 환경설정 만들기
             ####################################################################
             if self.args.plugin_cmd == 'venv':
-                self.sta.log(StatLogger.LT_2, "Preparing running environment")
+                self.sta.log(StatLogger.LT_2, "Preparing execution environment")
                 if not (self.args.plugin_module or self.args.requirements_txt):
                     raise RuntimeError('PPM.do_plugin: plugin-modules parameters or --requirements-txt option must be specifiyed.')
                 if self.args.requirements_txt and not os.path.exists(self.args.requirements_txt):
@@ -1509,7 +1509,7 @@ six [('==', '1.10.0')]
                                 ofp.write('%s,%s%s' % (mod, ved['version'], os.linesep))
 
             elif self.args.plugin_cmd == 'versions':
-                self.sta.log(StatLogger.LT_2, "Getting versions of plugin")
+                self.sta.log(StatLogger.LT_2, "Checking version numbers of plugin")
                 if not self.args.plugin_module or len(self.args.plugin_module) != 1:
                     raise RuntimeError('plugin versions need only one plugin_module parameter')
                 modname = self.args.plugin_module[0]
@@ -1527,7 +1527,7 @@ six [('==', '1.10.0')]
             # 예) alabs.ppm plugin dumpspec --private-only --outfile dumpspec.json
             ####################################################################
             elif self.args.plugin_cmd == 'dumpspec':
-                self.sta.log(StatLogger.LT_2, "Getting the specification of plugins")
+                self.sta.log(StatLogger.LT_2, "Getting the specifications of plugins")
                 rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')
                 json.dump(rd, ofp)
             ####################################################################
@@ -1736,13 +1736,13 @@ six [('==', '1.10.0')]
             ####################################################################
             if self.args.command == 'get':
                 if self.args.get_cmd == 'repository':
-                    self.sta.log(StatLogger.LT_2, 'get offcial repository')
+                    self.sta.log(StatLogger.LT_2, 'Connecting offcial repository')
                     print(self.indices[0])
                 elif self.args.get_cmd == 'trusted-host':
-                    self.sta.log(StatLogger.LT_2, 'get trusted host')
+                    self.sta.log(StatLogger.LT_2, 'Connecting trusted host')
                     print(self._get_host_from_index(self.indices[0]))
                 elif self.args.get_cmd == 'private':
-                    self.sta.log(StatLogger.LT_2, 'get private repository')
+                    self.sta.log(StatLogger.LT_2, 'Connecting private repository')
                     prl = self.indices[1:]
                     if not prl:
                         print('No private repository')
@@ -1856,7 +1856,7 @@ six [('==', '1.10.0')]
                 return r
             elif self.args.command == 'submit':
                 zf = None
-                self.sta.log(StatLogger.LT_2, "submit to upload server user's plugin candidate")
+                self.sta.log(StatLogger.LT_2, "submitting plugin candidate file")
                 try:
                     if not self.args.submit_key:
                         raise RuntimeError('submit: Invalid submit key')
@@ -1889,7 +1889,7 @@ six [('==', '1.10.0')]
                     if zf and os.path.exists(zf):
                         os.remove(zf)
             elif self.args.command == 'upload':
-                self.sta.log(StatLogger.LT_2, "upload user's plugin to private repository")
+                self.sta.log(StatLogger.LT_2, "upload plugin file to the private repository")
                 for pkg in self.UPLOAD_PKGS:
                     self.venv.venv_pip('install', pkg, *self.ndx_param)
 
@@ -2187,7 +2187,7 @@ version = 3.7.3
 ################################################################################
 def _main(argv=None):
     sta = StatLogger(is_clear=True)
-    sta.log(StatLogger.LT_1, 'Preparing STU and PAM or POT. Please wait.')
+    sta.log(StatLogger.LT_1, 'Preparing STU and PAM.')
     if getattr(sys, 'frozen', False):
         ppm_exe_init(sta)
     cwd = os.getcwd()
@@ -2372,10 +2372,11 @@ set {conf_path} as follows:
             finally:
                 logging.shutdown()
     finally:
-        sta.log(StatLogger.LT_1, 'Preparing STU and PAM or POT done.')
+        sta.log(StatLogger.LT_1, 'Preparing STU and PAM is done.')
         global pbtail_po
         if pbtail_po is not None:
             pbtail_po.wait()
+            # pbtail_po.terminate()
             StatLogger().clear()
         os.chdir(cwd)
 

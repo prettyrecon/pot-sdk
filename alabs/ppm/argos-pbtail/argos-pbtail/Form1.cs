@@ -65,7 +65,7 @@ namespace argos_pbtail
                         {
                             log1.Text = line;
                         }));
-                        if (line == "Preparing STU and PAM or POT done.")
+                        if (line == "Preparing STU and PAM is done.")
                             return;
                     }
                     else
