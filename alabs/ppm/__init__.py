@@ -16,6 +16,15 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/12/12]
+#   - --on-premise 별도 옵션 추가
+#  * [2019/12/11]
+#   - on-premise에서 인터넷 연결 시 문제 수정
+#  * [2019/12/06]
+#   - on-premise에 적응하도록 수정 (도메인의 호스트 명에 -hcl 붙인 것들 확인)
+#   - 정확히 일치하는 버전의 플러그인 없으면 최신 버전을 설치하도록 수정
+#  * [2019/12/04]
+#   - offline 저장소를 만들려다 보니 argoslabs.* 만 플러그인으로 가져오도록 함 _list_modules
 #  * [2019/09/03]
 #   - argos-pbtail.exe 상태 표시창 추가 (win32)
 #  * [2019/08/28]
@@ -128,6 +137,7 @@ from bs4 import BeautifulSoup
 from alabs.common.util.vvjson import get_xpath
 from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvupdown import SimpleDownUpload
+from alabs.common.util.vvnet import is_svc_opeded
 from alabs.ppm.pypiuploader.commands import main as pu_main
 from functools import cmp_to_key
 from getpass import getpass
@@ -368,7 +378,7 @@ class VEnv(object):
             '"%s"' % os.path.abspath(sys.executable),
             '-m',
             'venv',
-            self.root
+            '"%s"' % self.root  # 아래의 shell=True 때문에 ""를 주었음
         ]
         self.logger.info("venv: cmd='%s'" % ' '.join(cmd))
         # python -m venv ... 명령은 shell 에서 해야 정상 동작함
@@ -478,7 +488,11 @@ class VEnv(object):
             cmd = [
                 self.get_venv(),
             ]
-            cmd += args
+            # cmd += args
+            for arg in args:
+                if arg.lower().startswith('c:\\'):
+                    arg = '"%s"' % arg
+                cmd.append(arg)
             self.logger.debug('VEnv.venv_py: cmd="%s"' % ' '.join(cmd))
             # Windows의 python.exe -m 등의 명령어가 shell 모드에서 정상 동작함
 
@@ -564,6 +578,7 @@ class VEnv(object):
 
 
 ################################################################################
+# noinspection PyShadowingBuiltins,PyUnresolvedReferences,PyBroadException,PyPep8Naming
 class PPM(object):
     # ==========================================================================
     BUILD_PKGS = [
@@ -597,9 +612,67 @@ class PPM(object):
     DUMPSPEC_JSON = 'dumpspec.json'
     EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common', 'alabs.icon')
     # ==========================================================================
-    URL_MOD_VER = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/mod-ver-list.json'
-    URL_DEF_DUMPSPEC = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/dumpspec-def-all.json'
-    URL_DUMPSPEC = 'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins/{plugin_name}-{version}-dumpspec.json'
+    URL_OAUTH = [
+        'https://oauth-rpa.argos-labs.com',     # 첫번째는 무조건 공식 도메인
+        'https://oauth-rpa-hcl.argos-labs.com',
+    ]
+    URL_API_CHIEF = [
+        'https://api-chief.argos-labs.com',     # 첫번째는 무조건 공식 도메인
+        'https://api-chief-hcl.argos-labs.com',
+    ]
+    URL_S3 = 'https://s3-us-west-2.amazonaws.com'
+    URL_MOD_VER = '%s/rpa-file.argos-labs.com/plugins/mod-ver-list.json' % URL_S3
+    URL_DEF_DUMPSPEC = '%s/rpa-file.argos-labs.com/plugins/dumpspec-def-all.json' % URL_S3
+    URL_DUMPSPEC = '%s/rpa-file.argos-labs.com/plugins/{plugin_name}-{version}-dumpspec.json' % URL_S3
+
+    # ==========================================================================
+    @staticmethod
+    def _is_url_valid(url):
+        up = urlparse(url)
+        nl = up.netloc
+        if nl.find(':') > 0:
+            host = urlparse(url).netloc.split(':')[0]
+            port = urlparse(url).netloc.split(':')[1]
+        else:
+            host = nl
+            port = 443 if up.scheme == 'https' else 80
+        return is_svc_opeded(host, int(port))
+
+    # ==========================================================================
+    @staticmethod
+    def _get_valid_url(urls):
+        for url in urls:
+            if PPM._is_url_valid(url):
+                return url
+        return None
+
+    # ==========================================================================
+    def _get_URL_OAUTH(self, is_on_premise=False):
+        if is_on_premise:
+            r = self._get_valid_url(reversed(self.URL_OAUTH))
+        else:
+            r = self._get_valid_url(self.URL_OAUTH)
+        if not r:
+            raise RuntimeError('Cannot valid URL for OAUTH')
+        return r
+
+    # ==========================================================================
+    def _get_URL_API_CHIEF(self, is_on_premise=False):
+        if is_on_premise:
+            r = self._get_valid_url(reversed(self.URL_API_CHIEF))
+        else:
+            r = self._get_valid_url(self.URL_API_CHIEF)
+        if not r:
+            raise RuntimeError("Cannot valid URL for Supersivor's API")
+        return r
+
+    # ==========================================================================
+    def _is_on_premise(self):
+        return self.args.on_premise
+        # # 인터넷 연결과 상관없이 on-premise 인가 조사
+        # r1 = self._get_valid_url(self.URL_OAUTH[1:])
+        # r2 = self._get_valid_url(self.URL_API_CHIEF[1:])
+        # return r1 and r2
 
     # ==========================================================================
     def __init__(self, _venv, args, config, logger=None, sta=None):
@@ -735,9 +808,9 @@ class PPM(object):
 
     # ==========================================================================
     def _get_private_repositories(self):
+        url = '%s/chief/repositories' \
+              % self._get_URL_API_CHIEF(is_on_premise=self._is_on_premise())
         try:
-            url = 'https://api-chief.argos-labs.com/chief/repositories'
-
             headers = {
                 'Accept': 'application/json',
             }
@@ -761,8 +834,8 @@ class PPM(object):
                 self._set_private_repositories(json.loads(r.text))
                 return True
         except Exception as err:
-            self.sta.log(StatLogger.LT_2, 'Error: to connect "https://api-chief.argos-labs.com/chief/repositories"')
-            msg = '_get_private_repositories Error to connect "https://api-chief.argos-labs.com/chief/repositories": \n%s\n' % str(err)
+            self.sta.log(StatLogger.LT_2, 'Error: to connect "%s"' % url)
+            msg = '_get_private_repositories Error to connect "%s": \n%s\n' % (url, str(err))
             sys.stderr.write(msg)
             self.logger.error(msg)
             return False
@@ -771,14 +844,18 @@ class PPM(object):
     def _get_indices(self):
         self.indices = []
         self.ndx_param = []
-        url = get_xpath(self.config, '/repository/url')
-        if not url:
-            raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % CONF_NAME)
-        self.indices.append(url)
-        self.ndx_param.append('--index')
-        self.ndx_param.append(url)
-        self.ndx_param.append('--trusted-host')
-        self.ndx_param.append(self._get_host_from_index(url))
+
+        if not self._is_on_premise():
+            url = get_xpath(self.config, '/repository/url')
+            if not url:
+                raise RuntimeError('PPM._get_indices: Invalid repository.url from %s'
+                                   % CONF_NAME)
+            if self._is_url_valid(url):
+                self.indices.append(url)
+                self.ndx_param.append('--index')
+                self.ndx_param.append(url)
+                self.ndx_param.append('--trusted-host')
+                self.ndx_param.append(self._get_host_from_index(url))
         pr = None
 
         # 2019.7.27 POT private plugin 정보를 API로 가져오도록 함
@@ -787,6 +864,8 @@ class PPM(object):
             is_pr = self._get_private_repositories()
         if not is_pr:
             return self.indices
+        # 2019.12.06 : 만약 on-premise 처럼 API에서 못 가져오면 config에서
+        # 가져오도록 아래를 타도록 위에 두 줄을 막음
 
         if 'private-repositories' in self.config:
             pr = self.config.get('private-repositories', [])
@@ -823,11 +902,16 @@ class PPM(object):
     def _list_modules(self, startswith='argoslabs.',
                       official_only=False, private_only=False):
         modlist = list()
+        if official_only and self._is_on_premise():
+            # 2019.12.11 on-premise 인 경우에는 official 무시
+            return modlist
         for i, url in enumerate(self.indices):
             if i == 0 and private_only:
-                continue
-            if i > 0 and official_only:
-                break
+                if self._get_host_from_index(url) == 'pypi-official.argos-labs.com':
+                    continue
+            if official_only:
+                if self._get_host_from_index(url) != 'pypi-official.argos-labs.com':
+                    continue
             o = urlparse(url)
             web_url = '{scheme}://{netloc}/packages/'.format(scheme=o.scheme,
                                                              netloc=o.netloc)
@@ -838,6 +922,9 @@ class PPM(object):
                 soup = BeautifulSoup(html, 'html.parser')
             for x in soup.find_all('a'):
                 # pprint(x.text)
+                # offline 저장소를 만들려다 보니 argoslabs.* 만 플러그인으로 가져오도록 함
+                if not x.text.startswith('argoslabs.'):
+                    continue
                 if startswith and not x.text.startswith(startswith):
                     continue
                 is_exclude = False
@@ -883,6 +970,8 @@ class PPM(object):
 
     # ==========================================================================
     def _def_dumpspec_from_s3(self):
+        if not self._is_url_valid(self.URL_S3):
+            return {}
         r = requests.get(self.URL_DEF_DUMPSPEC)
         if r.status_code // 10 != 20:
             self.sta.error("download %s error!" % self.URL_DEF_DUMPSPEC)
@@ -897,6 +986,8 @@ class PPM(object):
                 if ds['plugin_version'] == version:
                     return ds
             self.logger.error('Found "%s" module but not version "%s" in self.def_dumpspec' % (modname, version))
+        if not self._is_url_valid(self.URL_S3):
+            raise IOError('Cannot find valid url for S3 store')
         url = self.URL_DUMPSPEC.format(plugin_name=modname, version=version)
         r = requests.get(url)
         if r.status_code // 10 != 20:
@@ -907,16 +998,21 @@ class PPM(object):
 
     # ==========================================================================
     def _mod_ver_list_from_s3(self):
-        r = requests.get(self.URL_MOD_VER)
-        if r.status_code // 10 != 20:
-            self.sta.error("download %s error!" % self.URL_MOD_VER)
-            raise RuntimeError('Cannot get "%s"' % self.URL_MOD_VER)
-        self.sta.log(StatLogger.LT_3, "download %s" % self.URL_MOD_VER.split('/')[-1])
-        rj = json.loads(r.content)
-        mvl = {}
-        for md in rj['mod-ver-list']:
-            mvl[md['name']] = md['versions']
-        return mvl
+        try:
+            if not self._is_url_valid(self.URL_S3):
+                raise RuntimeError('Cannot find valid url for S3 store')
+            r = requests.get(self.URL_MOD_VER)
+            if r.status_code // 10 != 20:
+                self.sta.error("download %s error!" % self.URL_MOD_VER)
+                raise RuntimeError('Cannot get "%s"' % self.URL_MOD_VER)
+            self.sta.log(StatLogger.LT_3, "download %s" % self.URL_MOD_VER.split('/')[-1])
+            rj = json.loads(r.content)
+            mvl = {}
+            for md in rj['mod-ver-list']:
+                mvl[md['name']] = md['versions']
+            return mvl
+        except Exception:
+            return {}
 
     # ==========================================================================
     def _find_last_version_from_mod_ver_list(self, modname):
@@ -989,8 +1085,9 @@ class PPM(object):
         msg = 'Try to dump plugin spec for user "%s"' % self.args.user
         sys.stdout.write('%s\n' % msg)
         self.logger.info(msg)
-        url = 'https://api-chief.argos-labs.com/plugin/api/v1.0/users/%s/plugins' \
-              % quote(self.args.user)
+        url = '%s/plugin/api/v1.0/users/%s/plugins' \
+              % (self._get_URL_API_CHIEF(is_on_premise=self._is_on_premise()),
+                 quote(self.args.user))
         if not self.args.user_auth:
             raise RuntimeError('_dumpspec_user: --user-auth option must have a valid key')
         headers = {
@@ -1066,8 +1163,15 @@ class PPM(object):
             for info in zf.infolist():
                 if info.filename.lower().endswith('.whl'):
                     zf.extract(info, _tmpdir)
-                    wh_t = os.path.join(_tmpdir, os.path.basename(info.filename))
-                    r = new_venv.venv_pip('install', wh_t)
+                    wh_t = os.path.join(_tmpdir, info.filename)
+                    if not os.path.exists(wh_t):
+                        wh_t = os.path.join(_tmpdir, os.path.basename(info.filename))
+                    if not os.path.exists(wh_t):
+                        self.logger.error('_pre_requirements_install: '
+                                          'extract "%s" from whl but fail to access' % info.filename)
+                        r = 1
+                    else:
+                        r = new_venv.venv_pip('install', wh_t)
                     if r != 0:
                         self.logger.error('_pre_requirements_install: '
                                           'install "%s" error!' % wh_t)
@@ -1101,18 +1205,27 @@ class PPM(object):
                 self.logger.error(_msg)
                 raise RuntimeError(_msg)
             gl = glob.glob('%s/%s-*.whl' % (_tmpdir, modname))
-            for f in gl:
-                r = self._pre_requirements_install(new_venv, _tmpdir, f, modname)
-                if r != 0:
-                    self.logger.error('_check_cache_download_and_install: '
-                                      'install "%s" error!' % f)
-                # noinspection PyBroadException
-                try:
-                    shutil.move(f, _cachedir)
-                except Exception:
-                    self.logger.error('"%s" is exists in "%s"'
-                                      % (os.path.basename(f), _cachedir))
-                return r
+            gls = [f for f in gl]
+            if gls:
+                for f in gls:
+                    r = self._pre_requirements_install(new_venv, _tmpdir, f, modname)
+                    if r != 0:
+                        self.logger.error('_check_cache_download_and_install: '
+                                          'install "%s" error!' % f)
+                    # noinspection PyBroadException
+                    try:
+                        shutil.move(f, _cachedir)
+                    except Exception:
+                        self.logger.error('"%s" is exists in "%s"'
+                                          % (os.path.basename(f), _cachedir))
+                    return r
+            # whl이 아닌 경우 그대로 설치하려고 노력 : 2019.12.12
+            _args = [
+                'install', modspec,
+                *self.ndx_param
+            ]
+            r = new_venv.venv_pip(*_args)
+            return r
         finally:
             if os.path.exists(_tmpdir):
                 shutil.rmtree(_tmpdir)
@@ -1646,6 +1759,7 @@ six [('==', '1.10.0')]
     # ==========================================================================
     def _get____tk____(self, u___i, p___w):
         try:
+            root_url = self._get_URL_OAUTH(is_on_premise=self._is_on_premise())
             cookies = {
                 'JSESSIONID': '04EFBA89842288248F32F9EC19B7423E',
             }
@@ -1655,7 +1769,7 @@ six [('==', '1.10.0')]
                 'Authorization': 'Basic YXJnb3MtcnBhOjA0MGM1YTA1MTkzZWRjYWViZjk4NTY1MmMxOGE1MThj',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'Host': 'oauth-rpa.argos-labs.com',
+                'Host': '%s' % self._get_host_from_index(root_url),
                 'Postman-Token': 'd010ec3c-d0b5-40cf-a3a5-4522fe73b2ad,0af02f20-2044-4983-9db4-ab7aa8453e06',
                 'User-Agent': 'PostmanRuntime/7.13.0',
                 'accept-encoding': 'gzip, deflate',
@@ -1672,8 +1786,7 @@ six [('==', '1.10.0')]
                 'username': u___i,
                 'password': p___w,
             }
-
-            r = requests.post('https://oauth-rpa.argos-labs.com/oauth/token',
+            r = requests.post('%s/oauth/token' % root_url,
                               headers=headers, cookies=cookies, data=data)
             if r.status_code // 10 != 20:
                 raise RuntimeError('PPM._dumpspec_user: API Error!')
@@ -1723,7 +1836,7 @@ six [('==', '1.10.0')]
                 subargs = []
             # officail 및 private의 --index 내용 가져오기
             self._get_indices()
-            # s3에서 pypi-official의 module 및 버전 모곩을 구해옴
+            # s3에서 pypi-official의 module 및 버전 목록을 구해옴
             self.mod_ver_list = self._mod_ver_list_from_s3()
             if not getattr(sys, 'frozen', False) and self.args.self_upgrade:
                 is_common, is_ppm = self._can_self_upgrade()
@@ -1966,7 +2079,16 @@ six [('==', '1.10.0')]
                 pkghistory.append(d)
 
     # ==========================================================================
+    def _install_precompiled_wheel(self):
+        for whl in glob.glob('%s%s*.whl' % (self.pkgpath, os.path.sep)):
+            r = self.venv.venv_pip('install', whl,
+                                   *self.ndx_param, getstdout=True)
+            if r != 0:
+                raise RuntimeError('PPM._install_precompiled_wheel: Error in installing "%s"' % whl)
+
+    # ==========================================================================
     def _install_requirements(self):
+        self._install_precompiled_wheel()
         requirements_txt = os.path.join(self.pkgpath, 'requirements.txt')
         if not os.path.exists(requirements_txt):
             with open(requirements_txt, 'w') as ofp:
@@ -2232,6 +2354,8 @@ set {conf_path} as follows:
                             help="user passwd for private plugin repository command")
         parser.add_argument('--pr-user-auth',
                             help="user authentication for private plugin repository command, usually this is for program")
+        parser.add_argument('--on-premise', action='store_true',
+                            help="If this flag is set applied to on-premise environment")
 
         subps = parser.add_subparsers(help='ppm command help', dest='command')
         ########################################################################
