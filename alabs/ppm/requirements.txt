@@ -2,6 +2,9 @@
 
 alabs.common
 
+# needed
+wheel
+
 # default for alabs.ppm
 PyYAML
 requests
@@ -9,5 +12,5 @@ requirements-parser
 beautifulsoup4
 
 # for installer STU & PAM pakcaging
-PyInstaller
-pypiwin32
+# PyInstaller
+# pypiwin32

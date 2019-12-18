@@ -7,7 +7,9 @@ REM   url: http://10.211.55.2:48080
 pip install PyYAML
 set PYTHONPATH=..\..
 
-python test_ppm.py
+REM python test_ppm.py
+python __main__.py --pr-user mcchae@gmail.com --pr-user-pass ghkd67vv --venv upload
+
 IF NOT %ERRORLEVEL% == 0 (
 	echo "ppm test, build, upload ERROR!"
     goto errorExit

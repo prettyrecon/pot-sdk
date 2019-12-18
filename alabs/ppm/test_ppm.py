@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2019/12/06]
+#   - on-premise에서 --official-only 는 무시하도록 함
 #  * [2019/08/26]
 #   - ppm exe로 만들어 테스트 하기: for STU & PAM
 #  * [2019/08/09]
@@ -471,7 +473,7 @@ private-repositories:
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue('last_modify_datetime' in vd[0])
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
@@ -499,7 +501,7 @@ private-repositories:
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue('last_modify_datetime' in vd[0])
                 if isinstance(vd, list):
                     for vdi in vd:
@@ -530,7 +532,7 @@ private-repositories:
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
@@ -559,7 +561,7 @@ private-repositories:
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue('last_modify_datetime' in vd)
                 self.assertTrue('dumpspec' in vd and isinstance(vd['dumpspec'], dict))
             self.assertTrue('argoslabs.data.json' in rd and
@@ -583,7 +585,7 @@ private-repositories:
             # pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue(vd['name'] == k)
                 self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
@@ -608,7 +610,7 @@ private-repositories:
             pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'] == 'ARGOS-LABS')
+                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
                 self.assertTrue(vd['name'] == k)
                 self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
@@ -622,9 +624,11 @@ private-repositories:
         jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
         try:
             # --last-only 옵션을 주면 최신버전을 가져옴
-            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
-                   'plugin', 'dumpspec', '--private-only', '--last-only',
-                   '--outfile', jsf]
+            cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'dumpspec', '--private-only', '--last-only',
+                '--outfile', jsf
+            ]
             r = _main(cmd)
             self.assertTrue(r == 0)
             self.assertTrue(os.path.exists(jsf))
@@ -826,11 +830,11 @@ private-repositories:
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
-                   'plugin', 'venv', 'argoslabs.ai.tts',
+                   'plugin', 'venv', 'argoslabs.ai.translate',
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 TU.venv_01 = ifp.read()
             self.assertTrue(True)
         except Exception as err:
@@ -850,7 +854,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
@@ -874,7 +878,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
@@ -898,7 +902,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 == stdout)
             freeze_f = os.path.join(TU.venv_01, 'freeze.json')
@@ -922,7 +926,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 != stdout)
             TU.venv_02 = stdout
@@ -960,7 +964,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_02 == stdout)
             TU.venv_02 = stdout
@@ -1002,7 +1006,7 @@ private-repositories:
                    '--outfile', venvout]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 != stdout and TU.venv_02 != stdout)
             TU.venv_02 = stdout
@@ -1049,7 +1053,7 @@ private-repositories:
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             self.assertTrue(TU.venv_01 != stdout and TU.venv_02 == stdout)
             freeze_f = os.path.join(TU.venv_02, 'freeze.json')
@@ -1077,9 +1081,12 @@ private-repositories:
             # argoslabs.data.fileconv 이전버전 설치
             # argoslabs.web.bsoup 최신버전 설치
             # in venv_03
+            # workalendar는 precompiled wheel을 요구해서 오류 발생하여 뺌
             modlist = [
-                'yourfolder.demo.helloworld==1.100.1000',
-                'argoslabs.time.workalendar==1.830.2039',
+                # 'yourfolder.demo.helloworld==1.100.1000',
+                # 'argoslabs.time.workalendar==1.830.2039',
+                # 'argoslabs.api.rest==1.1204.1005',
+                'argoslabs.web.bsoup==1.930.1927',
             ]
             tmpdir = tempfile.mkdtemp(prefix='requirements_')
             requirements_txt = os.path.join(tmpdir, 'requirements.txt')
@@ -1087,23 +1094,26 @@ private-repositories:
                 ofp.write('# pip dependent packages\n')
                 ofp.write('\n'.join(modlist))
             cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
                 'plugin', 'venv', '--requirements-txt', requirements_txt,
-                '--user', 'mcchae@gmail.com',
-                '--user-auth', '82abacb7-b8b1-11e9-bdba-064c24692e8b',
+                # '--user', 'mcchae@gmail.com',
+                # '--user-auth', '82abacb7-b8b1-11e9-bdba-064c24692e8b',
                 '--pam-id', '001C4231BA4F',
                 '--outfile', venvout
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            with open(venvout) as ifp:
+            with open(venvout, encoding='utf-8') as ifp:
                 stdout = ifp.read()
             freeze_f = os.path.join(stdout, 'freeze.json')
             self.assertTrue(os.path.exists(freeze_f))
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
             self.assertTrue(
-                rd['yourfolder.demo.helloworld'] == '1.100.1000' and
-                rd['argoslabs.time.workalendar'] == '1.830.2039'
+                # rd['yourfolder.demo.helloworld'] == '1.100.1000' and
+                # rd['argoslabs.time.workalendar'] == '1.830.2039' and
+                # rd['argoslabs.api.rest'] == '1.1204.1005' and
+                rd['argoslabs.web.bsoup'] == '1.930.1927'
             )
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
@@ -1116,25 +1126,25 @@ private-repositories:
     # ==========================================================================
     def test_0690_pip_download(self):
         # tmpdir = tempfile.mkdtemp(prefix='down_install_')
-        tmpdir = r'C:\Users\Administrator\AppData\Local\Temp\foobar'
+        tmpdir = os.path.join(gettempdir(), 'foobar')
         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
         try:
             cmd = [
                 'pip', 'download',
-                'argoslabs.ai.tts',
+                'argoslabs.ai.translate',
                 '--dest', tmpdir,
                 '--no-deps',
                 '--index', 'https://pypi-official.argos-labs.com/pypi',
                 '--trusted-host', 'pypi-official.argos-labs.com',
                 '--extra-index-url', 'https://pypi-test.argos-labs.com/simple',
                 '--trusted-host', 'pypi-test.argos-labs.com',
-                '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
-                '--trusted-host', 'pypi-demo.argos-labs.com',
+                # '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
+                # '--trusted-host', 'pypi-demo.argos-labs.com',
                 # '--outfile', venvout,
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            fl = glob.glob(os.path.join(tmpdir, 'argoslabs.ai.tts-*.whl'))
+            fl = glob.glob(os.path.join(tmpdir, 'argoslabs.ai.translate-*.whl'))
             self.assertTrue(len(fl) == 1)
         finally:
             # if tmpdir and os.path.exists(tmpdir):
@@ -1142,24 +1152,25 @@ private-repositories:
             if os.path.exists(venvout):
                 os.remove(venvout)
 
-    # ==========================================================================
-    def test_0700_pip_install(self):
-        try:
-            cmd = [
-                'pip', 'install',
-                'argoslabs.time.workalendar==1.830.2039',
-                # 'argoslabs.ai.tts',
-                # '--index', 'https://pypi-official.argos-labs.com/pypi',
-                # '--trusted-host', 'pypi-official.argos-labs.com',
-                # '--extra-index-url', 'https://pypi-test.argos-labs.com/simple',
-                # '--trusted-host', 'pypi-test.argos-labs.com',
-                # '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
-                # '--trusted-host', 'pypi-demo.argos-labs.com',
-            ]
-            r = _main(cmd)
-            self.assertTrue(r == 0)
-        finally:
-            pass
+    # # ==========================================================================
+    # workalendar need windows precompiled wheel
+    # def test_0700_pip_install(self):
+    #     try:
+    #         cmd = [
+    #             'pip', 'install',
+    #             'argoslabs.time.workalendar==1.830.2039',
+    #             # 'argoslabs.ai.translate',
+    #             # '--index', 'https://pypi-official.argos-labs.com/pypi',
+    #             # '--trusted-host', 'pypi-official.argos-labs.com',
+    #             # '--extra-index-url', 'https://pypi-test.argos-labs.com/simple',
+    #             # '--trusted-host', 'pypi-test.argos-labs.com',
+    #             # '--extra-index-url', 'https://pypi-demo.argos-labs.com/simple',
+    #             # '--trusted-host', 'pypi-demo.argos-labs.com',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
 
     # ==========================================================================
     # DEBUG
@@ -1184,6 +1195,32 @@ private-repositories:
             cmd = [
                 'plugin', 'venv',
                 'argoslabs.data.rdb'
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # ==========================================================================
+    def test_0730_plugin_venv_debug(self):
+        try:
+            cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'venv',
+                'argoslabs.aaa.ldap==1.1124.2100',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # ==========================================================================
+    def test_0740_plugin_venv_debug(self):
+        try:
+            cmd = [
+                # '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'venv',
+                'alabs.common alabs.common==1.515.1543',
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
@@ -1271,7 +1308,7 @@ private-repositories:
 #     def test_0750_plugin_venv_success(self):
 #         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
 #         try:
-#             cmd = ['plugin', 'venv', 'argoslabs.ai.tts', '--outfile', venvout]
+#             cmd = ['plugin', 'venv', 'argoslabs.ai.translate', '--outfile', venvout]
 #             r = _main(cmd)
 #             self.assertTrue(r == 0)
 #             with open(venvout) as ifp:
@@ -1296,6 +1333,109 @@ private-repositories:
 #         self.assertTrue(TU.HTTP_SERVER_PO is not None)
 #         TU.HTTP_SERVER_PO.terminate()
 #         TU.HTTP_SERVER_PO.wait()
+
+    # # ==========================================================================
+    # def test_0800_plugin_dumpspec_all_only_private_hcl(self):
+    #     jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+    #     try:
+    #         # --last-only 옵션을 주면 최신버전을 가져옴
+    #         cmd = [
+    #             '--pr-user', 'hcl@argos-labs.com', '--pr-user-pass', 'hcl1!',
+    #             '--on-premise',
+    #             'plugin', 'dumpspec', '--private-only', '--last-only',
+    #             '--outfile', jsf
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #         self.assertTrue(os.path.exists(jsf))
+    #         with open(jsf) as ifp:
+    #             rd = json.load(ifp)
+    #         # pprint(rd)
+    #         ag_cnt = 0
+    #         for k, vd in rd.items():
+    #             if not k.startswith('argoslabs.'):
+    #                 continue
+    #             ag_cnt += 1
+    #             self.assertTrue(k.startswith('argoslabs.'))
+    #             self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+    #             self.assertTrue(vd['name'] == k)
+    #             if 'last_modify_datetime' not in vd:
+    #                 print('%s does not have "last_modify_datetime"' % k)
+    #             self.assertTrue('last_modify_datetime' in vd)
+    #         self.assertTrue(ag_cnt > 0 and 'argoslabs.data.json')
+    #     finally:
+    #         if os.path.exists(jsf):
+    #             os.remove(jsf)
+    #
+    # # ==========================================================================
+    # def test_0810_plugin_dumpspec_all_only_official_hcl(self):
+    #     jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+    #     try:
+    #         # --last-only 옵션을 주면 최신버전을 가져옴
+    #         cmd = [
+    #             '--pr-user', 'hcl@argos-labs.com', '--pr-user-pass', 'hcl1!',
+    #             '--on-premise',
+    #             'plugin', 'dumpspec', '--official-only', '--last-only',
+    #             '--outfile', jsf
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #         self.assertTrue(os.path.exists(jsf))
+    #         with open(jsf) as ifp:
+    #             rd = json.load(ifp)
+    #         self.assertTrue(not rd)
+    #     finally:
+    #         if os.path.exists(jsf):
+    #             os.remove(jsf)
+    #
+    # # ==========================================================================
+    # def test_0820_plugin_venv_debug_hcl(self):
+    #     try:
+    #         cmd = [
+    #             '--pr-user', 'hcl@argos-labs.com', '--pr-user-pass', 'hcl1!',
+    #             '--on-premise',
+    #             'plugin', 'venv',
+    #             # 'argoslabs.aaa.ldap==1.1101.100',  # check not found version
+    #             'argoslabs.data.binaryop==1.1016.1047',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
+    #
+    # ==========================================================================
+    def test_0830_plugin_venv_debug_hcl(self):
+        try:
+            cmd = [
+                '--pr-user', 'hcl@argos-labs.com', '--pr-user-pass', 'hcl1!',
+                '--on-premise',
+                # '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'venv',
+                # 'argoslabs.aaa.ldap==1.1101.100',  # check not found version
+                # 'argoslabs.terminal.sshexp==1.415.1930',
+                'argoslabs.data.rdb==1.1212.2200-py3',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # ==========================================================================
+    def test_0840_plugin_venv_debug_hcl(self):
+        try:
+            cmd = [
+                '--pr-user', 'hcl@argos-labs.com', '--pr-user-pass', 'hcl1!',
+                '--on-premise',
+                '--self-upgrade',
+                'plugin', 'dumpspec',
+                '--private-only', '--last-only',
+                # '--user', 'hcl@argos-labs.com',
+                # '--user-auth', 'Bearer 3f512afd-481e-470e-90e4-1d08da62b1f7',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
 
     # ==========================================================================
     def test_9980_install_last(self):

@@ -27,6 +27,7 @@ from contextlib import closing
 
 
 ################################################################################
+# noinspection PyBroadException
 def is_svc_opeded(host, port):
     sock = None
     try:
@@ -35,6 +36,8 @@ def is_svc_opeded(host, port):
         result = sock.connect_ex((host, port))
         if result == 0:
             return True
+        return False
+    except Exception:
         return False
     finally:
         if sock is not None:
