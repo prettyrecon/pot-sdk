@@ -182,7 +182,7 @@ class ExecuteProcess(Items):
     # ==========================================================================
     def __call__(self):
         self.log_msg.push('Execute Process')
-        cmd = 'python -m alabs.rpa.desktop.execute_process {}'.format(
+        cmd = 'python -m alabs.pam.rpa.desktop.execute_process {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -210,7 +210,7 @@ class Delay(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Delay')
-        cmd = 'python -m alabs.rpa.desktop.delay {}'.format(
+        cmd = 'python -m alabs.pam.rpa.desktop.delay {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -282,7 +282,7 @@ class SearchImage(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Locate Image')
-        cmd = 'python -m alabs.rpa.autogui.locate_image {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.locate_image {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -342,7 +342,7 @@ class ImageMatch(Items):
     @request_handler
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Find Image')
-        cmd = 'python -m alabs.rpa.autogui.find_image_location {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.find_image_location {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -387,7 +387,7 @@ class MouseScroll(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Scroll')
-        cmd = 'python -m alabs.rpa.autogui.scroll {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.scroll {}'.format(
             ' '.join([str(x) for x in self.arguments]))
         self.logger.info(self.log_msg.format('MouseScrolling Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -436,7 +436,7 @@ class MouseClick(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Click')
-        cmd = 'python -m alabs.rpa.autogui.click {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.click {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -489,7 +489,7 @@ class TypeText(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Type Text')
-        cmd = 'python -m alabs.rpa.autogui.type_text {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.type_text {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('TypeText Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -529,7 +529,7 @@ class TypeKeys(Items):
         self.log_msg.push('Send Shortcut')
         for arg in self.arguments:
             self.logger.info(self.log_msg.format('Calling...'))
-            cmd = 'python -m alabs.rpa.autogui.send_shortcut {}'.format(
+            cmd = 'python -m alabs.pam.rpa.autogui.send_shortcut {}'.format(
                 ' '.join(arg))
             self.logger.debug(StructureLogFormat(COMMAND=cmd))
             subprocess.check_call(cmd, shell=True)
@@ -552,7 +552,7 @@ class StopProcess(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Stop Process')
-        cmd = 'python -m alabs.rpa.desktop.stop_process {}'.format(
+        cmd = 'python -m alabs.pam.rpa.desktop.stop_process {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
@@ -965,7 +965,7 @@ class CompareText(Items):
     @request_handler
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Compare Text')
-        cmd = 'python -m alabs.rpa.desktop.compare_text {}'.format(
+        cmd = 'python -m alabs.pam.rpa.desktop.compare_text {}'.format(
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('CompareText Calling...'))
         self.logger.debug(StructureLogFormat(CMD=cmd))
@@ -1072,7 +1072,7 @@ class UserParams(Items):
             self.log_msg.pop()
             return make_follow_job_request(status, function, message)
 
-        cmd = 'python -m alabs.rpa.autogui.user_parameters {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.user_parameters {}'.format(
             ' '.join(self.arguments))
         self.logger.debug(StructureLogFormat(CMD=cmd))
 
@@ -1171,7 +1171,7 @@ class PopupInteraction(Items):
         if pathlib.Path(file).exists():
             pathlib.Path(file).unlink()
 
-        cmd = 'python -m alabs.rpa.autogui.dialogue {}'.format(
+        cmd = 'python -m alabs.pam.rpa.autogui.dialogue {}'.format(
             ' '.join(self.arguments))
         self.logger.debug(StructureLogFormat(CMD=cmd))
 
