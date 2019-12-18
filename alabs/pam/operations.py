@@ -293,7 +293,7 @@ class SearchImage(Items):
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
         if stderr:
-            self.logger.error(stderr)
+            self.logger.error(stderr.decode('utf-8'))
         self.log_msg.pop()
         # return locate_image(*self.arguments)
 

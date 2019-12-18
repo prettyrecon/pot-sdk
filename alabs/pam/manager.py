@@ -128,16 +128,16 @@ class PamManager(list):
             scenario.update(scenario.get_modules_list())
             with captured_output() as (out, _):
                 get_venv(scenario.plugins)
-            self.logger.debug(StructureLogFormat(VENV_PATH=out.getvalue()))
+            self.logger.debug(StructureLogFormat(VENV_PATH=out.read()))
             out = out.getvalue().strip().split('\n')[-1]
             # out = out[:2] + out[3:]
-            self.logger.debug(StructureLogFormat(VENV_PATH_EDITED=out))
+            # self.logger.debug(StructureLogFormat(VENV_PATH_EDITED=out))
             runner.RUNNER.venv_path = out
 
         except Exception as e:
             with captured_output() as (out, err):
                 traceback.print_exc(file=out)
-            self.logger.error(out.getvalue())
+            self.logger.error(out.read())
             self.logger.error(str(e))
             return False
         return True
@@ -283,22 +283,26 @@ def get_venv(requirements):
     args = 'plugin venv {}'.format(req)
     logger.info('Installing plugins.')
     logger.debug(StructureLogFormat(PLUGINS=essensial_modules))
-    cmd = 'python -m alabs.ppm {}'.format(args)
+    # cmd = 'python -m alabs.ppm {}'.format(args)
+    from alabs.pam.conf import get_conf
+    ppm_exe = get_conf().get('EXTERNAL_PROG/PPM')
+    cmd = '{} {}'.format(ppm_exe, args)
+    logger.debug(StructureLogFormat(CMD=cmd))
+
     import subprocess
     proc = subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate()
-    # print(out.getvalue())
-    out = out.read()
-    err = err.read()
+    print(out.decode('utf-8'))
+    # out = out
+    # err = err
     # with captured_output() as (out, err):
     #     ppm(args.split())
-    print(out)
     if err:
-        logger.error(err)
+        logger.error(err.decode('utf-8'))
         return False
     logger.info('Created python virtual environment.')
-    logger.debug(StructureLogFormat(PATH=out))
+    logger.debug(StructureLogFormat(PATH=out.decode('utf-8')))
     return True
 
 

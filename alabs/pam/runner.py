@@ -13,14 +13,13 @@ import traceback
 import platform
 
 from alabs.pam.scenario import Scenario
-from alabs.common.definitions.platforms import Platforms
 from alabs.pam.variable_manager.rc_api_variable_manager import \
     VariableManagerAPI
 from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
     LogMessageHelper
 from alabs.common.util.vvtest import captured_output
 from alabs.pam.conf import get_conf
-
+import multiprocessing
 
 ################################################################################
 class ResultAction(enum.Enum):
@@ -91,6 +90,7 @@ def activate_virtual_environment(f):
         logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         logger.info('Activating the virtual environment for the runner...')
         exec_path = sys.executable
+        logger.debug(StructureLogFormat(EXEC_PATH=exec_path))
 
         # 패스 설정
         old_os_path = os.environ.get('PATH', '')
@@ -142,6 +142,7 @@ def activate_virtual_environment(f):
             RUNNER_PYTHONPATH=os.environ['PYTHONPATH']))
 
         # 실제 함수 실행
+        multiprocessing.freeze_support()
         f(*args, **kwargs)
 
     return func
@@ -225,7 +226,7 @@ class Runner(mp.Process):
             return None
 
         _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
-        if _platform == Platforms.WINDOWS.value:
+        if _platform == 'Windows':
             path = self.venv_path / pathlib.Path('Scripts/python.exe')
         else:
             path = self.venv_path / pathlib.Path('bin/python')
@@ -331,6 +332,7 @@ class Runner(mp.Process):
         :param kwargs:
         :return:
         """
+
         self.logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         self.log_prefix = LogMessageHelper(logger=self.logger)
         self.log_prefix.clear()
