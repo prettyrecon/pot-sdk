@@ -31,6 +31,8 @@ import zipfile
 import tempfile
 from multiprocessing import Process
 
+from alabs.common.util.vvargs import ModuleContext, func_log, \
+    ArgsError, ArgsExit, get_icon_path
 from alabs.common.util.vvlogger import StructureLogFormat, get_logger
 from alabs.pam.conf import get_conf
 
@@ -139,52 +141,71 @@ def extract_bot_file(filepath, logger):
 ################################################################################
 def _main(*args):
     # 설정 파일
-    parser = argparse.ArgumentParser()
+
     if not os.environ.setdefault('PAM_CONF', ''):
         path = pathlib.Path.home() / '.argos-rpa-pam.conf'
         os.environ['PAM_CONF'] = str(path)
     conf = get_conf()
-    logger = get_logger(conf.get('/PATH/PAM_LOG'))
+    # logger = get_logger(conf.get('/PATH/PAM_LOG'))
+    # logger.info("="*80)
 
-    parser.add_argument('-a', '--host', type=str,
-                        default=conf.get('MANAGER/IP'), help='')
-    parser.add_argument('-p', '--port', type=int,
-                        default=conf.get('MANAGER/PORT'), help='')
+    with ModuleContext(
+            owner='ARGOS-LABS',
+            group='ai',
+            version='1.0',
+            platform=['windows', 'darwin', 'linux'],
+            output_type='text',
+            display_name='Text to Speech',
+            icon_path=get_icon_path(__file__),
+            description='Text to Speech using AI engine (google, ...)',
+    ) as mcxt:
 
-    parser.add_argument('-f', '--filepath', type=str, default='',
-                        help='JSON or BOT type of the scenario file')
+        mcxt.add_argument('-a', '--host', type=str,
+                            default=conf.get('MANAGER/IP'), help='')
+        mcxt.add_argument('-p', '--port', type=int,
+                            default=conf.get('MANAGER/PORT'), help='')
 
-    argspec = parser.parse_args()
-    if not argspec.filepath:
-        return pam_manager(argspec, logger)
+        mcxt.add_argument('-f', '--filepath', type=str, default='',
+                           help='JSON or BOT type of the scenario file')
+
+        argspec = mcxt.parse_args()
+
+        mcxt.logger.info("Arguments Parsing...")
+        mcxt.logger.debug(StructureLogFormat(ARGUMENTS=str(argspec)))
+        if not argspec.filepath:
+            return pam_manager(argspec, mcxt.logger)
 
     ############################################################################
-    from alabs.pam.manager import PamManager as pm
-    ext = pathlib.Path(argspec.filepath).suffix
-    if 'bot' == ext[1:].lower():
-        path = extract_bot_file(argspec.filepath, logger)
-    elif 'json' == ext[1:].lower():
-        path = argspec.filepath
-    else:
-        logger.error(
-            '{} is not supported scenario format.'.format(argspec.filepath))
-        print('{} is not supported scenario format.'.format(argspec.filepath))
-        exit(-1)
+        from alabs.pam.manager import PamManager as pm
+        ext = pathlib.Path(argspec.filepath).suffix
+        if 'bot' == ext[1:].lower():
+            path = extract_bot_file(argspec.filepath, mcxt.logger)
+        elif 'json' == ext[1:].lower():
+            path = argspec.filepath
+        else:
+            mcxt.logger.error(
+                '{} is not supported scenario format.'.format(argspec.filepath))
+            print('{} is not supported scenario format.'.format(argspec.filepath))
+            exit(-1)
+        mcxt.logger.info('Started Variable Manager.')
+        p = Process(target=pam_manager, args=(argspec, mcxt.logger))
+        p.start()
 
-    logger.info('Started Variable Manager.')
-    p = Process(target=pam_manager, args=(argspec, logger))
-    p.start()
-
-    pam_mgr = pm()
-    runner = pam_mgr.create(path)
-    pam_mgr.start_runner(0)
-    runner.RUNNER.join()
-    logger.info('A process is joined gracefully.')
-    logger.info('Trying to destroy the variable manager...')
-    p.kill()
-    p.join()
-    logger.info('Variable Manager is joined gracefully')
-    logger.info('Finished.')
+        pam_mgr = pm()
+        runner = pam_mgr.create(path)
+        try:
+            pam_mgr.start_runner(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(e)
+        runner.RUNNER.join()
+        mcxt.logger.info('A process is joined gracefully.')
+        mcxt.logger.info('Trying to destroy the variable manager...')
+        p.kill()
+        p.join()
+        mcxt.logger.info('Variable Manager is joined gracefully')
+        mcxt.logger.info('Finished.')
 
 
 

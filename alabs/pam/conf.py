@@ -10,6 +10,7 @@ from alabs.common.util.vvjson import get_xpath
 path = dict()
 ARGOS_RPA_PAM_DIR = pathlib.Path.home() / '.argoslabs-rpa'
 PAM = ARGOS_RPA_PAM_DIR / 'pam'
+EXTERNAL_PROGRAM = PAM / 'ext_program'
 ARGOS_RPA_BOTS_DIR = PAM / 'bots'
 ARGOS_RPA_PAM_LOG_DIR = PAM / "logs"
 ARGOS_RPA_VENV_DIR = ARGOS_RPA_PAM_DIR / "venvs"
@@ -47,9 +48,14 @@ manager['LOG_LEVEL'] = 'info'
 manager['VARIABLE_MANAGER_IP'] = '127.0.0.1'
 manager['VARIABLE_MANAGER_PORT'] = 8012
 
+external_program = dict()
+external_program['PPM'] = str(PAM / 'alabs-ppm.exe')
+
+
 _conf = {
         'PATH': path,
         'MANAGER': manager,
+        'EXTERNAL_PROG': external_program,
         'WEB_DRIVER': web_drv,
     }
 

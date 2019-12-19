@@ -13,7 +13,7 @@ from alabs.pam.manager import PamManager as pm
 from alabs.pam.scenario_repository import ScenarioRepoHandler
 from alabs.pam.apps.pam_manager.parser import pam_parser, file_upload
 from alabs.common.util.vvhash import get_file_md5
-from alabs.rpa.desktop.screenshot import main as screenshot
+from alabs.pam.rpa.desktop.screenshot import main as screenshot
 from alabs.common.util.vvlogger import get_logger, StructureLogFormat
 from alabs.pam.conf import get_conf
 

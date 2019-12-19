@@ -1,0 +1,16 @@
+# pip dependent packages
+
+# default for alabs
+alabs.common
+
+gevent
+flask
+flask-restplus
+PyYaml
+chardet
+requests
+requirements-parser
+bs4
+pyautogui
+pyscreenshot
+opencv-contrib-python
