@@ -488,11 +488,12 @@ class VEnv(object):
             cmd = [
                 self.get_venv(),
             ]
-            # cmd += args
-            for arg in args:
-                if arg.lower().startswith('c:\\'):
-                    arg = '"%s"' % arg
-                cmd.append(arg)
+            cmd += args
+            # 다음과 같이 따옴표를 붙였는데 안되는 PC 있어서 위에 줄로 원복
+            # for arg in args:
+            #     if arg.lower().startswith('c:\\'):
+            #         arg = '"%s"' % arg
+            #     cmd.append(arg)
             self.logger.debug('VEnv.venv_py: cmd="%s"' % ' '.join(cmd))
             # Windows의 python.exe -m 등의 명령어가 shell 모드에서 정상 동작함
 

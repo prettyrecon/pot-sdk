@@ -1430,7 +1430,7 @@ private-repositories:
                 'plugin', 'dumpspec',
                 '--private-only', '--last-only',
                 # '--user', 'hcl@argos-labs.com',
-                # '--user-auth', 'Bearer 3f512afd-481e-470e-90e4-1d08da62b1f7',
+                # '--user-auth', 'Bearer 4b3b299f-0f24-4e4f-a207-e7edb1d91dec',
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
