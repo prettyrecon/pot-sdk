@@ -25,7 +25,7 @@ Change Log
 import os
 import platform
 
-from alabs.common.definitions.platforms import Platforms
+
 
 
 ################################################################################
@@ -44,10 +44,10 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
-    if _platform == Platforms.LINUX.value:
+    if _platform == 'Linux':
         from alabs.pam.rpa.autogui.find_image_location.linux import main as _main
 
-    elif _platform == Platforms.MAC.value:
+    elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.find_image_location.macos import main as _main
 
     elif _platform == Platforms.IOS.value:

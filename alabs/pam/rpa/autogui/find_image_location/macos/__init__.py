@@ -27,7 +27,7 @@ Change Log
 import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-from alabs.rpa.desktop.screenshot.macos import screenshot
+from alabs.pam.rpa.desktop.screenshot.macos import screenshot
 from PIL import Image
 import pyscreeze
 
