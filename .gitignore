@@ -39,3 +39,6 @@ Thumbs.db
 pypam 
 build
 exe
+*egg-info*
+*.whl
+*.spec
