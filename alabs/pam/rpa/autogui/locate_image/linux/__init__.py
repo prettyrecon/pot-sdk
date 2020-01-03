@@ -113,6 +113,7 @@ def _main(*args):
                           choices=[
                               ClickMotionType.CLICK.name,
                               ClickMotionType.DOUBLE.name,
+                              ClickMotionType.TRIPLE.name,
                               ClickMotionType.PRESS.name,
                               ClickMotionType.RELEASE.name, ],
                           help='')

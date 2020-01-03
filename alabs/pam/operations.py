@@ -37,6 +37,7 @@ class ClickType(enum.Enum):
     RIGHT = 'Right'
     LEFT = 'Left'
     DOUBLE = 'Double'
+    TRIPLE = 'Triple'
     NONE = 'None'
 
 
@@ -271,6 +272,9 @@ class SearchImage(Items):
 
         if b == ClickType['DOUBLE'].name:
             m = ClickType['DOUBLE'].name
+            b = ClickType['LEFT'].name
+        elif b == ClickType['TRIPLE'].name:
+            m = ClickType['TRIPLE'].name
             b = ClickType['LEFT'].name
 
         cmd.append('--button')
