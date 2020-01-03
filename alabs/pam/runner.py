@@ -169,6 +169,7 @@ class Runner(mp.Process):
         self.log_prefix = LogMessageHelper()
 
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        self._main_python_executable = None
         self._venv_path = None
         self._scenario_name = None
         self._scenario_path = None
@@ -209,6 +210,15 @@ class Runner(mp.Process):
     def get_init_scenario(self):
         return copy.deepcopy(self.scenario)
 
+    # 호스트 파이썬 실행파일 경로 ================================================
+    @property
+    def main_python_executable(self):
+        return self._main_python_executable
+
+    @main_python_executable.setter
+    def main_python_executable(self, executable_path):
+        self._main_python_executable = executable_path
+
     # 파이썬 가상환경 프로퍼티 ===================================================
     @property
     def venv_path(self):
@@ -221,7 +231,7 @@ class Runner(mp.Process):
         self._venv_path = pathlib.Path(path)
 
     @property
-    def venv_python(self):
+    def plugin_python_executable(self):
         if not self.venv_path:
             return None
 
@@ -277,6 +287,10 @@ class Runner(mp.Process):
         time.sleep(tm * 0.001)
 
         # 아이템 실행
+        item.python_executable = self.main_python_executable
+        # 플러그인은 실행 전에 파이썬 실행 주체 변경
+        if 'pluginDumpspec' in item:
+            item.python_executable = self.plugin_python_executable
         result = item()
         return result
 

@@ -128,6 +128,7 @@ class Items(dict):
 
     references = tuple()
     item_type = None
+    python_executable = None
 
     def __init__(self, data:dict, scenario, logger=None):
         dict.__init__(self)

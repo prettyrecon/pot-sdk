@@ -86,8 +86,8 @@ class Scenario(dict):
     def get_modules_list(self):
         ret = dict()
         ret['pluginVersion'] = list()
-        ret['pluginVersion'].append(
-            {"name": "alabs.common", "version": "1.515.1543"})
+        # ret['pluginVersion'].append(
+        #     {"name": "alabs.common", "version": "1.515.1543"})
         for step in self['stepList']:
             for item in step['items']:
                 if item['itemDivisionType'] != 'Plugin':
