@@ -262,6 +262,11 @@ class SearchImage(Items):
         # coordinates
         cmd.append('--coordinates')
         cmd += separate_coord(self['imageMatch']['clickPoint'])
+
+        # similarity
+        cmd.append('--similarity')
+        cmd.append(self['imageMatch']['similarity'])
+
         # button
         b = self['imageMatch']['clickType']
         b = vars(ClickType)['_value2member_map_'][b].name

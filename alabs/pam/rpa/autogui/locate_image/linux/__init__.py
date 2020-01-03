@@ -55,9 +55,13 @@ def locate_image(mcxt, argspec):
     """
 
     # 이미지 좌표 구하기
-    location = pyautogui.locateOnScreen(argspec.filename, region=argspec.region)
+    # Confidence 기본 값은 0.999
+    location = pyautogui.locateOnScreen(argspec.filename,
+                                        region=argspec.region,
+                                        confidence=argspec.similarity * 0.01)
     if not location:
-        raise ValueError("COULDN'T FIND LOCATION")
+        sys.stderr.write('Failed to find location.')
+        exit(-1)
     x, y, *_ = location
 
     # 버튼
