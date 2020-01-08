@@ -8,6 +8,7 @@ import locale
 
 from io import StringIO
 from functools import wraps
+from contextlib import contextmanager
 
 from alabs.pam.dumpspec_parser import plugin_spec_parser
 from alabs.pam.variable_manager.rc_api_variable_manager import \
@@ -118,13 +119,40 @@ def make_follow_job_request(status, function=None, message=''):
 
 
 ################################################################################
+def run_subprocess(cmd):
+    stdout = get_conf().get('/PATH/OPERATION_STDOUT_FILE')
+    stderr = get_conf().get('/PATH/OPERATION_STDERR_FILE')
+    if os.path.isfile(stdout):
+        os.remove(stdout)
+    if os.path.isfile(stderr):
+        os.remove(stderr)
+
+    try:
+        with subprocess.Popen(cmd, shell=True):
+            pass
+    except Exception as e:
+        pass
+
+    if os.path.isfile(stderr) and os.path.getsize(stderr):
+        data = stderr
+    elif os.path.isfile(stdout) and os.path.getsize(stdout):
+        data = stdout
+    else:
+        raise FileExistsError("No output file.")
+
+    with open(data, 'r') as f:
+        out = json.load(f)
+    return out
+
+
+################################################################################
 class Items(dict):
     class Type(enum.Enum):
         EXECUTABLE_ITEM = 0
         LOGIC_ITEM = 1
         SYSTEM_ITEM = 2
 
-    item_ref = ("id", "index", "itemName", "timeOut", "order",
+    item_ref = ("id", "index", "itemName", "timeOut", "order", "recordType",
                 "beforeDelayTime", "Disabled")
 
     references = tuple()
@@ -255,9 +283,15 @@ class SearchImage(Items):
         # cmd.append(parent / pathlib.Path(self['imageMatch']['cropImageFileName']))
         # cmd.append(get_image_path(self['imageMatch']['cropImageFileName']))
 
+        # search on
+        cmd.append('--searchon')
+        rt = self['recordType'].lower()
+        cmd.append(rt)
+
         # region
         cmd.append('--region')
-        cmd += separate_coord(self['imageMatch']['cropImageLocation'])
+        cmd += separate_coord(self['imageMatch']['searchLocation'])
+        # cmd += separate_coord(self['imageMatch']['cropImageLocation'])
 
         # coordinates
         cmd.append('--coordinates')
@@ -290,23 +324,68 @@ class SearchImage(Items):
         return tuple(cmd)
 
     # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments_for_select_window(self):
+        cmd = list()
+
+        # title
+        code, data = self._variables.convert(self['imageMatch']['title'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        # name
+        code, data = self._variables.convert(
+            self['imageMatch']['processName'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        return tuple(cmd)
+
+    # ==========================================================================
+    def __call__select_window(self):
+        cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
+            self.python_executable,
+            ' '.join(self.arguments_for_select_window))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
+        # with subprocess.Popen(cmd, shell=True,
+        #                       stdout=subprocess.PIPE,
+        #                       stderr=subprocess.PIPE) as proc:
+        #     stdout = proc.stdout.read()
+        #     stderr = proc.stderr.read()
+        # print(stdout, type(stdout))
+        # out = json.loads(stdout)
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            return None
+        return data['RETURN_VALUE']
+
+    # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Locate Image')
+        # 어플리케이션 검색 옵션 처리
+        if 'app' == self['recordType'].lower():
+            region = self.__call__select_window()
+            self['imageMatch']['searchLocation'] = region
+
         cmd = '{} -m alabs.pam.rpa.autogui.locate_image {}'.format(
             self.python_executable,
             ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        with subprocess.Popen(cmd, shell=True,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as proc:
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
-        if stderr:
-            self.logger.error(stderr.decode('utf-8'))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            return data
         self.log_msg.pop()
-        # return locate_image(*self.arguments)
+        return make_follow_job_request(True, None, '')
+
+
 
 
 ################################################################################

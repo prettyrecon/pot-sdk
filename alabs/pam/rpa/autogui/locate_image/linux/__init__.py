@@ -25,13 +25,12 @@ Change Log
 
 ################################################################################
 import sys
-import json
 import pyautogui
-from alabs.common.util.vvtest import captured_output
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from alabs.pam.rpa.autogui.click import ClickMotionType, ClickType, to_int
-from alabs.pam.rpa.autogui.find_image_location.linux import find_image_loacation
+from alabs.common.util.vvlogger import StructureLogFormat
+
 ################################################################################
 # Version
 NUM_VERSION = (0, 9, 0)
@@ -48,18 +47,21 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 @func_log
 def locate_image(mcxt, argspec):
     """
-    plugin job function
+    LocateImage
     :param mcxt: module context
     :param argspec: argument spec
     :return: x, y
     """
+    mcxt.logger.info("LocateImage start ...")
 
     # 이미지 좌표 구하기
     # Confidence 기본 값은 0.999
-    location = pyautogui.locateOnScreen(argspec.filename,
-                                        region=argspec.region,
-                                        confidence=argspec.similarity * 0.01)
+    location = pyautogui.locateOnScreen(
+        argspec.filename,
+        region=argspec.region,
+        confidence=argspec.similarity * 0.01)
     if not location:
+        mcxt.logger.error('Failed to find location.')
         sys.stderr.write('Failed to find location.')
         exit(-1)
     x, y, *_ = location
@@ -75,8 +77,13 @@ def locate_image(mcxt, argspec):
     action = getattr(pyautogui, motion)
     action(button=button, x=x, y=y)
 
-    sys.stdout.write('true')
-    # return location
+    # TODO: 실행결과 값 JSON 형태로 반환 필요.
+
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None, MESSAGE="")
+    sys.stdout.write(str(result))
+    mcxt.logger.info("LocateImage end ...")
+    return result
+
 
 ################################################################################
 def _main(*args):
@@ -106,6 +113,12 @@ def _main(*args):
         # 필수 입력 항목
         mcxt.add_argument('filename', re_match='.*[.](png|PNG).*$',
                           metavar='image_filename.png',  help='')
+        mcxt.add_argument('--searchon',
+                          choices=['app', 'fullscreen', 'web'],
+                          default='fullscreen')
+        mcxt.add_argument('--name', type=str)
+        mcxt.add_argument('--title', type=str)
+
         mcxt.add_argument('--region', nargs=4, type=int, default=None,
                           metavar='0', help='')
         mcxt.add_argument('--similarity', type=int, metavar='50',
@@ -129,6 +142,7 @@ def _main(*args):
                               ClickType.NONE.name, ],
                           help='')
         argspec = mcxt.parse_args(args)
+
         return locate_image(mcxt, argspec)
 
 ################################################################################
