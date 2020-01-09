@@ -152,7 +152,7 @@ class Items(dict):
         LOGIC_ITEM = 1
         SYSTEM_ITEM = 2
 
-    item_ref = ("id", "index", "itemName", "timeOut", "order", "recordType",
+    item_ref = ("id", "index", "itemName", "timeOut", "order",
                 "beforeDelayTime", "Disabled")
 
     references = tuple()
@@ -255,7 +255,7 @@ class Delay(Items):
 class SearchImage(Items):
     # LocateImage
     item_type = Items.Type.EXECUTABLE_ITEM
-    references = ('imageMatch',)
+    references = ('imageMatch', 'recordType')
     # {'imageMatch': {'clickType': 'Left', 'clickMotionType': 'DownAndUP',
     #                 'cropImageLocation': '330, 115, 330, 452',
     #                 'searchLocation': '0, 0, 1650, 1080',
@@ -669,11 +669,49 @@ class ReadImageText(Items):
 ################################################################################
 class SelectWindow(Items):
     # OCR
-    references = ('imageMatch',)
+    references = ('selectWindow',)
+
+    @property
+    @arguments_options_fileout
+    def arguments(self) -> tuple:
+        cmd = list()
+
+        # title
+        code, data = self._variables.convert(self['selectWindow']['title'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        # name
+        code, data = self._variables.convert(self['selectWindow']['URL'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        if self['selectWindow']['isClick']:
+            pass
+        if self['selectWindow']['IsChange']:
+            cmd.append('--size')
+            cmd.append(str(self['selectWindow']['ChangeWidth']))
+            cmd.append(str(self['selectWindow']['ChangeHeight']))
+        if self['selectWindow']['IsMove']:
+            cmd.append('--location')
+            cmd.append(str(self['selectWindow']['MoveLocationX']))
+            cmd.append(str(self['selectWindow']['MoveLocationY']))
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            return None
         return
+
 
 
 ################################################################################
