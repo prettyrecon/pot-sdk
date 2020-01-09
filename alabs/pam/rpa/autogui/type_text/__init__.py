@@ -4,7 +4,7 @@
 ====================================
  :mod:`alabs.pam.la.bot2py
 ====================================
-.. moduleauthor:: Injoong Kim <nebori92@argos-labs.com>
+.. moduleauthor:: Deokyu Lim(deokyu@argos-labs.com)
 .. note:: VIVANS License
 
 Description
@@ -55,7 +55,7 @@ def main(*args):
     elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.type_text.linux import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'iOS':
         from alabs.pam.rpa.autogui.type_text.ios import main as _main
         # return _main('--wda_url', url, '--wda_port', port)
     else:

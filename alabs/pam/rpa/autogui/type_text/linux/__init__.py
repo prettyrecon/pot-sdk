@@ -25,6 +25,7 @@ Change Log
 
 ################################################################################
 import pyautogui
+import pyperclip
 from alabs.common.util.vvargs import ModuleContext
 from alabs.common.util.vvlogger import StructureLogFormat
 
@@ -52,7 +53,11 @@ def type_text(mcxt, argspec):
     """
     mcxt.logger.info('TypeText is Running...')
     mcxt.logger.debug(StructureLogFormat(ARGS_SPEC=argspec.__dict__))
-    pyautogui.typewrite(argspec.text)
+    if not argspec.interval:
+        pyperclip.copy(argspec.text)
+        pyautogui.hotkey('ctrl', 'v')
+    else:
+        pyautogui.typewrite(argspec.text, interval=argspec.interval)
     mcxt.logger.info('TypeText is Done.')
     return True
 
@@ -85,6 +90,8 @@ def _main(*args):
         ########################################################################
         mcxt.add_argument('text', type=str,
                           help='Text to type on an application')
+        mcxt.add_argument('--interval', type=float, default=0.15,
+                          help='Interval')
 
         argspec = mcxt.parse_args(args)
         return type_text(mcxt, argspec)

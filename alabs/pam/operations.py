@@ -563,6 +563,7 @@ class TypeText(Items):
     @property
     @arguments_options_fileout
     def arguments(self) -> tuple:
+        cmd = list()
         _type = self['typeText']['typeTextType']
         if "Text" == _type:
             # TODO: 없는 자료일 경우 처리
@@ -581,7 +582,13 @@ class TypeText(Items):
             # raise ValueError("Not Supported Yet")
         # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
         value = value.replace('`', '\`')
-        return tuple([json.dumps(value),])
+        cmd.append(json.dumps(value))
+
+        if self['typeText']['usePaste']:
+            cmd.append('--interval')
+            cmd.append('0.00')
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
