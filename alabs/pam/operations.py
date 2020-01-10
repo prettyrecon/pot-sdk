@@ -816,6 +816,7 @@ class Repeat(Items):
         self._scenario._repeat_stack.append(self)
         self._status = True
         self._times = self.repeat_times
+        self._start_time = time.time()
         self.logger.info(self._times)
         self._count = 0
 
@@ -848,11 +849,15 @@ class Repeat(Items):
         return int(self['repeat']['incrementIndex'])
 
     @property
+    def repeat_type(self):
+        return self['repeat']['repeatType']
+
+    @property
     def repeat_times(self):
         if self['repeat']['repeatType'] == 'Times':
             rt = str(self['repeat']['repeatTimesString'])
         else:
-            rt = str(self['repeat']['repeatTimes'])
+            rt = str(self['repeat']['forSeconds'])
         code, data = self._variables.convert(rt)
         return int(data)
 
@@ -879,6 +884,17 @@ class Repeat(Items):
         :return:
         """
         self.log_msg.push('Repeat')
+
+        if self.repeat_type == 'Milliseconds':
+            current_time = time.time()
+            if self.repeat_times < current_time - self._start_time:
+                # 지정된 시간이 지났다면 반복문 끝
+                self.logger.info(self.log_msg.format(
+                    'Reached at the end of time.'))
+                self._scenario._repeat_stack.pop()
+                self.log_msg.pop()
+                return self.current_item_index
+
         # 반복문 끝인지 검사 후 남아 있다면 시작 인덱스로 되돌림
         if self.current_item_index == self.end_item_order:
             self._count += 1
@@ -892,12 +908,13 @@ class Repeat(Items):
             ))
 
             # 반복 횟 수가 남지 않은 상태
-            if self._times == self._count:
-                self.logger.info(self.log_msg.format(
-                    'Reached at the end of the count.'))
-                self._scenario._repeat_stack.pop()
-                self.log_msg.pop()
-                return self.current_item_index
+            if self.repeat_type == 'Times':
+                if self._times == self._count:
+                    self.logger.info(self.log_msg.format(
+                        'Reached at the end of the count.'))
+                    self._scenario._repeat_stack.pop()
+                    self.log_msg.pop()
+                    return self.current_item_index
 
             order_num = self.start_item_order
             if self.is_using_index:
