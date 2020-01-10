@@ -5,6 +5,7 @@ import os
 import json
 import csv
 import locale
+import time
 
 from io import StringIO
 from functools import wraps
@@ -138,7 +139,7 @@ def run_subprocess(cmd):
     elif os.path.isfile(stdout) and os.path.getsize(stdout):
         data = stdout
     else:
-        raise FileExistsError("No output file.")
+        return None
 
     with open(data, 'r') as f:
         out = json.load(f)
@@ -235,18 +236,20 @@ class Delay(Items):
     @property
     @arguments_options_fileout
     def arguments(self)->tuple:
-        return self['delay']['delay'],
+        cmd = list()
+        code, data = self._variables.convert(self['delay']['delay'])
+        cmd.append(data)
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Delay')
-        cmd = '{} -m alabs.pam.rpa.desktop.delay {}'.format(
-            self.python_executable, ' '.join(self.arguments))
-        self.logger.info(self.log_msg.format('Calling...'))
-        self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        with subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE) as proc:
-            stdout = proc.stdout.read()
+        self.logger.info(self.log_msg.format('Calling...'))
+        msec = self['delay']['delay']
+        self.logger.debug(StructureLogFormat(MSEC=msec))
+        time.sleep(int(msec) * 0.001)
+        
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
 
