@@ -18,6 +18,7 @@ pyautogui
 pyscreenshot
 opencv-contrib-python
 
+selenium
 wda
 
 # Select Window for Windows

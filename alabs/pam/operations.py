@@ -948,11 +948,27 @@ class SendEmail(Items):
 ################################################################################
 class ClearCache(Items):
     # OCR
-    references = ('imageMatch',)
+    references = ('clearCache',)
+
+    @property
+    def arguments(self):
+        cmd = list()
+        if self['clearCache']['bClearInternetTemp']:
+            cmd.append('--chrome')
+        if self['clearCache']['bClearCookie']:
+            cmd.append('--chrome_cookie')
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        cmd = '{} -m alabs.pam.rpa.desktop.clear_cache {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
         return
+
 
 
 ################################################################################
@@ -1006,7 +1022,7 @@ class Navigate(Items):
     # ==========================================================================
     @property
     def arguments(self):
-        url = self['navigate']['URL']
+        code, url = self._variables.convert(self['navigate']['URL'])
         size = {'is_change_size': self['navigate']['IsChageSize'],
                 'width': self['navigate']['Width'],
                 'height': self['navigate']['Height'],}
