@@ -384,6 +384,7 @@ class SearchImage(Items):
         data = run_subprocess(cmd)
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
             return data
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
@@ -394,7 +395,7 @@ class SearchImage(Items):
 ################################################################################
 class ImageMatch(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
-    references = ('imageMatch', 'verifyResultAction')
+    references = ('imageMatch', 'verifyResultAction', 'recordType')
     # {'imageMatch': {'clickType': 'Left', 'clickMotionType': 'DownAndUP',
     #                 'cropImageLocation': '6, 19, 277, 43',
     #                 'searchLocation': '0, 0, 1114, 191',
@@ -428,40 +429,73 @@ class ImageMatch(Items):
 
         # region
         cmd.append('--region')
-        cmd += separate_coord(self['imageMatch']['cropImageLocation'])
+        cmd += separate_coord(self['imageMatch']['searchLocation'])
+
+        # similarity
+        cmd.append('--similarity')
+        cmd.append(self['imageMatch']['similarity'])
+
         return tuple(cmd)
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments_for_select_window(self):
+        cmd = list()
+
+        # title
+        code, data = self._variables.convert(self['imageMatch']['title'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        # name
+        code, data = self._variables.convert(
+            self['imageMatch']['processName'])
+        # TODO: code 값에 따른 에러처리 필요
+        cmd.append(json.dumps(data))
+
+        return tuple(cmd)
+
+    # ==========================================================================
+    def __call__select_window(self):
+        cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
+            self.python_executable,
+            ' '.join(self.arguments_for_select_window))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            return None
+        return data['RETURN_VALUE']
 
     # ==========================================================================
     @request_handler
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Find Image')
+
+        if 'app' == self['recordType'].lower():
+            region = self.__call__select_window()
+            self['imageMatch']['searchLocation'] = region
+
         cmd = '{} -m alabs.pam.rpa.autogui.find_image_location {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        with subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                shell=True) as proc:
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
-            returncode = proc.returncode
-
-        if stderr:
-            message = stderr.decode()
-            self.logger.error(self.log_msg.format(message))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
             return self['verifyResultAction'], \
-                   self['verifyResultAction']['failActionType'], \
-                   message
+                   self['verifyResultAction']['failActionType'], data['MESSAGE']
 
-        message = stdout.decode()
         self.log_msg.pop()
         return self['verifyResultAction'], \
-               self['verifyResultAction']['successActionType'], \
-               message
+               self['verifyResultAction']['successActionType'], data['MESSAGE']
 
-        # stdout = b'10, 3'
-        # act = stdout.decode().split(',')[1]
 
 
 

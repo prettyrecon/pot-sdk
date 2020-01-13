@@ -61,8 +61,10 @@ def locate_image(mcxt, argspec):
         region=argspec.region,
         confidence=argspec.similarity * 0.01)
     if not location:
-        mcxt.logger.error('Failed to find location.')
-        sys.stderr.write('Failed to find location.')
+        result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                    MESSAGE='Failed to find location.')
+        mcxt.logger.error(result)
+        sys.stderr.write(str(result))
         exit(-1)
     x, y, *_ = location
 
