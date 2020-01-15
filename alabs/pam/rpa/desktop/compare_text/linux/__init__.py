@@ -28,6 +28,8 @@ import sys
 import enum
 import json
 from alabs.common.util.vvargs import ModuleContext
+from alabs.common.util.vvlogger import StructureLogFormat
+
 
 
 
@@ -117,15 +119,26 @@ def compare(mcxt, argspec):
     # from alabs.pam import ForkedPdb
     # ForkedPdb().set_trace()
     a, op, b =  argspec.compare_value
-    values.append(str(compare_values(a, op, b)))
+    try:
+        values.append(str(compare_values(a, op, b)))
+    except Exception as e:
+        result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                    MESSAGE=str(e))
+        mcxt.logger.error(result)
+        sys.stderr.write(str(result))
+        exit(-1)
+
     options = argspec.compare
     if options:
         for value in options:
             logical_op, a, op, b = value
             values.append(logical_op.lower())
             values.append(str(compare_values(a, op, b)))
+
     values = ' '.join(values)
-    sys.stdout.write(json.dumps(safe_eval(values)))
+    data = json.dumps(safe_eval(values))
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
+    sys.stdout.write(str(result))
     return
 
 

@@ -29,6 +29,7 @@ import json
 import pyautogui
 import tkinter as tk
 from alabs.common.util.vvargs import ModuleContext, func_log
+from alabs.common.util.vvlogger import StructureLogFormat
 
 
 
@@ -71,7 +72,9 @@ def user_params(mcxt, argspec):
         #  "action": "ONCE",
         #  "values": [["{{ABC.DEF}}", "123", "DESC], ["{{ABC.GHI}}", "456", "DE"],
         #             ["{{ABC.XYZ}}", "789","DE"]]}
-        sys.stdout.write(json.dumps(data))
+        result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data,
+                                    MESSAGE="")
+        sys.stdout.write(str(result))
         root.destroy()
 
     mcxt.logger.info('>>>')

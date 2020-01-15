@@ -6,11 +6,14 @@ import copy
 import enum
 import datetime
 import site
+import shutil
 
 from functools import wraps
 import multiprocessing as mp
 import traceback
 import platform
+
+from PIL import ImageGrab
 
 from alabs.pam.scenario import Scenario
 from alabs.pam.variable_manager.rc_api_variable_manager import \
@@ -80,6 +83,48 @@ def is_timeout(t):
         t = yield st - int(time.time())
         if t:
             st += t
+
+
+################################################################################
+def test_run_result(f):
+    @wraps(f)
+    def func(*args, **kwargs):
+        scenario = args[0].scenario
+        item = args[1]
+        information = dict()
+        information['startTimestamp'] = int(time.time() * 1000)
+        retv = f(*args, **kwargs)
+        information['endTimestamp'] = int(time.time() * 1000)
+        information['currentStep'] = scenario.current_step_index + 1
+        information['currentItem'] = scenario.current_item_index
+        information['stepName'] = scenario.step['name']
+        information['itemName'] = item['itemName']
+        information['content'] = ''
+        information['result'] = 'success' if retv['status'] else 'failure'
+
+        information['scanAreaX'] = 0
+        information['scanAreaY'] = 0
+        information['scanAreaWidth'] = 0
+        information['scanAreaHeight'] = 0
+        information['findAreaX'] = 0
+        information['findAreaY'] = 0
+        information['findAreaWidth'] = 0
+        information['findAreaHeight'] = 0
+        information['matchRatio'] = 0
+
+        img = ImageGrab.grab()
+        screenshot_filename = '{step:03}_{item:03}.png'.format(
+            step=information['currentStep'],
+            item=information['currentItem'])
+        result_screenshot_path = get_conf().get('/PATH/RESULT_SCREENSHOT_DIR')
+        information['imgFileName'] = screenshot_filename
+        screenshot_filename = str(pathlib.Path(result_screenshot_path) / \
+                                  pathlib.Path(screenshot_filename))
+        img.save(screenshot_filename, 'PNG')
+
+        retv['information'] = information
+        return retv
+    return func
 
 
 ################################################################################
@@ -277,7 +322,14 @@ class Runner(mp.Process):
         self._pause = True
 
     # ==========================================================================
+    @test_run_result
     def _call_item(self, item):
+        """
+
+        :param scenario: test_run_result deco에서 사용
+        :param item:
+        :return:
+        """
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
         self.logger.info(self.log_prefix.format(
@@ -325,14 +377,15 @@ class Runner(mp.Process):
             return
         if not data['status']:
             raise ExceptionTreatAsError(data['message'])
+
         if data['status'] and not data['function']:
             return
         if not hasattr(self, data['function'][0]):
             raise ValueError
         self.logger.info(self.log_prefix.format(
             'Calling the result job function.'))
-        self.logger.debug(FUNCTION=data['function'][0],
-                          ARGUMENTS=data['function'][1])
+        self.logger.debug(StructureLogFormat(FUNCTION=data['function'][0],
+                                             ARGUMENTS=data['function'][1]))
         f = getattr(self, data['function'][0])
         ret = f(data['function'][1])
         return ret
@@ -356,6 +409,18 @@ class Runner(mp.Process):
             PYTHONPATH=os.environ.setdefault('PYTHONPATH', ''),
             PATH=os.environ.setdefault('PATH', '')))
 
+        # 이전 결과 파일 정리
+        result_list = list()
+        result_path = get_conf().get('/PATH/RESULT_DIR')
+        if os.path.exists(result_path):
+            shutil.rmtree(result_path)
+        os.mkdir(result_path)
+
+        result_file = get_conf().get('/PATH/RESULT_FILE')
+        result_screenshot_path = get_conf().get('/PATH/RESULT_SCREENSHOT_DIR')
+        os.mkdir(result_screenshot_path)
+
+
         try:
             self.log_prefix.push('Preparing')
             # TODO: PIPE에 뭐가 들어있을지 알 수 없음
@@ -376,6 +441,7 @@ class Runner(mp.Process):
             # 시나리오 루틴 시작 ================================================
             while self._run:
                 # TODO: 타이머 추가 필요.
+
                 # 명령어 우선 처리
                 if self._pipe.poll():
                     self.log_prefix.push('Command Call Processing')
@@ -405,12 +471,17 @@ class Runner(mp.Process):
                 self.log_prefix.pop()  # Scenario Stepping
 
                 self.log_prefix.push('Operation Calling')
+
                 data = self._call_item(item)
+
+                result_list.append(data['information'])
+
                 self.logger.info(self.log_prefix.format(
                     'Done to run the item.'))
                 self.logger.debug(StructureLogFormat(RESULT=data))
                 self.log_prefix.push('Operation Result Handling')
                 self._follow_up(data)
+
                 self.log_prefix.pop()  # Operation Result Handling
                 self.log_prefix.pop()  # Operation Calling
 
@@ -429,6 +500,10 @@ class Runner(mp.Process):
                 traceback.print_exc(file=out)
             self.logger.error(self.log_prefix.format(out.getvalue()))
         finally:
+            with open(result_file, 'w') as f:
+                import json
+                f.write(json.dumps(result_list))
+
             self.logger.info(self.log_prefix.format('The process has ended.'))
             self._run = False
             self.logger.debug(StructureLogFormat(PID=self.pid, RUN=self._run))

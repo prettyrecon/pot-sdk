@@ -120,7 +120,7 @@ def make_follow_job_request(status, function=None, message=''):
 
 
 ################################################################################
-def run_subprocess(cmd):
+def run_subprocess(cmd, pipe=False):
     stdout = get_conf().get('/PATH/OPERATION_STDOUT_FILE')
     stderr = get_conf().get('/PATH/OPERATION_STDERR_FILE')
     if os.path.isfile(stdout):
@@ -353,15 +353,7 @@ class SearchImage(Items):
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        # with subprocess.Popen(cmd, shell=True,
-        #                       stdout=subprocess.PIPE,
-        #                       stderr=subprocess.PIPE) as proc:
-        #     stdout = proc.stdout.read()
-        #     stderr = proc.stderr.read()
-        # print(stdout, type(stdout))
-        # out = json.loads(stdout)
         data = run_subprocess(cmd)
-
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             return None
@@ -385,7 +377,7 @@ class SearchImage(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return data
+            return make_follow_job_request(False, None, data['MESSAGE'])
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
 
@@ -520,8 +512,15 @@ class MouseScroll(Items):
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
         subprocess.Popen(cmd, shell=True)
+        data = run_subprocess(cmd)
         # return scroll(*self.arguments)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
         self.log_msg.pop()
+        return make_follow_job_request(True, None, '')
+
 
 
 ################################################################################
@@ -575,14 +574,13 @@ class MouseClick(Items):
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        with subprocess.Popen(cmd, shell=True,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as proc:
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
-        if stderr:
-            self.logger.error(self.log_msg.format(stderr.decode(self.locale)))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
         self.log_msg.pop()
+        return make_follow_job_request(True, None, '')
 
 
 
@@ -635,7 +633,12 @@ class TypeText(Items):
         self.logger.info(self.log_msg.format('TypeText Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        subprocess.check_call(cmd, shell=True)
+        # subprocess.check_call(cmd, shell=True)
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
 
@@ -673,7 +676,10 @@ class TypeKeys(Items):
             cmd = '{} -m alabs.pam.rpa.autogui.send_shortcut {}'.format(
                 self.python_executable, ' '.join(arg))
             self.logger.debug(StructureLogFormat(COMMAND=cmd))
-            subprocess.check_call(cmd, shell=True)
+            proc = subprocess.Popen(cmd, shell=True)
+            out, err = proc.communicate(timeout=5)
+            print(out)
+            # data = run_subprocess(cmd)
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
 
@@ -752,6 +758,7 @@ class SelectWindow(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self.log_msg.push('SelectWindow')
         cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
@@ -760,8 +767,10 @@ class SelectWindow(Items):
 
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
-            return None
-        return
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(True, None, '')
 
 
 
@@ -789,6 +798,7 @@ class BrowserScript(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         # OpenBrowser 가 실행되어 있어야 함
+        self.log_msg.push('BrowserScript')
         if not self._scenario.web_driver:
             self.logger.error(self.log_msg.format(
                 'OpenBrowser must be running before this operation.'))
@@ -796,9 +806,9 @@ class BrowserScript(Items):
 
         script = self.arguments[0]
         self.logger.debug(StructureLogFormat(SCRIPT=script))
-
         self._scenario.web_driver.execute_script(script)
-        return
+        self.log_msg.pop()
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -981,7 +991,6 @@ class SendEmail(Items):
 
 ################################################################################
 class ClearCache(Items):
-    # OCR
     references = ('clearCache',)
 
     @property
@@ -1000,9 +1009,12 @@ class ClearCache(Items):
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
         data = run_subprocess(cmd)
-
-        return
-
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -1021,13 +1033,24 @@ class SetVariable(Items):
         variable_name = "{{%s.%s}}" % (
             self['setVariable']['GroupName'],
             self['setVariable']['VariableName'])
-        return variable_name
+
+        if self['setVariable']['valueFromType'] == 'Text':
+            value = self['setVariable']['textValue']
+
+        elif self['setVariable']['valueFromType'] == 'Clipboard':
+            import pyperclip
+            value = pyperclip.paste()
+        else:
+            code, data = self._variables.get('{{saved_data}}')
+            value = data
+
+        return variable_name, value
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Set Variable')
         self.logger.info(self.log_msg.format('Calling...'))
-        self._variables.create(self.arguments, self['setVariable']['textValue'])
+        self._variables.create(*self.arguments)
         # TODO: 플러그인 아웃풋 처리
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
@@ -1086,7 +1109,7 @@ class Navigate(Items):
         self.logger.info(self.log_msg.format(out.getvalue()))
         wdrv.get(url)
         self._scenario.web_driver = wdrv
-        return
+        return make_follow_job_request(True, None, '')
 
 
 ################################################################################
@@ -1182,24 +1205,21 @@ class CompareText(Items):
         self.logger.info(self.log_msg.format('CompareText Calling...'))
         self.logger.debug(StructureLogFormat(CMD=cmd))
 
-        proc = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate()
-
-        if stderr:
-            message = stderr.decode(self.locale)
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return self['verifyResultAction'], \
-                   self['verifyResultAction']['failActionType'], \
-                   message
+            return (self['verifyResultAction'],
+                    self['verifyResultAction']['failActionType'],
+                    data['MESSAGE'])
 
-        result = json.loads(stdout.decode(self.locale))
-        message = ''
+        result = data['RETURN_VALUE']
         action = {True: 'successActionType', False: 'failActionType'}[result]
         self.log_msg.pop()
-        return self['verifyResultAction'], \
-               self['verifyResultAction'][action], \
-               message
+        return (self['verifyResultAction'],
+                self['verifyResultAction'][action],
+                data['MESSAGE'])
+
 
 
 
@@ -1298,8 +1318,11 @@ class UserParams(Items):
             self.logger.error(self.log_msg.format(stderr.decode()))
             self.log_msg.pop()
             return make_follow_job_request(False, message=stderr.decode())
+
+        result = json.loads(stdout.decode())
         status, function, message = self.get_result_handler(
-            data=json.loads(stdout.decode()))
+            data=result['RETURN_VALUE'])
+
         self.log_msg.pop()
         return make_follow_job_request(status, function, message)
 
@@ -1394,19 +1417,21 @@ class PopupInteraction(Items):
             stderr = proc.stderr.read()
             returncode = proc.returncode
 
-        if stderr:
-            self.logger.error(self.log_msg.format(stderr.decode()))
-            return make_follow_job_request(
-                False, message=stderr.decode(self.locale))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(False, None, data['MESSAGE'])
 
-        # stdout = b'Button3,JumpForward'
         self.logger.info(self.log_msg.format('User clicked a button.'))
-        act = stdout.decode().split(',')[1]
+        # stdout = b'Button3,JumpForward'
+        act = data['RETURN_VALUE']
+        act = act.split(',')[1]
         self.logger.debug(StructureLogFormat(BUTTON=act))
 
         status = True
         function = None
-        message = ''
+        message = data['MESSAGE']
 
         if act in ("MoveOn", "Resume"):
             pass

@@ -65,7 +65,7 @@ def select_window(mcxt, argspec):
     process_name = argspec.name
     process_title = argspec.title
     if not process_name or not process_title:
-        sys.stdout.write(
+        sys.stderr.write(
             str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                    MESSAGE="No title or process name.")))
         return
@@ -83,7 +83,7 @@ def select_window(mcxt, argspec):
 
     # handle 을 찾지 못했을 경우 리턴
     if handle == 0:
-        sys.stdout.write(
+        sys.stderr.write(
             str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                    MESSAGE="Couldn't find the handle.")))
         exit(-1)
@@ -99,13 +99,11 @@ def select_window(mcxt, argspec):
 
     # 윈도우의 위치 사이즈 정보를 리턴
     result = get_window_rect(handle)
-
-    sys.stdout.write(
-        str(StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,
-                               MESSAGE='')))
+    data = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,MESSAGE='')
+    sys.stdout.write(str(data))
     mcxt.logger.info(result)
     mcxt.logger.info('>>>end...')
-    return result
+    return data
 
 
 ################################################################################

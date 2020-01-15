@@ -27,7 +27,7 @@ Change Log
 import sys
 import enum
 import pyautogui
-from argparse import Namespace
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.pam.rpa.autogui.click import ClickMotionType, ClickType, to_int
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
@@ -83,9 +83,13 @@ def click(mcxt, argspec):
         action = getattr(pyautogui, motion)
         action(button=button)
 
+    data = pyautogui.position()
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data,
+                                MESSAGE="")
+    sys.stdout.write(str(result))
     mcxt.logger.info('>>>end...')
 
-    return pyautogui.position()
+    return result
 
 
 ################################################################################

@@ -24,6 +24,7 @@ Change Log
 """
 
 ################################################################################
+import sys
 import pyautogui
 import pyperclip
 from alabs.common.util.vvargs import ModuleContext
@@ -58,8 +59,10 @@ def type_text(mcxt, argspec):
         pyautogui.hotkey('ctrl', 'v')
     else:
         pyautogui.typewrite(argspec.text, interval=argspec.interval)
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None, MESSAGE="")
+    sys.stdout.write(str(result))
     mcxt.logger.info('TypeText is Done.')
-    return True
+    return result
 
 
 ################################################################################
