@@ -1236,11 +1236,33 @@ class WaitingPopup(Items):
 ################################################################################
 class DeleteFile(Items):
     # OCR
-    references = ('imageMatch',)
+    references = ('deleteFile',)
+
+    # ==========================================================================
+    @property
+    def arguments(self):
+        cmd = list()
+        cmd.append(self['deleteFile']['filePath'])
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('FileDelete')
+        file = self.arguments[0]
+        if not os.path.isfile(file):
+            self.log_msg.pop()
+            return make_follow_job_request(False, None,
+                                           'The file is not existed')
+        try:
+            os.remove(file)
+            message = 'Succeeded to delete the file.'
+            status = True
+        except Exception as e:
+            message = str(e)
+            status = False
+
+        self.log_msg.pop()
+        return make_follow_job_request(status, None, message)
 
 
 ################################################################################
