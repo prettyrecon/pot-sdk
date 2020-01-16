@@ -99,7 +99,7 @@ def test_run_result(f):
         information['currentItem'] = scenario.current_item_index
         information['stepName'] = scenario.step['name']
         information['itemName'] = item['itemName']
-        information['content'] = ''
+        information['content'] = retv['message']
         information['result'] = 'success' if retv['status'] else 'failure'
 
         information['scanAreaX'] = 0
