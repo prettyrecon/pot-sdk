@@ -1392,31 +1392,41 @@ class PopupInteraction(Items):
     @arguments_options_fileout
     def arguments(self):
         cmd = list()
-        title = json.dumps(self['popupInteraction']['title'])
+        code, title = self._variables.convert(self['popupInteraction']['title'])
         if not title:
             title = json.dumps("No Message")
         cmd.append(title)
         cmd.append("--button")
-        title = json.dumps(self['popupInteraction']['firstButtonTitle'])
+
+        code, title = self._variables.convert(
+            self['popupInteraction']['firstButtonTitle'])
         cmd.append(title)
         action = self.actions[
             self['popupInteraction']['firstButtonAction']]
         cmd.append(action)
 
-        if self.actions[self['popupInteraction']['secondButtonAction']]:
-            cmd.append("--button")
-            title = json.dumps(self['popupInteraction']['secondButtonTitle'])
-            cmd.append(title)
-            action = self.actions[
-                self['popupInteraction']['secondButtonAction']]
-            cmd.append(action)
+        for b in ['second', 'third']:
+            if self.actions[self['popupInteraction'][b + 'ButtonAction']]:
+                cmd.append("--button")
+                code, title = self._variables.convert(
+                    self['popupInteraction'][b + 'ButtonTitle'])
+                cmd.append(title)
+                action = self.actions[
+                    self['popupInteraction'][b + 'ButtonAction']]
+                cmd.append(action)
 
-        if self.actions[self['popupInteraction']['thirdButtonAction']]:
-            cmd.append("--button")
-            title = json.dumps(self['popupInteraction']['thirdButtonTitle'])
-            cmd.append(title)
-            action = self.actions[self['popupInteraction']['thirdButtonAction']]
-            cmd.append(action)
+                bac = self['popupInteraction'][b + 'ButtonActionValue']
+                bsn = self['popupInteraction'][b + 'ButtonStepNum']
+                code, bsn = self._variables.convert(str(bsn))
+                code, bac = self._variables.convert(str(bac))
+                if bac and int(bac) > -1:
+                    value = bac
+                elif bsn and int(bsn) > -1:
+                    value = bsn
+                else:
+                    value = ''
+                cmd.append(value)
+
         return tuple(cmd)
 
     # ==========================================================================
@@ -1437,33 +1447,48 @@ class PopupInteraction(Items):
                 shell=True) as proc:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
-            returncode = proc.returncode
-
-        data = run_subprocess(cmd)
-        if not data['RETURN_CODE']:
-            self.logger.error(data['MESSAGE'])
+        if stderr:
+            self.logger.error(self.log_msg.format(stderr.decode()))
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(False, message=stderr.decode())
 
-        self.logger.info(self.log_msg.format('User clicked a button.'))
+        data = json.loads(stdout.decode())
+        self.logger.debug(StructureLogFormat(RESULT=data))
         # stdout = b'Button3,JumpForward'
-        act = data['RETURN_VALUE']
-        act = act.split(',')[1]
-        self.logger.debug(StructureLogFormat(BUTTON=act))
+        retv = data['RETURN_VALUE']
+        retv = dict(zip(['title', 'act', 'value'], retv.split(',')))
+        self.logger.debug(StructureLogFormat(BUTTON=retv))
 
         status = True
         function = None
         message = data['MESSAGE']
 
-        if act in ("MoveOn", "Resume"):
-            pass
-        elif act == "TreatAsError":
+        if retv['act'] in ("MoveOn", "Resume"):
+            message = 'User chose the resume button.'
+        elif retv['act'] == "TreatAsError":
             status = False
             message = "User chose 'Treat as Error' button."
-        elif act == "IgnoreFailure":
+        elif retv['act'] == "IgnoreFailure":
             function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
-        elif act == "AbortScenarioButNoError":
+            message = "User chose 'IgnoreFailure' button."
+        elif retv['act'] == "AbortScenarioButNoError":
             function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+            message = "User chose 'AbortScenarioButNoError' button."
+        elif retv['act'] == "JumpToOperation":
+            value = int(retv['value']) - 1
+            function = (ResultHandler.SCENARIO_SET_ITEM.value, (value,))
+        elif retv['act'] == "JumpToStep":
+            value = int(retv['value']) - 1
+            function = (ResultHandler.SCENARIO_SET_STEP.value, (value,))
+        elif retv['act'] == "JumpForward":
+            value = int(retv['value']) - 1
+            function = (ResultHandler.SCENARIO_JUMP_FORWARD.value, (value,))
+        elif retv['act'] == "JumpBackward":
+            value = int(retv['value']) + 1
+            function = (ResultHandler.SCENARIO_JUMP_BACKWARD.value, (value,))
+        elif retv['act'] == "RestartFromTop":
+            status = False
+            message = "The option, 'RestartFromTop' is not supported."
         else:
             pass
         self.log_msg.pop()

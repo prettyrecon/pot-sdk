@@ -48,6 +48,7 @@ class ResultHandler(enum.Enum):
     SCENARIO_FINISH_STEP = '_result_handler_finish_step'
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
     SCENARIO_GOTO = '_result_handler_goto'
+    SCENARIO_RESTART_FROM_TOP = "_result_handler_set_step"
 
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
@@ -490,9 +491,9 @@ class Runner(mp.Process):
         except StopIteration:
             self.log_prefix.pop()  # Operation Stepping
         except ExceptionTreatAsError as e:
-            with captured_output() as (out, _):
-                traceback.print_exc(file=out)
-            self.logger.error(self.log_prefix.format(out.getvalue()))
+            # with captured_output() as (out, _):
+            #     traceback.print_exc(file=out)
+            self.logger.info(self.log_prefix.format('Treated as error.'))
         except KeyboardInterrupt:
             self.logger.warn(self.log_prefix.format('Keyboard Interrupt.'))
         except Exception as e:
@@ -560,6 +561,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
+        self.scenario.set_current_item_by_index(0)
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "STEP": self.scenario.step}
