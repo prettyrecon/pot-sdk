@@ -27,7 +27,8 @@ Change Log
 import sys
 import enum
 import pyautogui
-from argparse import Namespace
+from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.rpa.autogui.click import ClickMotionType, ClickType, to_int
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -44,20 +45,6 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
-################################################################################
-class ClickMotionType(enum.Enum):
-    CLICK = 'click'
-    DOUBLE = 'doubleClick'
-    PRESS = 'mouseDown'
-    RELEASE = 'mouseUp'
-
-
-################################################################################
-class ClickType(enum.Enum):
-    RIGHT = 'right'
-    LEFT = 'left'
-    NONE = 'None'
-
 
 ################################################################################
 class BaseAreaType(enum.Enum):
@@ -66,9 +53,6 @@ class BaseAreaType(enum.Enum):
     ELEMENT = 'Element'
     CURSOR = 'Cursor'
 
-################################################################################
-def to_int(value:str):
-    return tuple((int(v) for v in value.split(',')))
 
 ################################################################################
 @func_log
@@ -91,12 +75,21 @@ def click(mcxt, argspec):
     motion = ClickMotionType[argspec.motion].value
     button = ClickType[argspec.button].value
 
-    action = getattr(pyautogui, motion)
-    action(button=button, x=x, y=y)
+    if argspec.relativepos:
+        pyautogui.move(x, y)
+    else:
+        pyautogui.moveTo(x, y)
+    if button != 'None':
+        action = getattr(pyautogui, motion)
+        action(button=button)
 
+    data = pyautogui.position()
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data,
+                                MESSAGE="")
+    sys.stdout.write(str(result))
     mcxt.logger.info('>>>end...')
 
-    return pyautogui.position()
+    return result
 
 
 ################################################################################
@@ -129,6 +122,7 @@ def _main(*args):
                             choices=[
                                 ClickMotionType.CLICK.name,
                                 ClickMotionType.DOUBLE.name,
+                                ClickMotionType.TRIPLE.name,
                                 ClickMotionType.PRESS.name,
                                 ClickMotionType.RELEASE.name, ],
                             help='')
@@ -139,6 +133,9 @@ def _main(*args):
                                 ClickType.LEFT.name,
                                 ClickType.NONE.name, ],
                             help='')
+        mcxt.add_argument('--relativepos', action='store_true',
+                          help='Move the mouse cursor over a few pixels '
+                               'relative to its current postion')
         ########################################################################
         mcxt.add_argument('coordinates', nargs=2, type=int, default=None,
                           metavar='COORDINATE', help='X Y')

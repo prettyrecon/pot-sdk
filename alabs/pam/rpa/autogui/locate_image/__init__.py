@@ -53,7 +53,7 @@ def main(*args):
     elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.locate_image.macos import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'iOS':
         from alabs.pam.rpa.autogui.locate_image.ios import main as _main
 
     else:

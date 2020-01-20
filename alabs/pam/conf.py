@@ -15,6 +15,7 @@ ARGOS_RPA_BOTS_DIR = PAM / 'bots'
 ARGOS_RPA_PAM_LOG_DIR = PAM / "logs"
 ARGOS_RPA_VENV_DIR = ARGOS_RPA_PAM_DIR / "venvs"
 # PosixPath('/Users/limdeokyu/.argos-rpa.logs')
+ARGOS_RPA_PAM_RESULT_DIR = PAM / 'test_result'
 
 PROGRAM = PAM / 'programs'
 PROGRAM_WEB_DRIVER = PROGRAM / 'web_drivers'
@@ -36,6 +37,11 @@ path["PLUGIN_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stdout")
 path["PLUGIN_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stderr")
 path["PAM_LOG"] = str(CURRENT_PAM_LOG_DIR / "pam.log")
 path["OPERATION_LOG"] = str(CURRENT_PAM_LOG_DIR / "operation.log")
+
+path['RESULT_DIR'] = str(ARGOS_RPA_PAM_RESULT_DIR)
+path['RESULT_FILE'] = str(ARGOS_RPA_PAM_RESULT_DIR / 'TestRunResult.json')
+path['RESULT_SCREENSHOT_DIR'] = str(ARGOS_RPA_PAM_RESULT_DIR / "ScreenShot")
+
 
 web_drv = dict()
 web_drv["CHROME_DRIVER_WINDOWS"] = str(PROGRAM_WEB_DRIVER / 'chromedriver.exe')

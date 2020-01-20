@@ -30,6 +30,7 @@ import json
 import pyautogui
 import tkinter as tk
 from .. import check_args, Action
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log
 
 
@@ -49,7 +50,7 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 SELECTED_BUTTON_VALUE = None
 
 ################################################################################
-# @func_log
+@func_log
 def dialogue(mcxt, argspec):
     """
     plugin job function
@@ -62,7 +63,6 @@ def dialogue(mcxt, argspec):
     def button_clicked(v):
         global SELECTED_BUTTON_VALUE
         SELECTED_BUTTON_VALUE = v
-        sys.stdout.write(','.join(SELECTED_BUTTON_VALUE))
         root.destroy()
 
     pyautogui.FAILSAFE = False
@@ -95,8 +95,26 @@ def dialogue(mcxt, argspec):
     tk.Label(root, text=argspec.title, wraplength=300,
              width=50, height=10).pack()
     # root.geometry()
+    mcxt.logger.info('TEST')
     root.mainloop()
-    return True
+    mcxt.logger.info('TEST')
+
+    global SELECTED_BUTTON_VALUE
+    code = False
+    data = None
+
+    message = "The dialogue window was destroyed with unexpected reasons."
+    if SELECTED_BUTTON_VALUE:
+        code = True
+        data = ','.join(SELECTED_BUTTON_VALUE)
+        message = ''
+    result = StructureLogFormat(RETURN_CODE=code, RETURN_VALUE=data,
+                                MESSAGE=message)
+    if code:
+        sys.stdout.write(str(result))
+    else:
+        sys.stderr.write(message)
+    return result
 
 
 ################################################################################

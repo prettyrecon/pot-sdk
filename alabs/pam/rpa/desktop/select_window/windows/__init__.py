@@ -25,9 +25,12 @@ Change Log
 ################################################################################
 import os
 # from win32gui import FindWindow
+import sys
+import json
 import win32gui
 import psutil
 import win32con
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from pathlib import Path
@@ -62,6 +65,9 @@ def select_window(mcxt, argspec):
     process_name = argspec.name
     process_title = argspec.title
     if not process_name or not process_title:
+        sys.stderr.write(
+            str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                   MESSAGE="No title or process name.")))
         return
 
     # 입력한 프로세스명에 .exe 가 없을경우 .exe 붙이기
@@ -77,7 +83,10 @@ def select_window(mcxt, argspec):
 
     # handle 을 찾지 못했을 경우 리턴
     if handle == 0:
-        return
+        sys.stderr.write(
+            str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                   MESSAGE="Couldn't find the handle.")))
+        exit(-1)
 
     if argspec.location is not None:
         # 위치 조정
@@ -90,9 +99,11 @@ def select_window(mcxt, argspec):
 
     # 윈도우의 위치 사이즈 정보를 리턴
     result = get_window_rect(handle)
-
+    data = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,MESSAGE='')
+    sys.stdout.write(str(data))
+    mcxt.logger.info(result)
     mcxt.logger.info('>>>end...')
-    return result
+    return data
 
 
 ################################################################################

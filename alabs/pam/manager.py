@@ -269,7 +269,10 @@ def get_venv(requirements):
     logger.debug(StructureLogFormat(PLUGINS=essensial_modules))
     # cmd = 'python -m alabs.ppm {}'.format(args)
     from alabs.pam.conf import get_conf
-    ppm_exe = get_conf().get('EXTERNAL_PROG/PPM')
+    # ppm_exe = get_conf().get('EXTERNAL_PROG/PPM')
+    ppm_exe = pathlib.Path(sys.executable).parent / \
+              ('alabs.ppm' + '.exe' if sys.platform == 'win32' else '')
+
     cmd = '{} {}'.format(ppm_exe, args)
     logger.debug(StructureLogFormat(CMD=cmd))
 

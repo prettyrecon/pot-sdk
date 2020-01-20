@@ -46,11 +46,12 @@ def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
     if _platform == 'Linux':
         from alabs.pam.rpa.autogui.find_image_location.linux import main as _main
-
+    elif _platform == 'Windows':
+        from alabs.pam.rpa.autogui.find_image_location.linux import main as _main
     elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.find_image_location.macos import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'iOS':
         from alabs.pam.rpa.autogui.find_image_location.ios import main as _main
 
     else:

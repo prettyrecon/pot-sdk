@@ -28,6 +28,7 @@ import sys
 import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+from alabs.common.util.vvlogger import StructureLogFormat
 
 
 ################################################################################
@@ -51,15 +52,25 @@ def find_image_loacation(mcxt, argspec):
     :param argspec: argument spec
     :return: x, y
     """
-    mcxt.logger.info('>>>starting...')
-    location = pyautogui.locateOnScreen(argspec.filename, region=argspec.region)
-    if not location:
-        sys.stderr.write('Failed to find the location')
-        return False
+    mcxt.logger.info('FindImage start ...')
+    location = pyautogui.locateOnScreen(
+        argspec.filename,
+        region=argspec.region,
+        confidence=argspec.similarity * 0.01)
 
-    mcxt.logger.info('>>>end...')
-    sys.stdout.write(str(location))
-    return True
+    if not location:
+        result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                    MESSAGE='Failed to find location.')
+        mcxt.logger.error(result)
+        sys.stderr.write(str(result))
+        exit(-1)
+
+
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=str(location),
+                                MESSAGE="")
+    sys.stdout.write(str(result))
+    mcxt.logger.info('FindImage end ...')
+    return result
 
 ################################################################################
 def _main(*args):
@@ -91,8 +102,9 @@ def _main(*args):
                           metavar='image_filename.png',  help='')
         mcxt.add_argument('--region', nargs=4, type=int, default=None,
                           metavar='0', help='')
-        mcxt.add_argument('--similarity', type=int, metavar='SIMILARITY',
-                            default=50, min_value=0, max_value=100, help='')
+        mcxt.add_argument('--similarity', type=int, metavar='50',
+                          default=50, min_value=0, max_value=100, help='')
+
         argspec = mcxt.parse_args(args)
         return find_image_loacation(mcxt, argspec)
 

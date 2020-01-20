@@ -24,7 +24,9 @@ Change Log
 """
 
 ################################################################################
+import sys
 import pyautogui
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -50,7 +52,7 @@ def scroll(mcxt, argspec):
     :param argspec: argument spec
     :return: x, y
     """
-    mcxt.logger.info('>>>starting...')
+    mcxt.logger.info('>>> MouseScroll Start ...')
     x = argspec.horizon
     y = argspec.vertical
     if not any([x, y]):
@@ -60,7 +62,10 @@ def scroll(mcxt, argspec):
         pyautogui.vscroll(y * -1)
     if x:
         pyautogui.hscroll(x)
-    mcxt.logger.info('>>>end...')
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=(x, y),
+                                MESSAGE="")
+    sys.stdout.write(str(result))
+    mcxt.logger.info('>>> MouseScroll End')
 
     return x, y
 

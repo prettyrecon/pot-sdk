@@ -19,4 +19,4 @@ setup:
   package_data:
     alabs.pam: ['icon.*']
   url: https://www.argos-labs.com
-  version: 1.000.0
+  version: 1.0.1

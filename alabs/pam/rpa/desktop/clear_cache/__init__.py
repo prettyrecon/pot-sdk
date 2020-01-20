@@ -24,14 +24,9 @@ Change Log
 """
 
 ################################################################################
-import pyautogui
-import sys
-from pyautogui import KEY_NAMES
-from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
-import pathlib
-import yaml
+import subprocess
 
 
 ################################################################################
@@ -46,64 +41,51 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
-FILTER_CHAR = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", ]
-KEYS = list(filter(lambda x: x not in FILTER_CHAR, KEY_NAMES))
-
-
-CURRENT_PATH = pathlib.Path(pathlib.Path(__file__).resolve()).parent
-with open(str(CURRENT_PATH / pathlib.Path('keymap.yaml'))) as f:
-    KEYMAP_WINDOWS = yaml.load(f.read())['WINDOWS']
-WINDOWS_KEY_MAP_TO_PYAUTOGUI = {v: KEYMAP_WINDOWS[v] for v in KEYMAP_WINDOWS}
-
-################################################################################
-def get_key_from_text_for_window(text: str)->list:
-    """
-    LA STU에서 생성된 키시퀀스 텍스트
-
-    :param text: LCtrl + [A] 와 같은 형태로 입력
-    :return: ['ctrlleft', 'a']
-    """
-    text = text.replace(' ', '')
-    text = text.split('+')
-    ret = list()
-    for t in text:
-        if t[0] == '[' and t[-1] == ']':
-            t = t[1:-1]
-        t = t.upper()
-        if not t in WINDOWS_KEY_MAP_TO_PYAUTOGUI:
-            continue
-        ret.append(WINDOWS_KEY_MAP_TO_PYAUTOGUI[t].lower())
-    return ret
 
 ################################################################################
 @func_log
-def send_shortcut(mcxt, argspec):
+def clear_cache(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
     :param argspec: argument spec
     :return: True
     """
-    # --txt는 LA Stu에서 생성한 키시퀀스 하위호환
     mcxt.logger.info('>>>starting...')
+    cmd = list()
 
-    # --txt는 LA Stu에서 생성한 키시퀀스 하위호환
-    keys = get_key_from_text_for_window(argspec.txt)
+    if argspec.ie:
+        cmd.append('RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 8')
+        cmd.append('erase "%LOCALAPPDATA%\\Microsoft\\Windows\\Tempor~1\\*.*" /f /s /q')
+        cmd.append('for /D %%i in ("%LOCALAPPDATA%\\Microsoft\\Windows\\Tempor~1\\*") do RD /S /Q "%%i"')
 
-    # if not argspec.keys:
-    #     raise ArgsError
-    # for key in argspec.keys:
-    #     if key not in KEYS:
-    #         raise ArgsError("{} is not valid. Please check the help message.")
-    pyautogui.hotkey(*keys, interval=argspec.interval)
-    # pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
+    if argspec.chrome:
+        cmd.append('Set uname=%username%')
+        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
+        cmd.append('set ChromeCache=%ChromeDataDir%\\Cache')
+        cmd.append('del /q /s /f %ChromeCache%\\*.*')
 
-    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None,
-                                MESSAGE="")
-    sys.stdout.write(str(result))
+    if argspec.chrome_cookie:
+        cmd.append('Set uname=%username%')
+        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
+        cmd.append('set ChromeCache=%ChromeDataDir%\\Cache')
+        cmd.append('del /q /f %ChromeDataDir%\\*Cookies*.*')
+
+    if argspec.chrome_all:
+        cmd.append('Set uname=%username%')
+        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
+        cmd.append('del /q /f %ChromeDataDir%\\*.*')
+
+    if cmd:
+
+        cmd = ';'.join(cmd)
+        cmd = 'cmd /c ' + cmd
+        print(cmd)
+        subprocess.Popen(cmd, shell=True)
+
     mcxt.logger.info('>>>end...')
 
-    exit(0)
+    return
 
 ################################################################################
 def _main(*args):
@@ -130,12 +112,18 @@ def _main(*args):
         output_type=OUTPUT_TYPE,
         description=DESCRIPTION,
     ) as mcxt:
-        k = ' '.join([str(v) for v in KEYS])
-        mcxt.add_argument('--txt', type=str, help='')  # : LCtrl + [C]
-        # mcxt.add_argument('keys', nargs='+', help=k)
-        mcxt.add_argument('--interval', type=float, default=0.05, help='')
+        # --ie --chrome --chrome_cookie
+        mcxt.add_argument('--ie', action='store_true',
+                          help='Delete the caches of IE.')
+        mcxt.add_argument('--chrome', action='store_true',
+                          help='Delete the caches of Chrome.')
+        mcxt.add_argument('--chrome_cookie', action='store_true',
+                          help='Delete Chrome cookie')
+        mcxt.add_argument('--chrome_all', action='store_true',
+                          help='Delete all of the chrome cache directory')
         argspec = mcxt.parse_args(args)
-        return send_shortcut(mcxt, argspec)
+
+        return clear_cache(mcxt, argspec)
 
 ################################################################################
 def main(*args):
