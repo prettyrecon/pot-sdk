@@ -85,7 +85,8 @@ def select_window(mcxt, argspec):
     if handle == 0:
         sys.stderr.write(
             str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
-                                   MESSAGE="Couldn't find the handle.")))
+                                   MESSAGE="Couldn't find any window "
+                                           "to match.")))
         exit(-1)
 
     if argspec.location is not None:
@@ -266,7 +267,9 @@ def check_browser_process(process_name):
     :param process_name: .exe 가 포함된 프로세스명
     :return: 브라우저 프로세스일 경우 True, 아니면 False
     """
-    if process_name is "chrome.exe" or "iexplore.exe" or "firefox.exe":
+    if process_name == "chrome.exe" or\
+            process_name == "iexplore.exe" or\
+            process_name == "firefox.exe":
         return True
     return False
 
@@ -323,7 +326,8 @@ def text_compare_with_wildcard(origin_text, pattern):
             if not is_result:
                 return False
             while_index += 1
-
+    elif temp_string != pattern:
+        return False
     return True
 
 
