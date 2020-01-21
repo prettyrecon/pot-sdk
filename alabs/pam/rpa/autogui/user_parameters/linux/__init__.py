@@ -99,11 +99,11 @@ def user_params(mcxt, argspec):
         frame.pack()
         # message
         if q[0] != q[1]:
-            q[1] = '{}({{{{{}.{}}}}}): '.format(q[0], argspec.group, q[1])
+            title = '{}({{{{{}.{}}}}}): '.format(q[0], argspec.group, q[1])
         else:
-            q[1] = '{{{}.{}}}: '.format(argspec.group, q[1])
+            title = '{{{}.{}}}: '.format(argspec.group, q[1])
         # variable name
-        tk.Label(frame, text=q[1]).grid(row=0, column=0)
+        tk.Label(frame, text=title).grid(row=0, column=0)
         # line editor
         le = tk.Entry(frame)
         le.insert(0, q[2])
