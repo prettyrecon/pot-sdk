@@ -1304,6 +1304,8 @@ class UserParams(Items):
             title = d['title']
             group_name = d['groupName']
             cmd.append('--input')
+            message = d['message'] if d['message'] else d['variableName']
+            cmd.append(json.dumps(message))
             cmd.append(d['variableName'])
             cmd.append(json.dumps(d['defaultValue']))
             cmd.append(json.dumps(d['description']))

@@ -91,15 +91,27 @@ def user_params(mcxt, argspec):
              wraplength=300, width=50, height=10).pack(side='top')
 
     # Entry 생성 ===============================================================
+    input_list:list = argspec.input
+    input_list.reverse()
     for i, q in enumerate(argspec.input):
+        r = 0
         frame = tk.Frame(root)
         frame.pack()
-        tk.Label(frame, text=q[0]).grid(row=0, column=0)
+        # message
+        if q[0] != q[1]:
+            q[1] = '{}({{{{{}.{}}}}}): '.format(q[0], argspec.group, q[1])
+        else:
+            q[1] = '{{{}.{}}}: '.format(argspec.group, q[1])
+        # variable name
+        tk.Label(frame, text=q[1]).grid(row=0, column=0)
+        # line editor
         le = tk.Entry(frame)
-        le.insert(0, q[1])
+        le.insert(0, q[2])
         le.grid(row=0, column=1)
-        tk.Label(frame, text=q[2]).grid(row=0, column=2)
-        entries.append((q[0], le, q[2]))
+        # description
+        tk.Label(frame, text=q[3]).grid(row=0, column=2)
+
+        entries.append((q[1], le, q[3]))
 
     frame = tk.Frame(root)
     frame.pack()
@@ -161,7 +173,7 @@ def _main(*args):
         description=DESCRIPTION,
     ) as mcxt:
         help_msg = """
-        "group_name" --input "variable_name" "default value" "description"
+        "group_name" --input "message" "variable_name" "default value" "description"
         """
         mcxt.add_argument('-i', '--input', action='append', nargs='+',
                           help=help_msg)
