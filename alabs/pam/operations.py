@@ -1297,14 +1297,21 @@ class UserParams(Items):
     def arguments(self):
         data = self['userInputs']
         cmd = list()
+        title = ''
         group_name = ""
+
         for d in data:
+            title = d['title']
             group_name = d['groupName']
             cmd.append('--input')
             cmd.append(d['variableName'])
             cmd.append(json.dumps(d['defaultValue']))
             cmd.append(json.dumps(d['description']))
         cmd.insert(0, group_name)
+
+        if title:
+            cmd.append('--title')
+            cmd.append(json.dumps(title))
         return tuple(cmd)
 
     # ==========================================================================

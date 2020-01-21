@@ -84,6 +84,9 @@ def user_params(mcxt, argspec):
     root.title("Dialogue")
 
     # Popup Title ==============================================================
+    if argspec.title:
+        tk.Label(root, text=argspec.title,
+                 wraplength=100, width=50, height=10).pack(side='top')
     tk.Label(root, text=argspec.group,
              wraplength=300, width=50, height=10).pack(side='top')
 
@@ -162,7 +165,7 @@ def _main(*args):
         """
         mcxt.add_argument('-i', '--input', action='append', nargs='+',
                           help=help_msg)
-
+        mcxt.add_argument('-t', '--title', type=str)
         ########################################################################
         mcxt.add_argument('group', type=str)
         argspec = mcxt.parse_args(args)

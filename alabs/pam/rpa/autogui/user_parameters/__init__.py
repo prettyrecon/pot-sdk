@@ -52,7 +52,7 @@ def main(*args):
     elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.user_parameters.linux import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'iOS':
         from alabs.pam.rpa.autogui.click.ios import main as _main
         # return _main('--wda_url', url, '--wda_port', port)
     else:
