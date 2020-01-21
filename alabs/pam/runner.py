@@ -660,7 +660,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = int(args[0]) - 1
-        self.scenario.set_current_item_by_index(int(args[1]) - 1)
+        self.scenario.set_current_item_by_index(int(args[1]))
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "CUR_ITEM_INDEX": self.scenario.current_item_index,
@@ -677,3 +677,4 @@ class Runner(mp.Process):
             self._variables.create(name, value)
 
         self.logger.debug(StructureLogFormat(SET_VARIABLES=args))
+
