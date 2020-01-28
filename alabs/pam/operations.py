@@ -81,24 +81,25 @@ def request_handler(f):
     @wraps(f)
     def func(*args, **kwargs):
         from alabs.pam.runner import ResultHandler, ResultAction
-        action = dict((x.value, x.name) for x in list(ResultAction))
-        result_data, result, message = f(*args, **kwargs)
+        result_data, result, value, message = f(*args, **kwargs)
 
         status = True
         function = None
         message = ''
-
-        if action[result] == ResultAction.MoveOn.value:
+        if result == ResultAction.MoveOn.value:
             pass
-        elif action[result] == ResultAction.TreatAsError.value:
+        elif result == ResultAction.TreatAsError.value:
             status = False
             message = message
-        elif action[result] == ResultAction.IgnoreFailure.value:
+        elif result == ResultAction.IgnoreFailure.value:
             function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
-        elif action[result] == ResultAction.AbortScenarioButNoError.value:
+        elif result == ResultAction.AbortScenarioButNoError.value:
             function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+        elif result == ResultAction.JumpToOperation.value:
+            function = (ResultHandler.SCENARIO_SET_ITEM.value,
+                        (int(value) - 1,))
         else:
-            pass
+            raise Exception("Not Supported Type {}".format(result))
         return make_follow_job_request(status, function, message)
     return func
 
@@ -481,12 +482,16 @@ class ImageMatch(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return self['verifyResultAction'], \
-                   self['verifyResultAction']['failActionType'], data['MESSAGE']
+            return (self['verifyResultAction'],
+                    self['verifyResultAction']['failActionType'],
+                    None,
+                    data['MESSAGE'])
 
         self.log_msg.pop()
-        return self['verifyResultAction'], \
-               self['verifyResultAction']['successActionType'], data['MESSAGE']
+        return (self['verifyResultAction'],
+                self['verifyResultAction']['successActionType'],
+                None,
+                data['MESSAGE'])
 
 
 
@@ -1211,13 +1216,17 @@ class CompareText(Items):
             self.log_msg.pop()
             return (self['verifyResultAction'],
                     self['verifyResultAction']['failActionType'],
+                    None,
                     data['MESSAGE'])
 
         result = data['RETURN_VALUE']
         action = {True: 'successActionType', False: 'failActionType'}[result]
+        value = {True: 'successActionValue', False: 'failActionValue'}[result]
+        self.logger.debug(StructureLogFormat(RESULT=(action, value)))
         self.log_msg.pop()
         return (self['verifyResultAction'],
                 self['verifyResultAction'][action],
+                self['verifyResultAction'][value],
                 data['MESSAGE'])
 
 

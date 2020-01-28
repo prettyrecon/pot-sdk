@@ -136,10 +136,10 @@ def compare(mcxt, argspec):
             values.append(str(compare_values(a, op, b)))
 
     values = ' '.join(values)
-    data = json.dumps(safe_eval(values))
+    data = safe_eval(values)
     result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
     sys.stdout.write(str(result))
-    return
+    return result
 
 
 ################################################################################
@@ -178,10 +178,10 @@ def _main(*args):
         ########################################################################
         mcxt.add_argument('compare_value',  nargs='+')
         argspec = mcxt.parse_args(args)
-        return mcxt, argspec
+        return compare(mcxt, argspec)
 
 
 ################################################################################
 def main(*args):
-    mcxt, argspec = _main(*args)
-    return compare(mcxt, argspec)
+    return _main(*args)
+
