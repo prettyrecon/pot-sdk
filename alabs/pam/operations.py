@@ -1299,7 +1299,7 @@ class UserParams(Items):
         cmd = list()
         title = ''
         group_name = ""
-
+        data.reverse()
         for d in data:
             title = d['title']
             group_name = d['groupName']
@@ -1310,11 +1310,38 @@ class UserParams(Items):
             cmd.append(json.dumps(d['defaultValue']))
             cmd.append(json.dumps(d['description']))
         cmd.insert(0, group_name)
+        if title:
+            cmd.append('--title')
+            cmd.append(json.dumps(title))
+        return tuple(cmd)
+
+    # ==========================================================================
+    @arguments_options_fileout
+    def arguments_from_file_data(self, data):
+        """
+        변수 저장파일로 읽은 값을 arguments로 내보냄
+        :param data:
+        :return:
+        """
+        title = ''
+        cmd = list()
+
+        group_name = data['group']
+        for d in data['values']:
+            cmd.append('--input')
+            message = d['MESSAGE'] if d['MESSAGE'] else d['VARIABLE_NAME']
+            cmd.append(json.dumps(message))
+            cmd.append(d['VARIABLE_NAME'])
+            cmd.append(json.dumps(d['VALUE']))
+            cmd.append(json.dumps(d['DESCRIPTION']))
+        cmd.insert(0, group_name)
 
         if title:
             cmd.append('--title')
             cmd.append(json.dumps(title))
         return tuple(cmd)
+
+
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
@@ -1322,21 +1349,31 @@ class UserParams(Items):
         # 저장된 정보에서 Show에 Fasle가 있다면 저장된 값을 계속 사용
         self.log_msg.push('User Params')
         self.logger.info(self.log_msg.format('Calling...'))
-        saved_var_file = os.environ.setdefault(
-            'USER_PARAM_VARIABLES', 'user_param_variables.json')
-        is_exists_saved_var_file = pathlib.Path(saved_var_file).exists()
-        self.logger.debug(StructureLogFormat(
-            SAVED_VAR_FILE_PATH=saved_var_file,
-            IS_EXISTS=is_exists_saved_var_file))
 
-        if is_exists_saved_var_file:
-            data = json.loads(saved_var_file)
-            status, function, message = self.get_result_handler(data)
-            self.log_msg.pop()
-            return make_follow_job_request(status, function, message)
+        arguments = self.arguments
+        saved_file = self.get_saved_var_file()
+        # 변수 저장 파일이 존재하지 않음
+        if saved_file['STATUS'] and not saved_file['DATA']:
+            self.logger.info(self.log_msg.format('No saved var file'))
+        # 변수 파일이 존재함
+        elif saved_file['STATUS'] and saved_file['DATA']:
+            self.logger.debug(StructureLogFormat(DATA=saved_file))
+            if not saved_file['DATA']['show']:
+                status, function, message = self.get_result_handler(
+                    saved_file['DATA'])
+                self.log_msg.pop()
+                return make_follow_job_request(status, function, message)
+            else:
+                for name, value in saved_file['DATA']['argos_values']:
+                    self._variables.create(name, value)
+                arguments = self.arguments_from_file_data(saved_file['DATA'])
+        # 변수 파일이 존재하나 파일에 문제가 있음
+        # elif not saved_file['STATUS']:
+        else:
+            self.logger.error(self.log_msg.format(saved_file['MESSAGE']))
 
         cmd = '{} -m alabs.pam.rpa.autogui.user_parameters {}'.format(
-            self.python_executable, ' '.join(self.arguments))
+            self.python_executable, ' '.join(arguments))
         self.logger.debug(StructureLogFormat(CMD=cmd))
 
         with subprocess.Popen(
@@ -1351,6 +1388,7 @@ class UserParams(Items):
             return make_follow_job_request(False, message=stderr.decode())
 
         result = json.loads(stdout.decode())
+        self.logger.debug(StructureLogFormat(RESULT=result))
         status, function, message = self.get_result_handler(
             data=result['RETURN_VALUE'])
 
@@ -1360,6 +1398,11 @@ class UserParams(Items):
     # ==========================================================================
     @staticmethod
     def get_result_handler(data=None):
+        """
+
+        :param data:
+        :return:
+        """
         # data = {"show": True, "action": "ONCE", "group": "ABC",
         #         "values": [
         #             ["DEF", "D", "ABC"],
@@ -1371,12 +1414,48 @@ class UserParams(Items):
         variable_form = '{{{{{}.{}}}}}'
         values = list()
         for v in data['values']:
-            name = variable_form.format(data['group'], v[0])
-            value = v[1]
+            name = variable_form.format(data['group'], v['VARIABLE_NAME'])
+            value = v['VALUE']
             values.append((name, value))
+
+        data['argos_values'] = values
+        # data['values'] = values
         from alabs.pam.runner import ResultHandler
-        function = (ResultHandler.VARIABLE_SET_VALUES.value, values)
+        function = (ResultHandler.OPERATION_USER_PARAMETERS.value, data)
         return status, function, ""
+
+    # ==========================================================================
+    def get_saved_var_file(self) -> dict:
+        """
+        사용자가 저장했던 유저파라메터 저장 파일
+        :return:
+        """
+        saved_var_file = get_conf().get('/PATH/USER_PARAM_VARIABLES')
+        is_exists_saved_var_file = pathlib.Path(saved_var_file).exists()
+        self.logger.debug(StructureLogFormat(
+            SAVED_VAR_FILE_PATH=saved_var_file,
+            IS_EXISTS=is_exists_saved_var_file))
+
+        status = False
+        data = None
+        message = ''
+        if not is_exists_saved_var_file:
+            status = True
+            data = None
+            message = 'No saved var file'
+            return dict(STATUS=status, DATA=data, MESSAGE=message)
+
+        try:
+            status = True
+            with open(saved_var_file, 'r') as f:
+                data = json.loads(f.read())
+            message = 'The saved variable file is existed'
+        except Exception as e:
+            status = False
+            message = 'The saved file has something wrong. ' \
+                      'Please, delete the file. {} : {}'.format(saved_var_file, str(e))
+        finally:
+            return dict(STATUS=status, DATA=data, MESSAGE=message)
 
 
 ################################################################################

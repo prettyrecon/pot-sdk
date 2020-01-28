@@ -53,6 +53,14 @@ class ResultHandler(enum.Enum):
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
 
+    # ==========================================================================
+    OPERATION_USER_PARAMETERS = '_operation_user_parameters'
+
+
+class SystemVariableNames(enum.Enum):
+    # ==========================================================================
+    REPEAT_INDEX = 'rp.index'
+
 
 ################################################################################
 class ExceptionTreatAsError(Exception):
@@ -677,4 +685,21 @@ class Runner(mp.Process):
             self._variables.create(name, value)
 
         self.logger.debug(StructureLogFormat(SET_VARIABLES=args))
+
+    # ResultHandler 특정 오퍼레이션 결과 처리 관련
+    # UserParameters 결과 처리
+    # ==========================================================================
+    def _operation_user_parameters(self, args):
+        self.logger.info(self.log_prefix.format('ResultHandler: UserParams'))
+
+        for name, value in args['argos_values']:
+            self._variables.create(name, value)
+
+        saved_var_file = get_conf().get('/PATH/USER_PARAM_VARIABLES')
+        self.logger.debug(StructureLogFormat(RESULT=args))
+        if args['action'] == "CONTINUE":
+            import json
+            saved_var_file = get_conf().get('/PATH/USER_PARAM_VARIABLES')
+            with open(saved_var_file, 'w') as f:
+                f.write(json.dumps(args))
 

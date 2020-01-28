@@ -61,19 +61,21 @@ def user_params(mcxt, argspec):
     def button_clicked(v):
         data = dict()
         value = list()
-        for l, e, d in entries:
-            value.append((l, e.get(), d))
+
+        for d in entries:
+            value.append(
+                dict(MESSAGE=d['MESSAGE'], VARIABLE_NAME=d['VARIABLE_NAME'],
+                     DEFAULT_NAME=d['DEFAULT_NAME'],
+                     DESCRIPTION=d['DESCRIPTION'],
+                     VALUE=d['VALUE'].get()))
+
         data['show'] = {0: True, 1: False}[do_not_show_next.get()]
         data['action'] = v
         data['group'] = argspec.group
         data['values'] = value
-        # 아래와 같은 결과 반환
-        # {"show": False,
-        #  "action": "ONCE",
-        #  "values": [["{{ABC.DEF}}", "123", "DESC], ["{{ABC.GHI}}", "456", "DE"],
-        #             ["{{ABC.XYZ}}", "789","DE"]]}
         result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data,
                                     MESSAGE="")
+        mcxt.logger.debug(result)
         sys.stdout.write(str(result))
         root.destroy()
 
@@ -91,9 +93,8 @@ def user_params(mcxt, argspec):
              wraplength=300, width=50, height=10).pack(side='top')
 
     # Entry 생성 ===============================================================
-    input_list:list = argspec.input
-    input_list.reverse()
     for i, q in enumerate(argspec.input):
+        # "message" "variable_name" "default value" "description"
         r = 0
         frame = tk.Frame(root)
         frame.pack()
@@ -111,7 +112,8 @@ def user_params(mcxt, argspec):
         # description
         tk.Label(frame, text=q[3]).grid(row=0, column=2)
 
-        entries.append((q[1], le, q[3]))
+        entries.append(dict(MESSAGE=q[0], VARIABLE_NAME=q[1], DEFAULT_NAME=q[2],
+                            DESCRIPTION=q[3], VALUE=le))
 
     frame = tk.Frame(root)
     frame.pack()
@@ -142,9 +144,6 @@ def user_params(mcxt, argspec):
 
     root.mainloop()
     mcxt.logger.info('>>>end...')
-
-    # print(json.dumps(SELECTED_BUTTON_VALUE))
-
     return
 
 ################################################################################
