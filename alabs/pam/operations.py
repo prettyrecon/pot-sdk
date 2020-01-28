@@ -1296,6 +1296,18 @@ class EndScenario(Items):
         self.log_msg.pop()
         return make_follow_job_request(True, function, '')
 
+
+################################################################################
+class EndStep(Items):
+    # ==========================================================================
+    def __call__(self):
+        self.log_msg.push('End Step')
+        self.logger.info(self.log_msg.format('Calling...'))
+        from alabs.pam.runner import ResultHandler
+        function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
+        self.log_msg.pop()
+        return make_follow_job_request(True, function, '')
+
 ################################################################################
 class UserParams(Items):
     references = ('userInputs',)

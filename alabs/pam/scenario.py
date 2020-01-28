@@ -305,7 +305,6 @@ class Scenario(dict):
     def next_step(self):
         self.set_current_item_by_index(len(self.items) - 1)
         next(self)
-        next(self)
 
     # ==========================================================================
     def finish_scenario(self):
