@@ -1233,22 +1233,11 @@ class CompareText(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return (self['verifyResultAction'],
-                    self['verifyResultAction']['failActionType'],
-                    None,
-                    data['MESSAGE'])
+            return (self['verifyResultAction'], False, data['MESSAGE'])
 
-        result = data['RETURN_VALUE']
-        action = {True: 'successActionType', False: 'failActionType'}[result]
-        value = {True: 'successActionValue', False: 'failActionValue'}[result]
-        self.logger.debug(StructureLogFormat(RESULT=(action, value)))
+        status = data['RETURN_VALUE']
         self.log_msg.pop()
-        return (self['verifyResultAction'],
-                self['verifyResultAction'][action],
-                self['verifyResultAction'][value],
-                data['MESSAGE'])
-
-
+        return self['verifyResultAction'], status, data['MESSAGE'],
 
 
 ################################################################################
