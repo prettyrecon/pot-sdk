@@ -81,25 +81,49 @@ def request_handler(f):
     @wraps(f)
     def func(*args, **kwargs):
         from alabs.pam.runner import ResultHandler, ResultAction
-        result_data, result, value, message = f(*args, **kwargs)
+        ref, code,  message = f(*args, **kwargs)
 
         status = True
         function = None
         message = ''
-        if result == ResultAction.MoveOn.value:
+
+        action = {True: 'successActionType', False: 'failActionType'}[code]
+        action = ref[action]
+        if action == ResultAction.MoveOn.value:
             pass
-        elif result == ResultAction.TreatAsError.value:
+        elif action == ResultAction.TreatAsError.value:
             status = False
             message = message
-        elif result == ResultAction.IgnoreFailure.value:
+        elif action == ResultAction.IgnoreFailure.value:
             function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
-        elif result == ResultAction.AbortScenarioButNoError.value:
+        elif action == ResultAction.AbortScenarioButNoError.value:
             function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
-        elif result == ResultAction.JumpToOperation.value:
+
+        elif action == ResultAction.JumpToOperation.value:
+            av = {True: 'successActionValue', False: 'failActionValue'}[code]
+            value = ref[av]
             function = (ResultHandler.SCENARIO_SET_ITEM.value,
                         (int(value) - 1,))
+
+        elif action == ResultAction.JumpToStep.value:
+            av = {True: 'successStepNum', False: 'failStepNum'}[code]
+            value = ref[av]
+            function = (ResultHandler.SCENARIO_SET_STEP.value,
+                        (int(value) - 1,))
+
+        elif action == ResultAction.JumpForward.value:
+            av = {True: 'successActionValue', False: 'failActionValue'}[code]
+            value = ref[av]
+            function = (ResultHandler.SCENARIO_JUMP_FORWARD.value,
+                        (int(value - 1),))
+
+        elif action == ResultAction.JumpBackward.value:
+            av = {True: 'successActionValue', False: 'failActionValue'}[code]
+            value = ref[av]
+            function = (ResultHandler.SCENARIO_JUMP_BACKWARD.value,
+                        (int(value - 1),))
         else:
-            raise Exception("Not Supported Type {}".format(result))
+            raise Exception("Not Supported Type {}".format(action))
         return make_follow_job_request(status, function, message)
     return func
 
@@ -479,21 +503,16 @@ class ImageMatch(Items):
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
         data = run_subprocess(cmd)
+
         if not data['RETURN_CODE']:
+            # TODO: 에러처리 고려가 필요
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return (self['verifyResultAction'],
-                    self['verifyResultAction']['failActionType'],
-                    None,
-                    data['MESSAGE'])
+            return self['verifyResultAction'], False, data['MESSAGE'],
 
+        status = data['RETURN_VALUE']['RESULT']
         self.log_msg.pop()
-        return (self['verifyResultAction'],
-                self['verifyResultAction']['successActionType'],
-                None,
-                data['MESSAGE'])
-
-
+        return self['verifyResultAction'], status, data['MESSAGE'],
 
 
 ################################################################################
