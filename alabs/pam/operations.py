@@ -224,6 +224,19 @@ class ExecuteProcess(Items):
     #                        '\\Application\\chrome.exe" -kiosk -fullscreen'
     #                        ' http://192.168.99.250/scenarios/LA-Scenario0010'
     #                        '/00_locateimage.html'}}
+    BROWSERS = {
+        'CHROME':{
+            'win32': 'start chrome.exe'
+        }
+    }
+    def browser(self, cmd:str):
+        import re
+        import sys
+        if sys.platform == 'win32':
+            cmd = re.sub(r"^chrome(?:.exe|)", "start chrome.exe", cmd)
+            cmd = re.sub(r"^firefox(?:.exe|)", "start firefox.exe", cmd)
+            cmd = re.sub(r"^explorer(?:.exe|)", "start explorer.exe", cmd)
+        return cmd
 
     # ==========================================================================
     @property
@@ -233,6 +246,7 @@ class ExecuteProcess(Items):
             self['executeProcess']['executeFilePath'])
         if code != 200:
             raise ValueError(str(data))
+        data = json.dumps(self.browser(data))
         return data,
 
     # ==========================================================================
@@ -242,11 +256,10 @@ class ExecuteProcess(Items):
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
-        subprocess.Popen(self.arguments)
-        # os.system(' '.join(self.arguments))
-        # subprocess.Popen(self.arguments, shell=True)
-        # subprocess.Popen(cmd, shell=True)
-        # subprocess.call(cmd, shell=True)
+        try:
+            subprocess.Popen(cmd, shell=True)
+        except Exception as e:
+            make_follow_job_request(False, None, str(e))
         self.log_msg.pop()
         return make_follow_job_request(True, None, '')
 

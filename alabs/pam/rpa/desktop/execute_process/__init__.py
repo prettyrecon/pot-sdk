@@ -57,10 +57,13 @@ def execute_process(mcxt, argspec):
     mcxt.logger.info('ExecuteProcess is Running...')
     mcxt.logger.debug(StructureLogFormat(ARGS_SPEC=argspec.__dict__))
 
-    proc = Popen('{}'.format(argspec.command), shell=True, stdout=PIPE)
-    ret = {'PID': proc.pid, 'PROC': proc, 'NAME': argspec.command.split()[0]}
+    proc = Popen(argspec.command, shell=True, stdout=PIPE)
+    ret = {'PID': proc.pid, 'PROC': proc, 'NAME': argspec.command}
+
     mcxt.logger.info('TypeText is Done')
-    return ret[argspec.ret]
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None,
+                                MESSAGE='')
+    sys.stdout.write(str(result))
 
 
 ################################################################################
