@@ -727,10 +727,12 @@ class StopProcess(Items):
     # "stopProcess": {"processName": "notepad"}
     # ==========================================================================
     @property
+    @arguments_options_fileout
     def arguments(self) -> tuple:
         res = list()
         res.append('--process_name')
         res.append(self['stopProcess']['processName'])
+        res.append('--force')
         return tuple(res)
 
     # ==========================================================================

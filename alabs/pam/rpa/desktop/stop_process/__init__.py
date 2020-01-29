@@ -30,6 +30,7 @@ from subprocess import Popen, PIPE
 
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+from alabs.common.util.vvlogger import StructureLogFormat
 
 
 ################################################################################
@@ -48,7 +49,7 @@ CURRENT_PLATFORM = platform.system()
 
 ################################################################################
 def for_window(mcxt, argspec):
-    method = 'process_name' if argspec.process_name in vars(argspec) else 'pid_number'
+    method = 'process_name' if argspec.process_name else 'pid_number'
     cmd = "taskkill {} {} {}"
     option_1 = {'process_name': '/im', 'pid_number': '/pid'}
     target = str(argspec.process_name if method == 'process_name'
@@ -83,6 +84,7 @@ def stop_process(mcxt, argspec):
     """
     mcxt.logger.info('>>>starting...')
     cmd = CALLER[CURRENT_PLATFORM](mcxt, argspec)
+    mcxt.logger.debug(StructureLogFormat(CMD=cmd))
     with Popen(
         '{}'.format(cmd), shell=True, stdout=PIPE) as proc:
         pass
