@@ -26,7 +26,19 @@ Change Log
 ################################################################################
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
+import sys
 import subprocess
+import pathlib
+import tkinter
+import tkinter.ttk
+import time
+import queue
+import threading
+
+from tempfile import mkstemp
+from alabs.common.util.vvlogger import StructureLogFormat
+
+
 
 
 ################################################################################
@@ -42,6 +54,19 @@ OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 
+def clear(cmd):
+    file = mkstemp()[1] + '.bat'
+    with open(file, 'w') as f:
+        f.write('\n'.join(cmd))
+    try:
+        subprocess.Popen(file, shell=True)
+    except Exception as e:
+        result = StructureLogFormat(RETURN_CODE=False,
+                                    RETURN_VALUE=None,
+                                    MESSAGE='')
+        sys.stderr.write(str(result))
+
+
 ################################################################################
 @func_log
 def clear_cache(mcxt, argspec):
@@ -52,37 +77,40 @@ def clear_cache(mcxt, argspec):
     :return: True
     """
     mcxt.logger.info('>>>starting...')
-    cmd = list()
+
+    commands = list()
 
     if argspec.ie:
+        cmd = list()
         cmd.append('RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 8')
         cmd.append('erase "%LOCALAPPDATA%\\Microsoft\\Windows\\Tempor~1\\*.*" /f /s /q')
         cmd.append('for /D %%i in ("%LOCALAPPDATA%\\Microsoft\\Windows\\Tempor~1\\*") do RD /S /Q "%%i"')
+        commands.append(cmd)
 
     if argspec.chrome:
-        cmd.append('Set uname=%username%')
-        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
-        cmd.append('set ChromeCache=%ChromeDataDir%\\Cache')
-        cmd.append('del /q /s /f %ChromeCache%\\*.*')
+        cmd = list()
+        cmd.append('del /q /f "%LocalAppData%\\Google\\Chrome\\User Data\\Default\\Cache"\\*.*')
+        commands.append(cmd)
+
 
     if argspec.chrome_cookie:
-        cmd.append('Set uname=%username%')
-        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
-        cmd.append('set ChromeCache=%ChromeDataDir%\\Cache')
-        cmd.append('del /q /f %ChromeDataDir%\\*Cookies*.*')
+        cmd = list()
+        cmd.append('del /q /f "C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\*Cookies*.*')
+        commands.append(cmd)
+
 
     if argspec.chrome_all:
+        cmd = list()
         cmd.append('Set uname=%username%')
         cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
         cmd.append('del /q /f %ChromeDataDir%\\*.*')
+        commands.append(cmd)
 
-    if cmd:
+    for cmd in commands:
+        clear(cmd)
 
-        cmd = ';'.join(cmd)
-        cmd = 'cmd /c ' + cmd
-        print(cmd)
-        subprocess.Popen(cmd, shell=True)
-
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None, MESSAGE='')
+    sys.stdout.write(str(result))
     mcxt.logger.info('>>>end...')
 
     return

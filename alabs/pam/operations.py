@@ -72,6 +72,7 @@ def arguments_options_fileout(f):
         if log:
             arguments += ['--errfile ', stderr]
             arguments += ['--logfile', log]
+            arguments += ['--loglevel', 'debug']
         return tuple(arguments)
     return func
 
@@ -1033,10 +1034,12 @@ class ClearCache(Items):
     references = ('clearCache',)
 
     @property
+    @arguments_options_fileout
     def arguments(self):
         cmd = list()
         if self['clearCache']['bClearInternetTemp']:
             cmd.append('--chrome')
+            cmd.append('--ie')
         if self['clearCache']['bClearCookie']:
             cmd.append('--chrome_cookie')
         return tuple(cmd)
