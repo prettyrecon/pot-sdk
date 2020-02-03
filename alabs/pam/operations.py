@@ -1046,6 +1046,7 @@ class ClearCache(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+        self.log_msg.push('ClearCache')
         cmd = '{} -m alabs.pam.rpa.desktop.clear_cache {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
