@@ -732,7 +732,10 @@ class StopProcess(Items):
     def arguments(self) -> tuple:
         res = list()
         res.append('--process_name')
-        res.append(self['stopProcess']['processName'])
+        process = self['stopProcess']['processName']
+        if -1 == process.rfind('.exe'):
+            process = process + '.exe'
+        res.append(process)
         res.append('--force')
         return tuple(res)
 
