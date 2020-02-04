@@ -332,8 +332,8 @@ class SearchImage(Items):
 
         # region
         cmd.append('--region')
-        cmd += separate_coord(self['imageMatch']['searchLocation'])
-        # cmd += separate_coord(self['imageMatch']['cropImageLocation'])
+        region = separate_coord(self['imageMatch']['searchLocation'])
+        cmd += (x if int(x) > 0 else str(0) for x in region)
 
         # coordinates
         cmd.append('--coordinates')
