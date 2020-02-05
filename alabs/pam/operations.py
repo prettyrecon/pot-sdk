@@ -17,6 +17,7 @@ from alabs.pam.variable_manager.rc_api_variable_manager import \
 from alabs.common.util.vvtest import captured_output
 from alabs.common.util.vvlogger import StructureLogFormat, LogMessageHelper
 from alabs.pam.conf import get_conf
+from alabs.pam.definitions import OperationReturnCode
 
 
 ################################################################################
@@ -84,7 +85,7 @@ def request_handler(f):
         from alabs.pam.runner import ResultHandler, ResultAction
         ref, code,  message = f(*args, **kwargs)
 
-        status = True
+        status = OperationReturnCode.SUCCEED_CONTINUE
         function = None
         message = ''
 
@@ -93,7 +94,7 @@ def request_handler(f):
         if action == ResultAction.MoveOn.value:
             pass
         elif action == ResultAction.TreatAsError.value:
-            status = False
+            status = OperationReturnCode.FAILED_ABORT
             message = message
         elif action == ResultAction.IgnoreFailure.value:
             function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
@@ -137,7 +138,7 @@ def make_follow_job_request(status, function=None, message=''):
     :return:
     """
     data = dict()
-    if not isinstance(status, bool):
+    if not isinstance(status, OperationReturnCode):
         raise TypeError
     data['status'] = status
     data['function'] = function
@@ -260,9 +261,11 @@ class ExecuteProcess(Items):
         try:
             subprocess.Popen(cmd, shell=True)
         except Exception as e:
-            make_follow_job_request(False, None, str(e))
+            make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                    None, str(e))
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -290,7 +293,8 @@ class Delay(Items):
         time.sleep(int(msec) * 0.001)
         
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -393,18 +397,20 @@ class SearchImage(Items):
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
         data = run_subprocess(cmd)
-        if not data['RETURN_CODE']:
-            self.logger.error(data['MESSAGE'])
-            return None
-        return data['RETURN_VALUE']
+        return data
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Locate Image')
         # 어플리케이션 검색 옵션 처리
         if 'app' == self['recordType'].lower():
-            region = self.__call__select_window()
-            self['imageMatch']['searchLocation'] = region
+            data = self.__call__select_window()
+            if not data['RETURN_CODE']:
+                self.log_msg.pop()
+                return make_follow_job_request(
+                    OperationReturnCode.FAILED_CONTINUE, None, data['MESSAGE'])
+
+            self['imageMatch']['searchLocation'] = data['RETURN_VALUE']
 
         cmd = '{} -m alabs.pam.rpa.autogui.locate_image {}'.format(
             self.python_executable,
@@ -416,9 +422,11 @@ class SearchImage(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 
@@ -555,10 +563,11 @@ class MouseScroll(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
-
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -616,9 +625,11 @@ class MouseClick(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 
@@ -676,9 +687,11 @@ class TypeText(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -719,7 +732,8 @@ class TypeKeys(Items):
             print(out)
             # data = run_subprocess(cmd)
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -749,7 +763,8 @@ class StopProcess(Items):
 
         subprocess.check_call(cmd, shell=True)
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 ################################################################################
 class ReadImageText(Items):
@@ -811,9 +826,11 @@ class SelectWindow(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 
@@ -824,12 +841,16 @@ class HtmlAction(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        if False:
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, '')
+        return make_follow_job_request(
+            OperationReturnCode.SUCCEED_CONTINUE, None, '')
 
 
 ################################################################################
 class BrowserScript(Items):
-    # OCR
+    # JavaScripts
     references = ('browserScript',)
     # {'browserScript': {'script': 'script'}}
     # ==========================================================================
@@ -843,15 +864,18 @@ class BrowserScript(Items):
         # OpenBrowser 가 실행되어 있어야 함
         self.log_msg.push('BrowserScript')
         if not self._scenario.web_driver:
-            self.logger.error(self.log_msg.format(
-                'OpenBrowser must be running before this operation.'))
-            raise Exception('This operation works with selenium web driver.')
+            msg = 'OpenBrowser must be running before this operation.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, msg)
 
         script = self.arguments[0]
         self.logger.debug(StructureLogFormat(SCRIPT=script))
         self._scenario.web_driver.execute_script(script)
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -883,7 +907,8 @@ class Goto(Items):
         self.logger.debug(StructureLogFormat(STEP_ITEM=self.arguments))
         function = (ResultHandler.SCENARIO_GOTO.value, self.arguments)
         self.log_msg.pop()
-        return make_follow_job_request(True, function, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       function, '')
 
 
 ################################################################################
@@ -959,7 +984,8 @@ class Repeat(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
     # ==========================================================================
     def get_next(self):
@@ -1058,9 +1084,11 @@ class ClearCache(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return make_follow_job_request(False, None, data['MESSAGE'])
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -1099,7 +1127,8 @@ class SetVariable(Items):
         self._variables.create(*self.arguments)
         # TODO: 플러그인 아웃풋 처리
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 
@@ -1155,7 +1184,8 @@ class Navigate(Items):
         self.logger.info(self.log_msg.format(out.getvalue()))
         wdrv.get(url)
         self._scenario.web_driver = wdrv
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -1255,7 +1285,7 @@ class CompareText(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
-            return (self['verifyResultAction'], False, data['MESSAGE'])
+            return self['verifyResultAction'], False, data['MESSAGE'],
 
         status = data['RETURN_VALUE']
         self.log_msg.pop()
@@ -1290,15 +1320,15 @@ class DeleteFile(Items):
         file = self.arguments[0]
         if not os.path.isfile(file):
             self.log_msg.pop()
-            return make_follow_job_request(False, None,
-                                           'The file is not existed')
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, 'The file is not existed')
         try:
             os.remove(file)
             message = 'Succeeded to delete the file.'
-            status = True
+            status = OperationReturnCode.SUCCEED_CONTINUE
         except Exception as e:
             message = str(e)
-            status = False
+            status = OperationReturnCode.FAILED_CONTINUE
 
         self.log_msg.pop()
         return make_follow_job_request(status, None, message)
@@ -1324,7 +1354,8 @@ class EndScenario(Items):
         from alabs.pam.runner import ResultHandler
         function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
         self.log_msg.pop()
-        return make_follow_job_request(True, function, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       function, '')
 
 
 ################################################################################
@@ -1336,7 +1367,8 @@ class EndStep(Items):
         from alabs.pam.runner import ResultHandler
         function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
         self.log_msg.pop()
-        return make_follow_job_request(True, function, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       function, '')
 
 ################################################################################
 class UserParams(Items):
@@ -1436,7 +1468,8 @@ class UserParams(Items):
         if stderr:
             self.logger.error(self.log_msg.format(stderr.decode()))
             self.log_msg.pop()
-            return make_follow_job_request(False, message=stderr.decode())
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           message=stderr.decode())
 
         result = json.loads(stdout.decode())
         self.logger.debug(StructureLogFormat(RESULT=result))
@@ -1461,7 +1494,7 @@ class UserParams(Items):
         #             ["XYZ", "Z", "AAA"]]}
         if not data:
             return False, None, "something wrong"
-        status = True
+        status = OperationReturnCode.SUCCEED_CONTINUE
         variable_form = '{{{{{}.{}}}}}'
         values = list()
         for v in data['values']:
@@ -1487,22 +1520,22 @@ class UserParams(Items):
             SAVED_VAR_FILE_PATH=saved_var_file,
             IS_EXISTS=is_exists_saved_var_file))
 
-        status = False
+        status = OperationReturnCode.FAILED_CONTINUE
         data = None
         message = ''
         if not is_exists_saved_var_file:
-            status = True
+            status = OperationReturnCode.SUCCEED_CONTINUE
             data = None
             message = 'No saved var file'
             return dict(STATUS=status, DATA=data, MESSAGE=message)
 
         try:
-            status = True
+            status = OperationReturnCode.SUCCEED_CONTINUE
             with open(saved_var_file, 'r') as f:
                 data = json.loads(f.read())
             message = 'The saved variable file is existed'
         except Exception as e:
-            status = False
+            status = OperationReturnCode.FAILED_CONTINUE
             message = 'The saved file has something wrong. ' \
                       'Please, delete the file. {} : {}'.format(saved_var_file, str(e))
         finally:
@@ -1589,7 +1622,8 @@ class PopupInteraction(Items):
         if stderr:
             self.logger.error(self.log_msg.format(stderr.decode()))
             self.log_msg.pop()
-            return make_follow_job_request(False, message=stderr.decode())
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, message=stderr.decode())
 
         data = json.loads(stdout.decode())
         self.logger.debug(StructureLogFormat(RESULT=data))
@@ -1598,14 +1632,14 @@ class PopupInteraction(Items):
         retv = dict(zip(['title', 'act', 'value'], retv.split(',')))
         self.logger.debug(StructureLogFormat(BUTTON=retv))
 
-        status = True
+        status = OperationReturnCode.SUCCEED_CONTINUE
         function = None
         message = data['MESSAGE']
 
         if retv['act'] in ("MoveOn", "Resume"):
             message = 'User chose the resume button.'
         elif retv['act'] == "TreatAsError":
-            status = False
+            status = OperationReturnCode.FAILED_ABORT
             message = "User chose 'Treat as Error' button."
         elif retv['act'] == "IgnoreFailure":
             function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
@@ -1626,7 +1660,7 @@ class PopupInteraction(Items):
             value = int(retv['value']) + 1
             function = (ResultHandler.SCENARIO_JUMP_BACKWARD.value, (value,))
         elif retv['act'] == "RestartFromTop":
-            status = False
+            status = OperationReturnCode.FAILED_ABORT
             message = "The option, 'RestartFromTop' is not supported."
         else:
             pass
@@ -1750,13 +1784,15 @@ class Plugin(Items):
             except Exception as e:
                 pass
             self.log_msg.pop()
-            return make_follow_job_request(True, None, '')
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, '')
             # return make_follow_job_request(False, message=stderr.decode())
 
         # TODO: 플러그인 아웃풋 처리
         self.return_value()
         self.log_msg.pop()
-        return make_follow_job_request(True, None, '')
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 

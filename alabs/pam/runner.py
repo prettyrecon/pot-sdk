@@ -22,6 +22,7 @@ from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
     LogMessageHelper
 from alabs.common.util.vvtest import captured_output
 from alabs.pam.conf import get_conf
+from alabs.pam.definitions import OperationReturnCode
 import multiprocessing
 
 ################################################################################
@@ -109,7 +110,13 @@ def test_run_result(f):
         information['stepName'] = scenario.step['name']
         information['itemName'] = item['itemName']
         information['content'] = retv['message']
-        information['result'] = 'success' if retv['status'] else 'failure'
+
+        status = 'success'
+        if retv['status'] not in (OperationReturnCode.SUCCEED_CONTINUE,
+                                  OperationReturnCode.SUCCEED_ABORT):
+            status = 'failure'
+        information['result'] = status
+        # information['result'] = 'success' if retv['status'] else 'failure'
 
         information['scanAreaX'] = 0
         information['scanAreaY'] = 0
@@ -377,17 +384,18 @@ class Runner(mp.Process):
     # ==========================================================================
     def _follow_up(self, data):
         # data = {
-        #     "status": "OK",
+        #     "status": OperationReturnCode.SUCCEED_CONTINUE,
         #     "function": (ResultHandler, args),
         # }
         # 처리 우선순위
         # data 존재여부 > status 상태 >
         if not data:
             return
-        if not data['status']:
+        if data['status'] in (OperationReturnCode.FAILED_ABORT,
+                              OperationReturnCode.SUCCEED_ABORT):
             raise ExceptionTreatAsError(data['message'])
 
-        if data['status'] and not data['function']:
+        if not data['function']:
             return
         if not hasattr(self, data['function'][0]):
             raise ValueError
