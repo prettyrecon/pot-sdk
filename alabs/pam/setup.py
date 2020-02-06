@@ -28,6 +28,7 @@ setup(
     packages=[
         'alabs',
         'alabs.pam',
+        'alabs.pam.utils',
         'alabs.pam.variable_manager',
         'alabs.pam.variable_manager.rest',
         'alabs.pam.apps',

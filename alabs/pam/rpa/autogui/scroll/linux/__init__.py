@@ -26,6 +26,8 @@ Change Log
 ################################################################################
 import sys
 import pyautogui
+import win32con, win32api
+from alabs.pam.utils.windows import get_registry_key_value
 from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
@@ -58,8 +60,19 @@ def scroll(mcxt, argspec):
     if not any([x, y]):
         raise ArgsError
     if y:
-        # Mac에서는 음수로 작동
-        pyautogui.vscroll(y * -1)
+        scroll_per_lines = get_registry_key_value('HKEY_CURRENT_USER',
+                                                  'Control Panel\\Desktop',
+                                                  'WheelScrollLines')[0]
+        wheel_delta = win32con.WHEEL_DELTA
+
+        y = int((y * -1 * wheel_delta) / int(scroll_per_lines))
+        mx, my = pyautogui.position()
+        win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, mx, my, y, 0)
+        log = StructureLogFormat(SCROLL_PER_LINES=scroll_per_lines,
+                                 WHEEL_DELTA=wheel_delta,
+                                 LINES=y,
+                                 USER_VALUE_Y=argspec.vertical)
+        mcxt.logger.debug(log)
     if x:
         pyautogui.hscroll(x)
     result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=(x, y),
