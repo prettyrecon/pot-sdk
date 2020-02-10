@@ -26,10 +26,11 @@ class Scenario(dict):
         self.logger = logger
         self.log_msg = LogMessageHelper()
         self._info = dict()
-        # 현재 STEP과 ITEM INDEX
+
+        # 현재 STEP과 ITEM Order 번호
         # 절대 직접 접근하여 값을 바꾸지 말것
-        self._current_step_index = 0
-        self._current_item_index = 0
+        self._current_step_number = 0
+        self._current_item_number = 0
 
         # Repeat
         self._repeat_stack = list()
@@ -125,12 +126,12 @@ class Scenario(dict):
     # ==========================================================================
     @property
     def current_step_index(self)->int:
-        return self._current_step_index
+        return self._current_step_number
 
     # ==========================================================================
     @property
     def current_item_index(self) -> int:
-        return self._current_item_index
+        return self._current_item_number
 
     # ==========================================================================
     @property
@@ -144,7 +145,7 @@ class Scenario(dict):
         return current step
         :return:
         """
-        return self.steps[self._current_step_index]
+        return self.steps[self._current_step_number]
 
     # ==========================================================================
     @step.setter
@@ -159,8 +160,8 @@ class Scenario(dict):
             self.logger.error(self.log_msg.format(
                 'Out of the step order number'))
             raise ValueError('Out of the step order number')
-        self._current_step_index = order
-        self._current_item_index = 0
+        self._current_step_number = order
+        self._current_item_number = 0
 
     # ==========================================================================
     def set_step_by_index(self, index: int):
@@ -189,7 +190,7 @@ class Scenario(dict):
     @property
     def item(self):
         self.logger.info(self.log_msg.format('Making a item instance.'))
-        data = self.items[self._current_item_index]
+        data = self.items[self._current_item_number]
         class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
         # 플러그인 타입의 class_name은 플러그인 이름이 적혀있음
         if 'pluginType' == ITEM_DIVISION_TYPE[data['itemDivisionType']]:
@@ -200,8 +201,8 @@ class Scenario(dict):
 
     # ==========================================================================
     def __iter__(self):
-        self._current_step_index = 0
-        self._current_item_index = 0
+        self._current_step_number = 0
+        self._current_item_number = 0
         return self
 
     # ==========================================================================
@@ -220,7 +221,7 @@ class Scenario(dict):
             'order': self.current_step_index,
             'name': self.step['name']}
 
-        # data = self.items[self._current_item_index]
+        # data = self.items[self._current_item_number]
         # class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
         info['operator'] = {
             'order': self.current_item_index,
@@ -234,25 +235,25 @@ class Scenario(dict):
             self.logger.info(self.log_msg.format('Working in the loop action.'))
             self.logger.debug(
                 StructureLogFormat(REPEAT_STACK=self._repeat_stack))
-            self._current_item_index = self._repeat_stack[-1].get_next()
+            self._current_item_number = self._repeat_stack[-1].get_next()
 
-        if len(self.items) - 1 < self._current_item_index:
+        if len(self.items) - 1 < self._current_item_number:
             # 시나리오 끝
-            if len(self.steps) - 1 <= self._current_step_index:
+            if len(self.steps) - 1 <= self._current_step_number:
                 self.logger.info(self.log_msg.format(
                     'Reached at the end of the scenario.'))
                 raise StopIteration
             # 다음 스텝이 있는 경우
             self.logger.info(self.log_msg.format(
                 'Reached at the end of the step.'))
-            self._current_step_index += 1
-            self._current_item_index = 0
+            self._current_step_number += 1
+            self._current_item_number = 0
 
         item = self.item
 
         self.info = self._get_current_info()
 
-        self._current_item_index += 1
+        self._current_item_number += 1
         return item
 
     # ==========================================================================
@@ -263,12 +264,19 @@ class Scenario(dict):
         :param index:
         :return:
         """
-        if len(self.step) <= index:
+        for i, item in enumerate(self.items):
+            if item['index'] == index:
+                self._current_item_number = i
+                return self._current_item_number
+        raise ValueError('There is not the index of the item.')
+
+    # ==========================================================================
+    def set_current_item_by_order(self, order: int):
+        if len(self.step) <= order:
             self.logger.error(self.log_msg.format(
-                "Out of the index of the current step"))
-            raise ValueError("Out of the index of the current step")
-        self._current_item_index = index
-        return self._current_item_index
+                "Out of the order of the current step"))
+            raise ValueError("Out of the order of the current step")
+
 
     # ==========================================================================
     def get_item_order_number_by_index(self, _id):
@@ -289,17 +297,17 @@ class Scenario(dict):
 
     # ==========================================================================
     def backward(self, n: int):
-        quotient = self._current_item_index - n
+        quotient = self._current_item_number - n
         # 아이템의 첫번째를 벗어나는 경우, 이전 스텝으로 이동
         if quotient < 0:
-            if self._current_step_index == 0:
+            if self._current_step_number == 0:
                 self.logger.error(self.log_msg.format(
                     "Out of the index of the current step"))
                 raise IndexError
-            self._current_step_index -= 1
-            self._current_item_index = (len(self.items) - 1) - quotient
+            self._current_step_number -= 1
+            self._current_item_number = (len(self.items) - 1) - quotient
         else:
-            self._current_item_index -= n
+            self._current_item_number -= n
 
     # ==========================================================================
     def next_step(self):
