@@ -663,10 +663,23 @@ class TypeText(Items):
             # TODO: 없는 자료일 경우 처리
             # Saved Data
             code, value = self._variables.get("{{saved_data}}")
-            # raise ValueError("Not Supported Yet")
+
+        # 불필요한 리턴문자 삭제
+        value = value.replace('\r\n', '\n')
+        value = value.replace('\r', '\n')
+
         # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
-        value = value.replace('`', '\`')
-        cmd.append(json.dumps(value))
+        # value = value.replace('`', '\`')
+        cmd.append(json.dumps(value,  ensure_ascii=False))
+
+        # 파라메터로 못 넘기는 문자를 위해 피클링
+        # TODO: 파일 저장하는 위치를 바꿀 필요가 있음
+        import pickle
+        infile = get_conf().get('/PATH/OPERATION_IN_FILE')
+        with open(infile, 'wb') as f:
+            pickle.dump(value, f)
+        cmd.append('--pickle')
+        cmd.append(infile)
 
         if self['typeText']['usePaste']:
             cmd.append('--interval')
@@ -682,7 +695,6 @@ class TypeText(Items):
         self.logger.info(self.log_msg.format('TypeText Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        # subprocess.check_call(cmd, shell=True)
         data = run_subprocess(cmd)
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
