@@ -540,7 +540,7 @@ class Runner(mp.Process):
 
             # 봇 필수 변수 선언
             self._variables.create('{{rp.index}}', value=1)  # Loop Index
-            self._variables.create('{{saved_data}}', value=" ")  # Saved Data
+            self._variables.create('{{saved_data}}', value="")  # Saved Data
             self.logger.info(self.log_prefix.format(
                 "Declared Essential Variables."))
 
