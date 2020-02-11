@@ -25,7 +25,9 @@ Change Log
 
 ################################################################################
 import pyautogui
+import sys
 from pyautogui import KEY_NAMES
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 import pathlib
@@ -49,7 +51,7 @@ KEYS = list(filter(lambda x: x not in FILTER_CHAR, KEY_NAMES))
 
 
 CURRENT_PATH = pathlib.Path(pathlib.Path(__file__).resolve()).parent
-with open(str(CURRENT_PATH)+ '/keymap.yaml') as f:
+with open(str(CURRENT_PATH / pathlib.Path('keymap.yaml'))) as f:
     KEYMAP_WINDOWS = yaml.load(f.read())['WINDOWS']
 WINDOWS_KEY_MAP_TO_PYAUTOGUI = {v: KEYMAP_WINDOWS[v] for v in KEYMAP_WINDOWS}
 
@@ -95,9 +97,13 @@ def send_shortcut(mcxt, argspec):
     #         raise ArgsError("{} is not valid. Please check the help message.")
     pyautogui.hotkey(*keys, interval=argspec.interval)
     # pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
+
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None,
+                                MESSAGE="")
+    sys.stdout.write(str(result))
     mcxt.logger.info('>>>end...')
 
-    return argspec.txt
+    exit(0)
 
 ################################################################################
 def _main(*args):
@@ -129,7 +135,6 @@ def _main(*args):
         # mcxt.add_argument('keys', nargs='+', help=k)
         mcxt.add_argument('--interval', type=float, default=0.05, help='')
         argspec = mcxt.parse_args(args)
-
         return send_shortcut(mcxt, argspec)
 
 ################################################################################

@@ -2,7 +2,10 @@
 
 # default for alabs
 alabs.common
+alabs.ppm
+pyparsing
 
+numpy
 gevent
 flask
 flask-restplus
@@ -14,3 +17,11 @@ bs4
 pyautogui
 pyscreenshot
 opencv-contrib-python
+opencv-python
+pyperclip
+selenium
+wda
+
+# Select Window for Windows
+pywin32
+psutil

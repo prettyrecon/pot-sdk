@@ -2,5 +2,8 @@
 
 # default for alabs
 alabs.common
+wda
+pyautogui
+six
 
 # ...

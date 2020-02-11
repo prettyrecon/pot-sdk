@@ -30,7 +30,7 @@ import tempfile
 import pathlib
 import json
 
-from alabs.common.definitions.platforms import Platforms
+
 
 
 ################################################################################
@@ -50,13 +50,13 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
 
-    if _platform == Platforms.LINUX.value:
+    if _platform == 'Linux':
         from alabs.pam.rpa.desktop.screenshot.linux import main as _main
         args = ['--path', '/tmp/tmp.png']
-    elif _platform == Platforms.MAC.value:
+    elif _platform == 'Darwin':
         from alabs.pam.rpa.desktop.screenshot.macos import main as _main
         args = ['--path', '/tmp/tmp.png']
-    elif _platform == Platforms.WINDOWS.value:
+    elif _platform == 'Windows':
         from alabs.pam.rpa.desktop.screenshot.linux import main as _main
         tempdir = pathlib.Path(tempfile.gettempdir())
         temppng = tempdir / pathlib.Path('temp.png')

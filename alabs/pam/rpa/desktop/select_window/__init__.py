@@ -25,7 +25,7 @@ Change Log
 ################################################################################
 import os
 import platform
-from alabs.common.definitions.platforms import Platforms
+#
 
 ################################################################################
 # Version
@@ -43,19 +43,19 @@ DESCRIPTION = 'Selecting Window'
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
-    if _platform == Platforms.LINUX.value:
+    if _platform == 'Linux':
         raise NotImplemented
         # from alabs.pam.rpa.desktop.select_window.linux import main as _main
 
-    elif _platform == Platforms.WINDOWS.value:
+    elif _platform == 'Windows':
         from alabs.pam.rpa.desktop.select_window.windows import main as _main
 
-    elif _platform == Platforms.MAC.value:
+    elif _platform == 'Darwin':
         # from alabs.pam.rpa.desktop.select_window.windows import main as _main
         raise NotImplemented
         # from alabs.pam.rpa.desktop.select_window.linux import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'IOS':
         raise NotImplemented
         # from alabs.pam.rpa.autogui.click.ios import main as _main
         # return _main('--wda_url', url, '--wda_port', port)

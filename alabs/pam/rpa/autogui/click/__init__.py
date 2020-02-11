@@ -27,13 +27,14 @@ Change Log
 import os
 import platform
 import enum
-from alabs.common.definitions.platforms import Platforms
+
 
 
 ################################################################################
 class ClickMotionType(enum.Enum):
     CLICK = 'click'
     DOUBLE = 'doubleClick'
+    TRIPLE = 'tripleClick'
     PRESS = 'mouseDown'
     RELEASE = 'mouseUp'
 
@@ -64,16 +65,16 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())
-    if _platform == Platforms.LINUX.value:
+    if _platform == 'Linux':
         from alabs.pam.rpa.autogui.click.linux import main as _main
 
-    elif _platform == Platforms.WINDOWS.value:
+    elif _platform == 'Windows':
         from alabs.pam.rpa.autogui.click.linux import main as _main
 
-    elif _platform == Platforms.MAC.value:
+    elif _platform == 'Darwin':
         from alabs.pam.rpa.autogui.click.linux import main as _main
 
-    elif _platform == Platforms.IOS.value:
+    elif _platform == 'iOS':
         from alabs.pam.rpa.autogui.click.ios import main as _main
         # return _main('--wda_url', url, '--wda_port', port)
     else:

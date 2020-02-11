@@ -62,17 +62,6 @@ class PamManager(list):
     def start_runner(self, idx):
         self.logger.info("Runner Setting Start...")
         runner_info: PamManager.RunnerInfo() = self[idx]
-        # 파이썬 인터프리터 지정
-        if not runner_info.RUNNER.venv_python:
-            self.logger.error(
-                "VENV for scenario is not ready. Check the scenario file.")
-            raise Exception
-
-        # 멀티프레세스에서 사용하게 될 파이썬 지정
-        mp.set_executable(runner_info.RUNNER.venv_python)
-        self.logger.info("Set python executable path for the scenario.")
-        self.logger.debug(
-            StructureLogFormat(venv_python=str(runner_info.RUNNER.venv_python)))
 
         # 프로세스 생성
         if runner_info.RUNNER.is_alive():
@@ -119,20 +108,19 @@ class PamManager(list):
             self.logger.debug(
                 StructureLogFormat(SCENARIO_PATH=str(scenario_path)))
 
-            # caution: alabs.ppm의 반환 값은 처리상태 값을 반환한다.
-            # print() 를 통해서 원하는 결과 값이 반환되므로 stdout을 따로 캐치하여 사용
-            # with captured_output() as (out, _):
-            #     get_venv(scenario.plugins)
-            # runner.RUNNER.venv_path = out.getvalue().strip()
+            runner.RUNNER.main_python_executable = sys.executable
+            self.logger.info("Set python executable for MAIN.")
+            self.logger.debug(
+                StructureLogFormat(PYTHON_EXECUTABLE=str(sys.executable)))
 
+            # 플러그인 사용시 가상환경 생성
             scenario.update(scenario.get_modules_list())
-            with captured_output() as (out, _):
-                get_venv(scenario.plugins)
-            self.logger.debug(StructureLogFormat(VENV_PATH=out.read()))
-            out = out.getvalue().strip().split('\n')[-1]
-            # out = out[:2] + out[3:]
-            # self.logger.debug(StructureLogFormat(VENV_PATH_EDITED=out))
-            runner.RUNNER.venv_path = out
+            if scenario.plugins:
+                with captured_output() as (out, _):
+                    get_venv(scenario.plugins)
+                self.logger.debug(StructureLogFormat(VENV_PATH=out.read()))
+                out = out.getvalue().strip().split('\n')[-1]
+                runner.RUNNER.venv_path = out
 
         except Exception as e:
             with captured_output() as (out, err):
@@ -271,12 +259,8 @@ def get_venv(requirements):
     # requirements = ['alabs.common==1.515.1543']
     essensial_modules = list()
     essensial_modules.append('alabs.common')
-    # essensial_modules.append('pyautogui')
-    # essensial_modules.append('bs4')
     if sys.platform == 'win32':
         pass
-        # essensial_modules.append('opencv-python')
-        # essensial_modules.append('opencv-contrib-python')
 
     essensial_modules += requirements
     req = ' '.join(essensial_modules)
@@ -285,7 +269,10 @@ def get_venv(requirements):
     logger.debug(StructureLogFormat(PLUGINS=essensial_modules))
     # cmd = 'python -m alabs.ppm {}'.format(args)
     from alabs.pam.conf import get_conf
-    ppm_exe = get_conf().get('EXTERNAL_PROG/PPM')
+    # ppm_exe = get_conf().get('EXTERNAL_PROG/PPM')
+    ppm_exe = pathlib.Path(sys.executable).parent / \
+              ('alabs.ppm' + '.exe' if sys.platform == 'win32' else '')
+
     cmd = '{} {}'.format(ppm_exe, args)
     logger.debug(StructureLogFormat(CMD=cmd))
 

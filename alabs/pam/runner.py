@@ -6,11 +6,14 @@ import copy
 import enum
 import datetime
 import site
+import shutil
 
 from functools import wraps
 import multiprocessing as mp
 import traceback
 import platform
+
+from PIL import ImageGrab
 
 from alabs.pam.scenario import Scenario
 from alabs.pam.variable_manager.rc_api_variable_manager import \
@@ -45,9 +48,18 @@ class ResultHandler(enum.Enum):
     SCENARIO_FINISH_STEP = '_result_handler_finish_step'
     SCENARIO_FINISH_SCENARIO = '_result_handler_finish_scenario'
     SCENARIO_GOTO = '_result_handler_goto'
+    SCENARIO_RESTART_FROM_TOP = "_result_handler_set_step"
 
     # ==========================================================================
     VARIABLE_SET_VALUES = '_result_handler_set_variables'
+
+    # ==========================================================================
+    OPERATION_USER_PARAMETERS = '_operation_user_parameters'
+
+
+class SystemVariableNames(enum.Enum):
+    # ==========================================================================
+    REPEAT_INDEX = 'rp.index'
 
 
 ################################################################################
@@ -80,6 +92,48 @@ def is_timeout(t):
         t = yield st - int(time.time())
         if t:
             st += t
+
+
+################################################################################
+def test_run_result(f):
+    @wraps(f)
+    def func(*args, **kwargs):
+        scenario = args[0].scenario
+        item = args[1]
+        information = dict()
+        information['startTimestamp'] = int(time.time() * 1000)
+        retv = f(*args, **kwargs)
+        information['endTimestamp'] = int(time.time() * 1000)
+        information['currentStep'] = scenario.current_step_index + 1
+        information['currentItem'] = scenario.current_item_index
+        information['stepName'] = scenario.step['name']
+        information['itemName'] = item['itemName']
+        information['content'] = retv['message']
+        information['result'] = 'success' if retv['status'] else 'failure'
+
+        information['scanAreaX'] = 0
+        information['scanAreaY'] = 0
+        information['scanAreaWidth'] = 0
+        information['scanAreaHeight'] = 0
+        information['findAreaX'] = 0
+        information['findAreaY'] = 0
+        information['findAreaWidth'] = 0
+        information['findAreaHeight'] = 0
+        information['matchRatio'] = 0
+
+        img = ImageGrab.grab()
+        screenshot_filename = '{step:03}_{item:03}.png'.format(
+            step=information['currentStep'],
+            item=information['currentItem'])
+        result_screenshot_path = get_conf().get('/PATH/RESULT_SCREENSHOT_DIR')
+        information['imgFileName'] = screenshot_filename
+        screenshot_filename = str(pathlib.Path(result_screenshot_path) / \
+                                  pathlib.Path(screenshot_filename))
+        img.save(screenshot_filename, 'PNG')
+
+        retv['information'] = information
+        return retv
+    return func
 
 
 ################################################################################
@@ -169,6 +223,7 @@ class Runner(mp.Process):
         self.log_prefix = LogMessageHelper()
 
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        self._main_python_executable = None
         self._venv_path = None
         self._scenario_name = None
         self._scenario_path = None
@@ -209,6 +264,15 @@ class Runner(mp.Process):
     def get_init_scenario(self):
         return copy.deepcopy(self.scenario)
 
+    # 호스트 파이썬 실행파일 경로 ================================================
+    @property
+    def main_python_executable(self):
+        return self._main_python_executable
+
+    @main_python_executable.setter
+    def main_python_executable(self, executable_path):
+        self._main_python_executable = executable_path
+
     # 파이썬 가상환경 프로퍼티 ===================================================
     @property
     def venv_path(self):
@@ -221,7 +285,7 @@ class Runner(mp.Process):
         self._venv_path = pathlib.Path(path)
 
     @property
-    def venv_python(self):
+    def plugin_python_executable(self):
         if not self.venv_path:
             return None
 
@@ -267,7 +331,14 @@ class Runner(mp.Process):
         self._pause = True
 
     # ==========================================================================
+    @test_run_result
     def _call_item(self, item):
+        """
+
+        :param scenario: test_run_result deco에서 사용
+        :param item:
+        :return:
+        """
         # 액션 실행 전 딜레이
         tm = int(item['beforeDelayTime'])
         self.logger.info(self.log_prefix.format(
@@ -277,6 +348,10 @@ class Runner(mp.Process):
         time.sleep(tm * 0.001)
 
         # 아이템 실행
+        item.python_executable = self.main_python_executable
+        # 플러그인은 실행 전에 파이썬 실행 주체 변경
+        if 'pluginDumpspec' in item:
+            item.python_executable = self.plugin_python_executable
         result = item()
         return result
 
@@ -311,14 +386,15 @@ class Runner(mp.Process):
             return
         if not data['status']:
             raise ExceptionTreatAsError(data['message'])
+
         if data['status'] and not data['function']:
             return
         if not hasattr(self, data['function'][0]):
             raise ValueError
         self.logger.info(self.log_prefix.format(
             'Calling the result job function.'))
-        self.logger.debug(FUNCTION=data['function'][0],
-                          ARGUMENTS=data['function'][1])
+        self.logger.debug(StructureLogFormat(FUNCTION=data['function'][0],
+                                             ARGUMENTS=data['function'][1]))
         f = getattr(self, data['function'][0])
         ret = f(data['function'][1])
         return ret
@@ -342,6 +418,18 @@ class Runner(mp.Process):
             PYTHONPATH=os.environ.setdefault('PYTHONPATH', ''),
             PATH=os.environ.setdefault('PATH', '')))
 
+        # 이전 결과 파일 정리
+        result_list = list()
+        result_path = get_conf().get('/PATH/RESULT_DIR')
+        if os.path.exists(result_path):
+            shutil.rmtree(result_path)
+        os.mkdir(result_path)
+
+        result_file = get_conf().get('/PATH/RESULT_FILE')
+        result_screenshot_path = get_conf().get('/PATH/RESULT_SCREENSHOT_DIR')
+        os.mkdir(result_screenshot_path)
+
+
         try:
             self.log_prefix.push('Preparing')
             # TODO: PIPE에 뭐가 들어있을지 알 수 없음
@@ -362,6 +450,7 @@ class Runner(mp.Process):
             # 시나리오 루틴 시작 ================================================
             while self._run:
                 # TODO: 타이머 추가 필요.
+
                 # 명령어 우선 처리
                 if self._pipe.poll():
                     self.log_prefix.push('Command Call Processing')
@@ -391,12 +480,17 @@ class Runner(mp.Process):
                 self.log_prefix.pop()  # Scenario Stepping
 
                 self.log_prefix.push('Operation Calling')
+
                 data = self._call_item(item)
+
+                result_list.append(data['information'])
+
                 self.logger.info(self.log_prefix.format(
                     'Done to run the item.'))
                 self.logger.debug(StructureLogFormat(RESULT=data))
                 self.log_prefix.push('Operation Result Handling')
                 self._follow_up(data)
+
                 self.log_prefix.pop()  # Operation Result Handling
                 self.log_prefix.pop()  # Operation Calling
 
@@ -405,9 +499,9 @@ class Runner(mp.Process):
         except StopIteration:
             self.log_prefix.pop()  # Operation Stepping
         except ExceptionTreatAsError as e:
-            with captured_output() as (out, _):
-                traceback.print_exc(file=out)
-            self.logger.error(self.log_prefix.format(out.getvalue()))
+            # with captured_output() as (out, _):
+            #     traceback.print_exc(file=out)
+            self.logger.info(self.log_prefix.format('Treated as error.'))
         except KeyboardInterrupt:
             self.logger.warn(self.log_prefix.format('Keyboard Interrupt.'))
         except Exception as e:
@@ -415,6 +509,10 @@ class Runner(mp.Process):
                 traceback.print_exc(file=out)
             self.logger.error(self.log_prefix.format(out.getvalue()))
         finally:
+            with open(result_file, 'w') as f:
+                import json
+                f.write(json.dumps(result_list))
+
             self.logger.info(self.log_prefix.format('The process has ended.'))
             self._run = False
             self.logger.debug(StructureLogFormat(PID=self.pid, RUN=self._run))
@@ -471,6 +569,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
+        self.scenario.set_current_item_by_index(0)
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "STEP": self.scenario.step}
@@ -569,7 +668,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = int(args[0]) - 1
-        self.scenario.set_current_item_by_index(int(args[1]) - 1)
+        self.scenario.set_current_item_by_index(int(args[1]))
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "CUR_ITEM_INDEX": self.scenario.current_item_index,
@@ -586,3 +685,21 @@ class Runner(mp.Process):
             self._variables.create(name, value)
 
         self.logger.debug(StructureLogFormat(SET_VARIABLES=args))
+
+    # ResultHandler 특정 오퍼레이션 결과 처리 관련
+    # UserParameters 결과 처리
+    # ==========================================================================
+    def _operation_user_parameters(self, args):
+        self.logger.info(self.log_prefix.format('ResultHandler: UserParams'))
+
+        for name, value in args['argos_values']:
+            self._variables.create(name, value)
+
+        saved_var_file = get_conf().get('/PATH/USER_PARAM_VARIABLES')
+        self.logger.debug(StructureLogFormat(RESULT=args))
+        if args['action'] == "CONTINUE":
+            import json
+            saved_var_file = get_conf().get('/PATH/USER_PARAM_VARIABLES')
+            with open(saved_var_file, 'w') as f:
+                f.write(json.dumps(args))
+
