@@ -105,13 +105,13 @@ def request_handler(f):
             av = {True: 'successActionValue', False: 'failActionValue'}[code]
             value = ref[av]
             function = (ResultHandler.SCENARIO_SET_ITEM.value,
-                        (int(value) - 1,))
+                        (int(value),))
 
         elif action == ResultAction.JumpToStep.value:
             av = {True: 'successStepNum', False: 'failStepNum'}[code]
             value = ref[av]
             function = (ResultHandler.SCENARIO_SET_STEP.value,
-                        (int(value) - 1,))
+                        (int(value),))
 
         elif action == ResultAction.JumpForward.value:
             av = {True: 'successActionValue', False: 'failActionValue'}[code]
@@ -1648,10 +1648,10 @@ class PopupInteraction(Items):
             function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
             message = "User chose 'AbortScenarioButNoError' button."
         elif retv['act'] == "JumpToOperation":
-            value = int(retv['value']) - 1
+            value = int(retv['value'])
             function = (ResultHandler.SCENARIO_SET_ITEM.value, (value,))
         elif retv['act'] == "JumpToStep":
-            value = int(retv['value']) - 1
+            value = int(retv['value'])
             function = (ResultHandler.SCENARIO_SET_STEP.value, (value,))
         elif retv['act'] == "JumpForward":
             value = int(retv['value']) - 1

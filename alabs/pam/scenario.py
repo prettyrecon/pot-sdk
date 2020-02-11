@@ -200,6 +200,19 @@ class Scenario(dict):
         return item
 
     # ==========================================================================
+    @item.setter
+    def item(self, index):
+        """
+        현재 스탭에서 아이템 인덱스 값으로 검색하여 현재 아이템 설정
+        :param index:
+        :return:
+        """
+        for i, item in enumerate(self.items):
+            if item['index'] == index:
+                self._current_item_number = i
+        raise ValueError('There is not the index of the item.')
+
+    # ==========================================================================
     def __iter__(self):
         self._current_step_number = 0
         self._current_item_number = 0
@@ -272,10 +285,11 @@ class Scenario(dict):
 
     # ==========================================================================
     def set_current_item_by_order(self, order: int):
-        if len(self.step) <= order:
+        if len(self.items) <= order:
             self.logger.error(self.log_msg.format(
                 "Out of the order of the current step"))
             raise ValueError("Out of the order of the current step")
+        self._current_item_number = order
 
 
     # ==========================================================================
@@ -311,7 +325,7 @@ class Scenario(dict):
 
     # ==========================================================================
     def next_step(self):
-        self.set_current_item_by_index(len(self.items) - 1)
+        self.set_current_item_by_order(len(self.items) - 1)
         next(self)
 
     # ==========================================================================

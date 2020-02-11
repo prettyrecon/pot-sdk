@@ -568,6 +568,7 @@ class Runner(mp.Process):
         """
         STEP 변경
         * 모든 반복문은 초기화
+        * 첫 번째 아이템 지정
         :param args:
         :return:
         """
@@ -577,7 +578,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
-        self.scenario.set_current_item_by_index(0)
+        self.scenario.set_current_item_by_order = 0
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "STEP": self.scenario.step}
@@ -588,6 +589,7 @@ class Runner(mp.Process):
         """
         다음 실행 오퍼레이터 변경
         * 모든 반복문은 초기화
+        * 아이템을 주어진 인덱스로 지정
         :param args:
         :return:
         """
@@ -675,7 +677,7 @@ class Runner(mp.Process):
                   "CUR_STEP_INDEX": self.scenario.current_step_index, }
 
         self.scenario._repeat_stack = list()
-        self.scenario.step = int(args[0]) - 1
+        self.scenario.set_step_by_index = int(args[0])
         self.scenario.set_current_item_by_index(int(args[1]))
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
