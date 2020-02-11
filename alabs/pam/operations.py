@@ -1400,14 +1400,14 @@ class UserParams(Items):
             group_name = d['groupName']
             cmd.append('--input')
             message = d['message'] if d['message'] else d['variableName']
-            cmd.append(json.dumps(message))
+            cmd.append(json.dumps(message, ensure_ascii=False))
             cmd.append(d['variableName'])
-            cmd.append(json.dumps(d['defaultValue']))
-            cmd.append(json.dumps(d['description']))
+            cmd.append(json.dumps(d['defaultValue'], ensure_ascii=False))
+            cmd.append(json.dumps(d['description'], ensure_ascii=False))
         cmd.insert(0, group_name)
         if title:
             cmd.append('--title')
-            cmd.append(json.dumps(title))
+            cmd.append(json.dumps(title, ensure_ascii=False))
         return tuple(cmd)
 
     # ==========================================================================
