@@ -1579,12 +1579,12 @@ class PopupInteraction(Items):
         code, title = self._variables.convert(self['popupInteraction']['title'])
         if not title:
             title = json.dumps("No Message")
-        cmd.append(json.dumps(title))
+        cmd.append(json.dumps(title, ensure_ascii=False))
         cmd.append("--button")
 
         code, title = self._variables.convert(
             self['popupInteraction']['firstButtonTitle'])
-        cmd.append(json.dumps(title))
+        cmd.append(json.dumps(title, ensure_ascii=False))
         action = self.actions[
             self['popupInteraction']['firstButtonAction']]
         cmd.append(action)
@@ -1594,7 +1594,7 @@ class PopupInteraction(Items):
                 cmd.append("--button")
                 code, title = self._variables.convert(
                     self['popupInteraction'][b + 'ButtonTitle'])
-                cmd.append(json.dumps(title))
+                cmd.append(json.dumps(title, ensure_ascii=False))
                 action = self.actions[
                     self['popupInteraction'][b + 'ButtonAction']]
                 cmd.append(action)
