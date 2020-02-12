@@ -719,29 +719,40 @@ class TypeKeys(Items):
     # ==========================================================================
     @property
     def arguments(self) -> tuple:
-        value = list()
+        values = list()
         for k in self['keycodes']:
-            value.append(('--txt', json.dumps(k['txt'])))
+            value = list()
+            value.append('--txt')
+            value.append(json.dumps(k['txt']))
+
+            duration = str(int(k['duration']) * 0.001)
+            value.append('--duration')
+            value.append(duration)
+            values.append(value)
+
         res = list()
-        for d in value:
-            res.append(self.add_options(d))
-        return tuple(res)
+        for v in values:
+            res.append(self.add_options(v))
+
+        intervals = [int(x['interval']) * 0.001 for x in self['keycodes']]
+        arguments = list(zip(res, intervals))
+        return arguments
 
     @arguments_options_fileout
     def add_options(self, arg):
-        return tuple(arg)
+        return arg
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Send Shortcut')
         for arg in self.arguments:
             self.logger.info(self.log_msg.format('Calling...'))
+            time.sleep(arg[1])
             cmd = '{} -m alabs.pam.rpa.autogui.send_shortcut {}'.format(
-                self.python_executable, ' '.join(arg))
+                self.python_executable, ' '.join(arg[0]))
             self.logger.debug(StructureLogFormat(COMMAND=cmd))
             proc = subprocess.Popen(cmd, shell=True)
             out, err = proc.communicate(timeout=5)
-            print(out)
             # data = run_subprocess(cmd)
         self.log_msg.pop()
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,

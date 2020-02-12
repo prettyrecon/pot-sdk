@@ -95,7 +95,7 @@ def send_shortcut(mcxt, argspec):
     # for key in argspec.keys:
     #     if key not in KEYS:
     #         raise ArgsError("{} is not valid. Please check the help message.")
-    pyautogui.hotkey(*keys, interval=argspec.interval)
+    pyautogui.hotkey(*keys, interval=argspec.duration)
     # pyautogui.hotkey(*argspec.keys, interval=argspec.interval)
 
     result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None,
@@ -133,7 +133,7 @@ def _main(*args):
         k = ' '.join([str(v) for v in KEYS])
         mcxt.add_argument('--txt', type=str, help='')  # : LCtrl + [C]
         # mcxt.add_argument('keys', nargs='+', help=k)
-        mcxt.add_argument('--interval', type=float, default=0.05, help='')
+        mcxt.add_argument('--duration', type=float, default=0.05, help='')
         argspec = mcxt.parse_args(args)
         return send_shortcut(mcxt, argspec)
 
