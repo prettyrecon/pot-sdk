@@ -1425,7 +1425,7 @@ class UserParams(Items):
         for d in data['values']:
             cmd.append('--input')
             message = d['MESSAGE'] if d['MESSAGE'] else d['VARIABLE_NAME']
-            cmd.append(json.dumps(message))
+            cmd.append(json.dumps(message, ensure_ascii=False))
             cmd.append(d['VARIABLE_NAME'])
             cmd.append(json.dumps(d['VALUE']))
             cmd.append(json.dumps(d['DESCRIPTION']))
@@ -1481,6 +1481,7 @@ class UserParams(Items):
             self.logger.error(self.log_msg.format(stderr.decode()))
             self.log_msg.pop()
             return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None,
                                            message=stderr.decode())
 
         result = json.loads(stdout.decode())

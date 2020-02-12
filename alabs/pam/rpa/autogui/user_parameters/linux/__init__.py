@@ -45,6 +45,11 @@ PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+SELECTED_BUTTON_VALUE = None
+
+
+def disable_event():
+    pass
 
 ################################################################################
 @func_log
@@ -59,6 +64,9 @@ def user_params(mcxt, argspec):
 
     # 버튼 콜백
     def button_clicked(v):
+        global SELECTED_BUTTON_VALUE
+
+
         data = dict()
         value = list()
 
@@ -76,7 +84,8 @@ def user_params(mcxt, argspec):
         result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data,
                                     MESSAGE="")
         mcxt.logger.debug(result)
-        sys.stdout.write(str(result))
+
+        SELECTED_BUTTON_VALUE = data
         root.destroy()
 
     mcxt.logger.info('>>>')
@@ -89,8 +98,9 @@ def user_params(mcxt, argspec):
     if argspec.title:
         tk.Label(root, text=argspec.title,
                  wraplength=100, width=50, height=10).pack(side='top')
-    tk.Label(root, text=argspec.group,
-             wraplength=300, width=50, height=10).pack(side='top')
+    else:
+        tk.Label(root, text=argspec.group,
+                 wraplength=300, width=50, height=10).pack(side='top')
 
     # Entry 생성 ===============================================================
     for i, q in enumerate(argspec.input):
@@ -100,9 +110,9 @@ def user_params(mcxt, argspec):
         frame.pack()
         # message
         if q[0] != q[1]:
-            title = '{}({{{{{}.{}}}}}): '.format(q[0], argspec.group, q[1])
+            title = '{}: '.format(q[0])
         else:
-            title = '{{{}.{}}}: '.format(argspec.group, q[1])
+            title = '{}: '.format(q[1])
         # variable name
         tk.Label(frame, text=title).grid(row=0, column=0)
         # line editor
@@ -141,10 +151,27 @@ def user_params(mcxt, argspec):
     pos_y = int(root.winfo_screenheight() / 2 - wind_h / 2)
     # Positions the window in the center of the page.
     root.geometry("+{}+{}".format(pos_x, pos_y))
-
+    root.protocol("WM_DELETE_WINDOW", disable_event)
     root.mainloop()
+
+    global SELECTED_BUTTON_VALUE
+    code = False
+    data = None
+
+    message = "The dialogue window was destroyed with unexpected reasons."
+    if SELECTED_BUTTON_VALUE:
+        code = True
+        data = SELECTED_BUTTON_VALUE
+        message = ''
+    result = StructureLogFormat(RETURN_CODE=code, RETURN_VALUE=data,
+                                MESSAGE=message)
+    if code:
+        sys.stdout.write(str(result))
+    else:
+        sys.stderr.write(str(result))
     mcxt.logger.info('>>>end...')
     return
+
 
 ################################################################################
 def _main(*args):
