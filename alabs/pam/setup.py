@@ -85,7 +85,7 @@ setup(
         'alabs.pam.rpa.autogui.touch',
         'alabs.pam.rpa.autogui.swipe',
     ],
-    version='1.0.1',
+    version='1.0.2',
     description='ARGOS-LABS RPA PYTHON PAM',
     author='Duk Kyu Lim',
     author_email='deokyu@argos-labs.com',
