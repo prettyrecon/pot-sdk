@@ -21,6 +21,7 @@ opencv-python
 pyperclip
 selenium
 wda
+keyboard
 
 # Select Window for Windows
 pywin32
