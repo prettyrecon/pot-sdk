@@ -17,7 +17,12 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #  * [2019/12/12]
-#   - --on-premise 별도 옵션 추가
+#   - 아래의 --on-premise 인 경우 pypi.org 를 접속하려고 시도
+#  * [2019/12/12]
+#   - --on-premise 별도 옵션 추가 (for HCL only)
+#     - STU 에서 호출
+#       - --on-premise --self-upgrade plugin dumpspec --official-only --last-only --user {0} --user-auth \"Bearer {1}\""
+#       - --on-premise --self-upgrade plugin dumpspec --private-only --last-only --user {0} --user-auth \"Bearer {1}\""
 #  * [2019/12/11]
 #   - on-premise에서 인터넷 연결 시 문제 수정
 #  * [2019/12/06]
@@ -876,8 +881,13 @@ class PPM(object):
             url = rep.get('url')
             if not url:
                 continue
+            # 만약 위에 on premise 인 경우에는 indices가 비어 있으므로
+            # 첫 번째를 --index 로 기술해 주어야 함 (2020.1.21)
             self.indices.append(url)
-            self.ndx_param.append('--extra-index-url')
+            if len(self.indices) == 1:
+                self.ndx_param.append('--index-url')
+            else:
+                self.ndx_param.append('--extra-index-url')
             self.ndx_param.append(url)
             self.ndx_param.append('--trusted-host')
             self.ndx_param.append(self._get_host_from_index(url))
@@ -2296,7 +2306,8 @@ def ppm_exe_init(sta):
                 shutil.rmtree(os.path.join(py_root, 'Python37-32'))
             shutil.move(os.path.join(tmpdir, 'Python37-32'), py_root)
         # g_dir\venv\pyvenv.cfg 덮어씀
-        with open(os.path.join(g_dir, 'venv', 'pyvenv.cfg'), 'w') as ofp:
+        with open(os.path.join(g_dir, 'venv', 'pyvenv.cfg'), 'w',
+                  encoding='utf-8') as ofp:
             ofp.write('''home = %s
 include-system-site-packages = false
 version = 3.7.3
