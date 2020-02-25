@@ -87,11 +87,10 @@ class VariableManagerAPI:
             query = {"path": path, "name": self._pid}
             self.rc_api.url_path += '?' + urllib.parse.urlencode(query)
             self.logger.debug(StructureLogFormat(
-                REQUEST_METHOD="POST",
+                REQUEST_METHOD="GET",
                 REQUEST_URL=self.rc_api.url_path))
 
             response = self.rc_api.do_http("GET", self.rc_api.url_path)
-
             return self.get_response_data(response)
         except MaxRetryError as e:
             self.logger.error(str(e))

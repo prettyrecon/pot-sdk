@@ -26,7 +26,9 @@ Change Log
 ################################################################################
 import sys
 import pyautogui
+import keyboard
 import pyperclip
+import pickle
 from alabs.common.util.vvargs import ModuleContext
 from alabs.common.util.vvlogger import StructureLogFormat
 
@@ -54,11 +56,18 @@ def type_text(mcxt, argspec):
     """
     mcxt.logger.info('TypeText is Running...')
     mcxt.logger.debug(StructureLogFormat(ARGS_SPEC=argspec.__dict__))
+    if argspec.pickle:
+        with open(argspec.pickle, 'rb') as f:
+            text = pickle.load(f)
+    else:
+        text = argspec.text
     if not argspec.interval:
-        pyperclip.copy(argspec.text)
+        pyperclip.copy(text)
         pyautogui.hotkey('ctrl', 'v')
     else:
-        pyautogui.typewrite(argspec.text, interval=argspec.interval)
+        # pyautogui.typewrite(text.encode('cp949'), interval=argspec.interval)
+        # pyautogui.typewrite(text.encode('cp949'), interval=argspec.interval)
+        keyboard.write(text)
     result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=None, MESSAGE="")
     sys.stdout.write(str(result))
     mcxt.logger.info('TypeText is Done.')
@@ -93,6 +102,7 @@ def _main(*args):
         ########################################################################
         mcxt.add_argument('text', type=str,
                           help='Text to type on an application')
+        mcxt.add_argument('--pickle', type=str, help='')
         mcxt.add_argument('--interval', type=float, default=0.15,
                           help='Interval')
 

@@ -31,6 +31,7 @@ path['USER_PARAM_VARIABLES'] = str(CURRENT_PAM_CONF_DIR /
 
 path["CURRENT_PAM_LOG_DIR"] = str(CURRENT_PAM_LOG_DIR)
 path["OPERATION_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.stdout")
+path["OPERATION_IN_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.in")
 path["OPERATION_STDERR_FILE"] = str(CURRENT_PAM_LOG_DIR / "operation.stderr")
 path["PLUGIN_LOG"] = str(CURRENT_PAM_LOG_DIR / "plugin.log")
 path["PLUGIN_STDOUT_FILE"] = str(CURRENT_PAM_LOG_DIR / "plugin.stdout")

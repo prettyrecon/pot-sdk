@@ -95,14 +95,14 @@ def clear_cache(mcxt, argspec):
 
     if argspec.chrome_cookie:
         cmd = list()
-        cmd.append('del /q /f "C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\*Cookies*.*')
+        cmd.append('del /q /f "%localappdata%\\Google\\Chrome\\User Data\\Default\\*Cookies*.*')
         commands.append(cmd)
 
 
     if argspec.chrome_all:
         cmd = list()
         cmd.append('Set uname=%username%')
-        cmd.append('set ChromeDataDir="C:\\Users\\%uname%\\AppData\\Local\\Google\\Chrome\\User Data\\Default"')
+        cmd.append('set ChromeDataDir="%localappdata%\\Google\\Chrome\\User Data\\Default"')
         cmd.append('del /q /f %ChromeDataDir%\\*.*')
         commands.append(cmd)
 

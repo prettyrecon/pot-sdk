@@ -22,6 +22,7 @@ from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
     LogMessageHelper
 from alabs.common.util.vvtest import captured_output
 from alabs.pam.conf import get_conf
+from alabs.pam.definitions import OperationReturnCode
 import multiprocessing
 
 ################################################################################
@@ -109,7 +110,13 @@ def test_run_result(f):
         information['stepName'] = scenario.step['name']
         information['itemName'] = item['itemName']
         information['content'] = retv['message']
-        information['result'] = 'success' if retv['status'] else 'failure'
+
+        status = 'success'
+        if retv['status'] not in (OperationReturnCode.SUCCEED_CONTINUE,
+                                  OperationReturnCode.SUCCEED_ABORT):
+            status = 'failure'
+        information['result'] = status
+        # information['result'] = 'success' if retv['status'] else 'failure'
 
         information['scanAreaX'] = 0
         information['scanAreaY'] = 0
@@ -377,17 +384,18 @@ class Runner(mp.Process):
     # ==========================================================================
     def _follow_up(self, data):
         # data = {
-        #     "status": "OK",
+        #     "status": OperationReturnCode.SUCCEED_CONTINUE,
         #     "function": (ResultHandler, args),
         # }
         # 처리 우선순위
         # data 존재여부 > status 상태 >
         if not data:
             return
-        if not data['status']:
+        if data['status'] in (OperationReturnCode.FAILED_ABORT,
+                              OperationReturnCode.SUCCEED_ABORT):
             raise ExceptionTreatAsError(data['message'])
 
-        if data['status'] and not data['function']:
+        if not data['function']:
             return
         if not hasattr(self, data['function'][0]):
             raise ValueError
@@ -532,7 +540,7 @@ class Runner(mp.Process):
 
             # 봇 필수 변수 선언
             self._variables.create('{{rp.index}}', value=1)  # Loop Index
-            self._variables.create('{{saved_data}}', value=" ")  # Saved Data
+            self._variables.create('{{saved_data}}', value="")  # Saved Data
             self.logger.info(self.log_prefix.format(
                 "Declared Essential Variables."))
 
@@ -560,6 +568,7 @@ class Runner(mp.Process):
         """
         STEP 변경
         * 모든 반복문은 초기화
+        * 첫 번째 아이템 지정
         :param args:
         :return:
         """
@@ -569,7 +578,7 @@ class Runner(mp.Process):
 
         self.scenario._repeat_stack = list()
         self.scenario.step = args[0]
-        self.scenario.set_current_item_by_index(0)
+        self.scenario.set_current_item_by_order = 0
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
                  "STEP": self.scenario.step}
@@ -580,6 +589,7 @@ class Runner(mp.Process):
         """
         다음 실행 오퍼레이터 변경
         * 모든 반복문은 초기화
+        * 아이템을 주어진 인덱스로 지정
         :param args:
         :return:
         """
@@ -667,7 +677,7 @@ class Runner(mp.Process):
                   "CUR_STEP_INDEX": self.scenario.current_step_index, }
 
         self.scenario._repeat_stack = list()
-        self.scenario.step = int(args[0]) - 1
+        self.scenario.set_step_by_index = int(args[0])
         self.scenario.set_current_item_by_index(int(args[1]))
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,

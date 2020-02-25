@@ -216,4 +216,31 @@ class TestUnit(unittest.TestCase):
         print(self.scenario.current_step_index)
         print(self.scenario.current_item_index)
 
+    def test2000_set_current_item_by_index(self):
+        """
+        인덱스 번호를 이용하여 다음 실행될 아이템 지정
+        :return:
+        """
+        p = pathlib.Path(SCENARIO_1)
+        self.scenario.update(self.scenario.load_scenario_file(p))
+
+        self.scenario.set_current_item_by_index(2)
+        item = next(self.scenario)
+        self.assertTupleEqual(('ImageMatch', 2),
+                              (item.__class__.__name__, item['index']))
+
+        self.scenario.set_current_item_by_index(1)
+        item = next(self.scenario)
+        self.assertTupleEqual(('ExecuteProcess', 1),
+                              (item.__class__.__name__, item['index']))
+
+        # 스텝을 바꿔서 테스
+        self.scenario.set_step_by_index(5)
+        self.scenario.set_current_item_by_index(5)
+        item = next(self.scenario)
+        self.assertTupleEqual(('ImageMatch', 5),
+                              (item.__class__.__name__, item['index']))
+
+
+
 

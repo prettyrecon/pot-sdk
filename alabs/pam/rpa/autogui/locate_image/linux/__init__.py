@@ -56,10 +56,17 @@ def locate_image(mcxt, argspec):
 
     # 이미지 좌표 구하기
     # Confidence 기본 값은 0.999
-    location = pyautogui.locateOnScreen(
-        argspec.filename,
-        region=argspec.region,
-        confidence=argspec.similarity * 0.01)
+    try:
+        location = pyautogui.locateOnScreen(
+            argspec.filename,
+            confidence=argspec.similarity * 0.01)
+    except Exception as e:
+        result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                    MESSAGE=str(e))
+        mcxt.logger.error(result)
+        sys.stderr.write(str(result))
+        return
+
     if not location:
         result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                     MESSAGE='Failed to find location.')
@@ -67,6 +74,7 @@ def locate_image(mcxt, argspec):
         sys.stderr.write(str(result))
         exit(-1)
     x, y, *_ = location
+    mcxt.logger.debug(StructureLogFormat(LOCATION_X=str(x), LOCATION_Y=str(y)))
 
     # 버튼
     motion = ClickMotionType[argspec.motion].value
@@ -75,6 +83,9 @@ def locate_image(mcxt, argspec):
     cx, cy = argspec.coordinates
     x += cx
     y += cy
+    mcxt.logger.debug(StructureLogFormat(LOCATION_X=str(x), LOCATION_Y=str(y),
+                                         COODINATE_X=str(cx),
+                                         COODINATE_Y=str(cy)))
 
     action = getattr(pyautogui, motion)
     action(button=button, x=x, y=y)
