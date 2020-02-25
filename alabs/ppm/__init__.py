@@ -16,6 +16,16 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/02/25]
+#   - plugin 명령에 --without-cache 옵션을 추가하여 서버에서 캐쉬 없이 결과를
+#     가져오도록 함 (work woth 조성은)
+#  * [2020/02/21]
+#   - %homepath%\.argos-rpa-config.yaml 설정파일 이용
+#   - 기존 %homepath%\.argos-rpa.conf 는 이용하지 않도록 함
+#   - 기존 ppm.config 는 임시 사용으로만 사용
+#   - submit / upload 해야함
+#  * [2020/02/19]
+#   - STU 시작 시 속도개선 시작
 #  * [2019/12/12]
 #   - 아래의 --on-premise 인 경우 pypi.org 를 접속하려고 시도
 #  * [2019/12/12]
@@ -54,7 +64,6 @@
 #   - venv의 Popen 결과를 line by line 으로 가져와서 처리
 #  * [2019/05/28]
 #   - ppm self upgrade on startup (--self-upgrade option)
-#   - TODO : pip2pi 모듈로 로컬용 pi를 만들고 로컬에서 설치하는 것 테스트
 #   - dumppi 명령 추가 (--dumppi-folder 옵션)
 #  * [2019/05/27]
 #   - submit 별도 구축 및 테스트
@@ -113,6 +122,7 @@ import time
 # noinspection PyUnresolvedReferences
 import venv       # for making venv in pyinstaller
 import shutil
+import hashlib
 # noinspection PyPackageRequirements
 import chardet
 import logging
@@ -158,8 +168,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 ################################################################################
-CONF_NAME = '.argos-rpa.conf'
-CONF_PATH = os.path.join(str(Path.home()), CONF_NAME)
+YAML_NAME = '.argos-rpa-config.yaml'
+YAML_PATH = os.path.join(str(Path.home()), YAML_NAME)
 LOG_NAME = '.argos-rpa.log'
 LOG_PATH = os.path.join(str(Path.home()), LOG_NAME)
 OUT_NAME = '.argos-rpa.out'
@@ -172,26 +182,26 @@ pbtail_po = None
 ################################################################################
 __all__ = ['main']
 
-_conf_version_list = [
-    '1.1'
-]
-_conf_last_version = _conf_version_list[-1]
-_conf_contents_dict = {
-    _conf_last_version: """
----
-version: "{last_version}"
-
-repository:
-  url: https://pypi-official.argos-labs.com/pypi
-  req: https://pypi-req.argos-labs.com
-private-repositories:
-""".format(last_version=_conf_last_version)
-    # - name: pypi-test
-    #  url: https://pypi-test.argos-labs.com/simple
-    #  username: user
-    #  password: pass
-}
-_conf_last_contents = _conf_contents_dict[_conf_last_version]
+# _conf_version_list = [
+#     '1.1'
+# ]
+# _conf_last_version = _conf_version_list[-1]
+# _conf_contents_dict = {
+#     _conf_last_version: """
+# ---
+# version: "{last_version}"
+#
+# repository:
+#   url: https://pypi-official.argos-labs.com/pypi
+#   req: https://pypi-req.argos-labs.com
+# private-repositories:
+# """.format(last_version=_conf_last_version)
+#     # - name: pypi-test
+#     #  url: https://pypi-test.argos-labs.com/simple
+#     #  username: user
+#     #  password: pass
+# }
+# _conf_last_contents = _conf_contents_dict[_conf_last_version]
 
 g_path = os.environ['PATH']
 
@@ -228,18 +238,30 @@ class StatLogger(object):
 
     # ==========================================================================
     def log(self, level, msg, is_append=True):
-        with open(self.STA_PATH, 'a', encoding='utf-8') as ofp:
-            ofp.write('[%s:%s] %s\n' %
-                      (datetime.datetime.now().strftime('%Y%m%d %H%M%S'), level, msg))
-            ofp.flush()
+        for _ in range(3):
+            # noinspection PyBroadException
+            try:
+                with open(self.STA_PATH, 'a', encoding='utf-8') as ofp:
+                    ofp.write('[%s:%s] %s\n' %
+                              (datetime.datetime.now().strftime('%Y%m%d %H%M%S'), level, msg))
+                    ofp.flush()
+                break
+            except Exception:
+                time.sleep(0.1)
         om = 'a' if is_append else 'w'
         if level <= 0:
             level = 1
         elif level > 3:
             level = 3
-        with open('%s.%s' % (self.STA_PATH, level), om, encoding='utf-8') as ofp:
-            ofp.write('%s\n' % msg)
-            ofp.flush()
+        for _ in range(3):
+            # noinspection PyBroadException
+            try:
+                with open('%s.%s' % (self.STA_PATH, level), om, encoding='utf-8') as ofp:
+                    ofp.write('%s\n' % msg)
+                    ofp.flush()
+                break
+            except Exception:
+                time.sleep(0.1)
 
     # ==========================================================================
     def error(self, msg):
@@ -618,18 +640,26 @@ class PPM(object):
     DUMPSPEC_JSON = 'dumpspec.json'
     EXCLUDE_PKGS = ('alabs.ppm', 'alabs.common', 'alabs.icon')
     # ==========================================================================
+    URL_OFFPI = [   # official plugin
+        'https://pypi-official.argos-labs.com/pypi',
+    ]
     URL_OAUTH = [
-        'https://oauth-rpa.argos-labs.com',     # 첫번째는 무조건 공식 도메인
-        'https://oauth-rpa-hcl.argos-labs.com',
+        'https://api-rpa.argos-labs.com/oauth2',
+        'https://oauth-rpa.argos-labs.com',     # OLD
+        # 'https://oauth-rpa-hcl.argos-labs.com',
     ]
     URL_API_CHIEF = [
-        'https://api-chief.argos-labs.com',     # 첫번째는 무조건 공식 도메인
-        'https://api-chief-hcl.argos-labs.com',
+        'https://api-rpa.argos-labs.com/api/chief',
+        'https://api-chief.argos-labs.com',     # OLD
+        # 'https://api-chief-hcl.argos-labs.com',
     ]
-    URL_S3 = 'https://s3-us-west-2.amazonaws.com'
-    URL_MOD_VER = '%s/rpa-file.argos-labs.com/plugins/mod-ver-list.json' % URL_S3
-    URL_DEF_DUMPSPEC = '%s/rpa-file.argos-labs.com/plugins/dumpspec-def-all.json' % URL_S3
-    URL_DUMPSPEC = '%s/rpa-file.argos-labs.com/plugins/{plugin_name}-{version}-dumpspec.json' % URL_S3
+    URL_PLUGIN = [
+        'https://pypi-official.argos-labs.com/data/plugin-static-files',
+        'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins', # OLD
+    ]
+    URL_DEF_DUMPSPEC = '%s/dumpspec-def-all.json'
+    URL_MOD_VER = '%s/mod-ver-list.json'
+    URL_DUMPSPEC = '%s/{plugin_name}-{version}-dumpspec.json'
 
     # ==========================================================================
     @staticmethod
@@ -642,7 +672,12 @@ class PPM(object):
         else:
             host = nl
             port = 443 if up.scheme == 'https' else 80
-        return is_svc_opeded(host, int(port))
+        for _ in range(3):
+            r = is_svc_opeded(host, int(port))
+            if r:
+                return r
+            time.sleep(0.2)
+        return False
 
     # ==========================================================================
     @staticmethod
@@ -653,23 +688,61 @@ class PPM(object):
         return None
 
     # ==========================================================================
-    def _get_URL_OAUTH(self, is_on_premise=False):
-        if is_on_premise:
-            r = self._get_valid_url(reversed(self.URL_OAUTH))
-        else:
-            r = self._get_valid_url(self.URL_OAUTH)
+    def _get_URL_OFFPI(self):
+        if self.url_config and 'alabsPpmHost' in self.url_config and \
+                self.url_config['alabsPpmHost'] and \
+                self.url_config['alabsPpmHost'] not in self.URL_OFFPI:
+            url = self.url_config['alabsPpmHost']
+            self.URL_OFFPI.insert(0, url)
+            self.logger.debug('Insert "%s" in self.URL_OFFPI %s' % (url, self.URL_OFFPI))
+        r = self._get_valid_url(self.URL_OFFPI)
         if not r:
-            raise RuntimeError('Cannot valid URL for OAUTH')
+            raise RuntimeError('Cannot find valid URL for Official Plugin')
         return r
 
     # ==========================================================================
-    def _get_URL_API_CHIEF(self, is_on_premise=False):
-        if is_on_premise:
-            r = self._get_valid_url(reversed(self.URL_API_CHIEF))
-        else:
-            r = self._get_valid_url(self.URL_API_CHIEF)
+    def _get_URL_OAUTH(self):
+        if self.url_config and 'oauthHost' in self.url_config and \
+                self.url_config['oauthHost'] and \
+                self.url_config['oauthHost'] not in self.URL_OAUTH:
+            url = self.url_config['oauthHost']
+            self.URL_OAUTH.insert(0, url)
+            self.logger.debug('Insert "%s" in self.URL_OAUTH %s' % (url, self.URL_OAUTH))
+        r = self._get_valid_url(self.URL_OAUTH)
         if not r:
-            raise RuntimeError("Cannot valid URL for Supersivor's API")
+            raise RuntimeError('Cannot find valid URL for OAUTH')
+        return r
+
+    # ==========================================================================
+    def _get_URL_API_CHIEF(self):
+        if self.url_config and 'oauthHost' in self.url_config and \
+                self.url_config['oauthHost']:
+            # 'https://api-rpa.argos-labs.com/oauth2' ==>
+            # 'https://api-rpa.argos-labs.com/api/chief'
+            api_chief = self.url_config['oauthHost'][:-6] + 'api/chief'
+            if api_chief not in self.URL_API_CHIEF:
+                url = api_chief
+                self.URL_API_CHIEF.insert(0, url)
+                self.logger.debug('Insert "%s" in self.URL_API_CHIEF %s' % (url, self.URL_API_CHIEF))
+        r = self._get_valid_url(self.URL_API_CHIEF)
+        if not r:
+            raise RuntimeError("Cannot find valid URL for Supersivor's API")
+        return r
+
+    # ==========================================================================
+    def _get_URL_PLUGIN(self):
+        if self.url_config and 'alabsPpmHost' in self.url_config and \
+                self.url_config['alabsPpmHost']:
+            # 'https://pypi-official.argos-labs.com/pypi' ==>
+            # 'https://pypi-official.argos-labs.com/data/plugin-static-files'
+            plugin_data = self.url_config['alabsPpmHost'][:-4] + 'data/plugin-static-files'
+            if plugin_data not in self.URL_PLUGIN:
+                url = plugin_data
+                self.URL_PLUGIN.insert(0, url)
+                self.logger.debug('Insert "%s" in self.URL_PLUGIN %s' % (url, self.URL_PLUGIN))
+        r = self._get_valid_url(self.URL_PLUGIN)
+        if not r:
+            raise RuntimeError("Cannot find valid plugin data URL")
         return r
 
     # ==========================================================================
@@ -681,10 +754,20 @@ class PPM(object):
         # return r1 and r2
 
     # ==========================================================================
-    def __init__(self, _venv, args, config, logger=None, sta=None):
+    def __init__(self, _venv, args, logger=None, sta=None):
         self.venv = _venv
         self.args = args
-        self.config = config    # .argos-rpa.conf (yaml)
+        self.url_config = {}    # %homepath%\.argos-rpa-config.yaml (yaml)
+        if os.path.exists(YAML_PATH):
+            with open(YAML_PATH, encoding='utf-8') as ifp:
+                if yaml.__version__ >= '5.1':
+                    # noinspection PyUnresolvedReferences
+                    yd = yaml.load(ifp, Loader=yaml.FullLoader)
+                else:
+                    yd = yaml.load(ifp)
+                if yd and isinstance(yd, list):
+                    self.url_config = yd[0]
+        self.config = {}
         if logger is None:
             logger = get_logger(LOG_PATH)
         self.logger = logger
@@ -701,6 +784,7 @@ class PPM(object):
         # Next are for POT speed-up
         self.mod_ver_list = None
         self.def_dumpspec = None
+        self.ds_hash = None
 
     # ==========================================================================
     def _get_pkgname(self):
@@ -815,7 +899,7 @@ class PPM(object):
     # ==========================================================================
     def _get_private_repositories(self):
         url = '%s/chief/repositories' \
-              % self._get_URL_API_CHIEF(is_on_premise=self._is_on_premise())
+              % self._get_URL_API_CHIEF()
         try:
             headers = {
                 'Accept': 'application/json',
@@ -851,19 +935,16 @@ class PPM(object):
         self.indices = []
         self.ndx_param = []
 
-        if not self._is_on_premise():
-            url = get_xpath(self.config, '/repository/url')
-            if not url:
-                raise RuntimeError('PPM._get_indices: Invalid repository.url from %s'
-                                   % CONF_NAME)
-            if self._is_url_valid(url):
-                self.indices.append(url)
-                self.ndx_param.append('--index')
-                self.ndx_param.append(url)
-                self.ndx_param.append('--trusted-host')
-                self.ndx_param.append(self._get_host_from_index(url))
+        self.sta.log(StatLogger.LT_2, 'Starting to get list of plugin repositories')
+        url = self._get_URL_OFFPI()
+        if not url:
+            raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % CONF_NAME)
+        self.indices.append(url)
+        self.ndx_param.append('--index')
+        self.ndx_param.append(url)
+        self.ndx_param.append('--trusted-host')
+        self.ndx_param.append(self._get_host_from_index(url))
         pr = None
-
         # 2019.7.27 POT private plugin 정보를 API로 가져오도록 함
         is_pr = False
         if self.args.user and self.args.user_auth:
@@ -893,6 +974,7 @@ class PPM(object):
             self.ndx_param.append(self._get_host_from_index(url))
         self.logger.debug('PPM._get_indices: indices=%s, ndx_param=%s' %
                           (self.indices, self.ndx_param))
+        self.sta.log(StatLogger.LT_3, 'Done to get list of plugin repositories')
         return self.indices
 
     # ==========================================================================
@@ -912,17 +994,14 @@ class PPM(object):
     # ==========================================================================
     def _list_modules(self, startswith='argoslabs.',
                       official_only=False, private_only=False):
+        # last_only 인 경우 마지막 버전 목록만 주도록 함
         modlist = list()
-        if official_only and self._is_on_premise():
-            # 2019.12.11 on-premise 인 경우에는 official 무시
-            return modlist
+        moddict = {}
         for i, url in enumerate(self.indices):
             if i == 0 and private_only:
-                if self._get_host_from_index(url) == 'pypi-official.argos-labs.com':
-                    continue
-            if official_only:
-                if self._get_host_from_index(url) != 'pypi-official.argos-labs.com':
-                    continue
+                continue
+            if official_only and i > 0:
+                break
             o = urlparse(url)
             web_url = '{scheme}://{netloc}/packages/'.format(scheme=o.scheme,
                                                              netloc=o.netloc)
@@ -934,19 +1013,31 @@ class PPM(object):
             for x in soup.find_all('a'):
                 # pprint(x.text)
                 # offline 저장소를 만들려다 보니 argoslabs.* 만 플러그인으로 가져오도록 함
-                if not x.text.startswith('argoslabs.'):
+                modname = x.text
+                if not modname.startswith('argoslabs.'):
                     continue
-                if startswith and not x.text.startswith(startswith):
+                if startswith and not modname.startswith(startswith):
                     continue
                 is_exclude = False
                 for exc_pkg in self.EXCLUDE_PKGS:
-                    if x.text.startswith(exc_pkg):
+                    if modname.startswith(exc_pkg):
                         is_exclude = True
                         break
                 if is_exclude:
                     continue
-                if x.text not in modlist:
-                    modlist.append(x.text)
+                if modname not in modlist:
+                    modlist.append(modname)
+                if self.args.last_only:
+                    dlist = modname.split('-')
+                    if dlist[0] not in moddict:
+                        moddict[dlist[0]] = modname
+                    else:
+                        plist = moddict[dlist[0]].split('-')
+                        # 가장 최신 버전이면 덮어씀
+                        if ver_compare(plist[1], dlist[1]) < 0:
+                            moddict[dlist[0]] = modname
+        if self.args.last_only:
+            modlist = list(moddict.values())
         modlist.sort()
         return modlist
 
@@ -980,26 +1071,53 @@ class PPM(object):
         return r
 
     # ==========================================================================
-    def _def_dumpspec_from_s3(self):
-        if not self._is_url_valid(self.URL_S3):
-            return {}
-        r = requests.get(self.URL_DEF_DUMPSPEC)
-        if r.status_code // 10 != 20:
-            self.sta.error("download %s error!" % self.URL_DEF_DUMPSPEC)
-            raise RuntimeError('Cannot get "%s"' % self.URL_DEF_DUMPSPEC)
-        self.sta.log(StatLogger.LT_3, "download %s" % self.URL_DEF_DUMPSPEC.split('/')[-1])
-        return json.loads(r.content)
+    def _get_dumpspec_hash(self):
+        url_def_dumpspec = self.URL_DEF_DUMPSPEC % self._get_URL_PLUGIN()
+        ds_hash_url = url_def_dumpspec[:-4] + 'hash'
+        self.sta.log(StatLogger.LT_3, 'Get hash specification "%s"' %
+                     ds_hash_url.split('/')[-1])
+        # 우선 해쉬를 가져와서 해당 파일이 로컬에 저장되었나 확인
+        r = requests.get(ds_hash_url)
+        if r.status_code // 10 == 20:
+            self.ds_hash = r.content.decode()
 
     # ==========================================================================
-    def _dumpspec_from_s3(self, modname, version):
+    def _def_dumpspec_from_plugin(self):
+        url_def_dumpspec = self.URL_DEF_DUMPSPEC % self._get_URL_PLUGIN()
+        self.sta.log(StatLogger.LT_3, "Get dump specification from %s" %
+                     url_def_dumpspec.split('/')[-1])
+        if self.ds_hash:
+            ds_file = '%s%sdumpspec-all-%s.json' % \
+                      (tempfile.gettempdir(), os.path.sep, self.ds_hash)
+            if os.path.exists(ds_file):
+                with open(ds_file, encoding='utf-8') as ifp:
+                    return json.load(ifp)
+        # 캐쉬가 없으면 실제 json을 다운로드 하고
+        r = requests.get(url_def_dumpspec)
+        if r.status_code // 10 != 20:
+            self.sta.error("download %s error!" % url_def_dumpspec)
+            raise RuntimeError('Cannot get "%s"' % url_def_dumpspec)
+        self.sta.log(StatLogger.LT_3, "download %s" % url_def_dumpspec.split('/')[-1])
+        rj = json.loads(r.content)
+        # 캐쉬로 저장
+        enc = hashlib.sha256()
+        enc.update(r.content)
+        self.ds_hash = ds_hash2 = enc.hexdigest()
+        ds_file = '%s%sdumpspec-all-%s.json' % \
+                  (tempfile.gettempdir(), os.path.sep, ds_hash2)
+        with open(ds_file, 'w', encoding='utf-8') as ofp:
+            json.dump(rj, ofp)
+        return rj
+
+    # ==========================================================================
+    def _dumpspec_from_plugin(self, modname, version):
         if modname in self.def_dumpspec:
             for ds in self.def_dumpspec[modname]:
                 if ds['plugin_version'] == version:
                     return ds
             self.logger.error('Found "%s" module but not version "%s" in self.def_dumpspec' % (modname, version))
-        if not self._is_url_valid(self.URL_S3):
-            raise IOError('Cannot find valid url for S3 store')
-        url = self.URL_DUMPSPEC.format(plugin_name=modname, version=version)
+        url_dumpspec = self.URL_DUMPSPEC % self._get_URL_PLUGIN()
+        url = url_dumpspec.format(plugin_name=modname, version=version)
         r = requests.get(url)
         if r.status_code // 10 != 20:
             self.sta.error("download %s error!" % url)
@@ -1008,19 +1126,32 @@ class PPM(object):
         return json.loads(r.content)
 
     # ==========================================================================
-    def _mod_ver_list_from_s3(self):
+    def _mod_ver_list_from_plugin(self):
         try:
-            if not self._is_url_valid(self.URL_S3):
-                raise RuntimeError('Cannot find valid url for S3 store')
-            r = requests.get(self.URL_MOD_VER)
+            if self.ds_hash:
+                # 로컬 해쉬 값이 있으면 해당 값을 가져옴
+                ds_file = '%s%smod-ver-list-%s.json' % \
+                          (tempfile.gettempdir(), os.path.sep, self.ds_hash)
+                if os.path.exists(ds_file):
+                    with open(ds_file, encoding='utf-8') as ifp:
+                        return json.load(ifp)
+            url_mod_ver = self.URL_MOD_VER % self._get_URL_PLUGIN()
+            self.sta.log(StatLogger.LT_2, "Downloading %s" % url_mod_ver.split('/')[-1])
+            r = requests.get(url_mod_ver)
             if r.status_code // 10 != 20:
-                self.sta.error("download %s error!" % self.URL_MOD_VER)
-                raise RuntimeError('Cannot get "%s"' % self.URL_MOD_VER)
-            self.sta.log(StatLogger.LT_3, "download %s" % self.URL_MOD_VER.split('/')[-1])
+                self.sta.error("download %s error!" % url_mod_ver)
+                raise RuntimeError('Cannot get "%s"' % url_mod_ver)
+            self.sta.log(StatLogger.LT_3, "Downloaded %s" % url_mod_ver.split('/')[-1])
             rj = json.loads(r.content)
             mvl = {}
             for md in rj['mod-ver-list']:
                 mvl[md['name']] = md['versions']
+            if self.ds_hash:
+                # 로컬 해쉬 값으로 저장
+                ds_file = '%s%smod-ver-list-%s.json' % \
+                          (tempfile.gettempdir(), os.path.sep, self.ds_hash)
+                with open(ds_file, 'w', encoding='utf-8') as ofp:
+                    json.dump(mvl, ofp)
             return mvl
         except Exception:
             return {}
@@ -1049,7 +1180,11 @@ class PPM(object):
         if version:
             # noinspection PyBroadException
             try:
-                return self._dumpspec_from_s3(modname, version)
+                jd = self._dumpspec_json_load(modname, version)
+                if jd is None:
+                    jd = self._dumpspec_from_plugin(modname, version)
+                    self._dumpspec_json_save(modname, version, jd)
+                return jd
             except Exception:
                 err_msg = 'Cannot get S3 dumpspec for ("%s", "%s")' % (modname, version)
                 self.sta.error(err_msg)
@@ -1097,7 +1232,7 @@ class PPM(object):
         sys.stdout.write('%s\n' % msg)
         self.logger.info(msg)
         url = '%s/plugin/api/v1.0/users/%s/plugins' \
-              % (self._get_URL_API_CHIEF(is_on_premise=self._is_on_premise()),
+              % (self._get_URL_API_CHIEF(),
                  quote(self.args.user))
         if not self.args.user_auth:
             raise RuntimeError('_dumpspec_user: --user-auth option must have a valid key')
@@ -1191,16 +1326,22 @@ class PPM(object):
         return r
 
     # ==========================================================================
-    def _check_cache_download_and_install(self, new_venv, modname, op, version):
-        self.logger.debug('_check_cache_download_and_install: new_venv="%s", modname="%s", op="%s", version="%s"'
-                          % (new_venv.root, modname, op, version))
+    def _download_module(self, new_venv, modname, op, version, _tmpdir):
         _cachedir = tempfile.gettempdir()
-        _tmpdir = tempfile.mkdtemp(prefix='down_install_')
-        try:
-            if op == '==' and version:
-                gl = glob.glob('%s/%s-%s-*.whl' % (_cachedir, modname, version))
-                for f in gl:
-                    return self._pre_requirements_install(new_venv, _tmpdir, f, modname)
+        if not (op and version):
+            if modname in self.mod_ver_list:
+                op = '=='
+                version = self.mod_ver_list[modname][0]
+        else:
+            # todo: op가 > < 등 일 때 목록에서 체크
+            ...
+        b_found = False
+        gl = glob.glob('%s/%s-%s-*.whl' % (_cachedir, modname, version))
+        for f in gl:
+            shutil.copy(f, _tmpdir)
+            b_found = True
+            break
+        if not b_found:
             modspec = modname
             if op and version:
                 modspec += '%s%s' % (op, version)
@@ -1215,6 +1356,15 @@ class PPM(object):
                 _msg = '_check_cache_download_and_install: Cannot pip download: cmd=%s' % ' '.join(_args)
                 self.logger.error(_msg)
                 raise RuntimeError(_msg)
+
+    # ==========================================================================
+    def _check_cache_download_and_install(self, new_venv, modname, op, version):
+        self.logger.debug('_check_cache_download_and_install: new_venv="%s", modname="%s", op="%s", version="%s"'
+                          % (new_venv.root, modname, op, version))
+        _cachedir = tempfile.gettempdir()
+        _tmpdir = tempfile.mkdtemp(prefix='down_install_')
+        try:
+            self._download_module(new_venv, modname, op, version, _tmpdir)
             gl = glob.glob('%s/%s-*.whl' % (_tmpdir, modname))
             gls = [f for f in gl]
             if gls:
@@ -1225,7 +1375,9 @@ class PPM(object):
                                           'install "%s" error!' % f)
                     # noinspection PyBroadException
                     try:
-                        shutil.move(f, _cachedir)
+                        bn = os.path.basename(f)
+                        if not os.path.exists(os.path.join(_cachedir, bn)):
+                            shutil.move(f, _cachedir)
                     except Exception:
                         self.logger.error('"%s" is exists in "%s"'
                                           % (os.path.basename(f), _cachedir))
@@ -1406,7 +1558,8 @@ six [('==', '1.10.0')]
         return match_cnt
 
     # ==========================================================================
-    def _cmd_modspec(self, moddict, modspec, version_attr='version'):
+    # def _cmd_modspec(self, moddict, modspec, version_attr='version'):  # 2020.02.20
+    def _cmd_modspec(self, moddict, modspec, version_attr='plugin_version'):
         rd = {}
         if not modspec:  # all
             if self.args.last_only:
@@ -1425,7 +1578,11 @@ six [('==', '1.10.0')]
             b_found = False
             for vdict in moddict[modname]:
                 for op, ver in speclist:
-                    cmp = ver_compare(vdict[version_attr], ver)
+                    if version_attr in vdict:
+                        vdver = vdict[version_attr]
+                    else:
+                        vdver = vdict['version']
+                    cmp = ver_compare(vdver, ver)
                     if op == '==':
                         if cmp == 0:
                             b_found = True
@@ -1469,17 +1626,52 @@ six [('==', '1.10.0')]
         raise RuntimeError('Cannot find "%s" dumpspec from modds in _get_with_dumpspec' % mod)
 
     # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _get_saved_dumpspec(self, modlist):
+        enc = hashlib.sha256()
+        enc.update(str(modlist).encode('utf-8'))
+        hexd = enc.hexdigest()
+        modd_file = '%s%sdumpspec-%s.modd' % (tempfile.gettempdir(), os.path.sep, hexd)
+        if not os.path.exists(modd_file):
+            return {}, {}
+        modds_file = '%s%sdumpspec-%s.modds' % (tempfile.gettempdir(), os.path.sep, hexd)
+        if not os.path.exists(modds_file):
+            return {}, {}
+        with open(modd_file, encoding='utf-8') as ifp:
+            modd = json.load(ifp)
+        with open(modds_file, encoding='utf-8') as ifp:
+            modds = json.load(ifp)
+        return modd, modds
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _set_saved_dumpspec(self, modlist, modd, modds):
+        enc = hashlib.sha256()
+        enc.update(str(modlist).encode('utf-8'))
+        hexd = enc.hexdigest()
+        modd_file = '%s%sdumpspec-%s.modd' % (tempfile.gettempdir(), os.path.sep, hexd)
+        with open(modd_file, 'w', encoding='utf-8') as ofp:
+            json.dump(modd, ofp)
+        modds_file = '%s%sdumpspec-%s.modds' % (tempfile.gettempdir(), os.path.sep, hexd)
+        with open(modds_file, 'w', encoding='utf-8') as ofp:
+            json.dump(modds, ofp)
+
+    # ==========================================================================
     def do_plugin(self):
         ofp = sys.stdout
-        modd = {}
-        modds = {}
         tmpdir = tempfile.mkdtemp(prefix='do_plugin_')
         try:
             self.sta.log(StatLogger.LT_2, "Starting plugin %s command" % self.args.plugin_cmd)
             self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
-            self.def_dumpspec = self._def_dumpspec_from_s3()
+            if not self.args.without_cache:
+                # 속도를 위하여 hash 를 우선 가지고 옴
+                self._get_dumpspec_hash()
+                self.def_dumpspec = self._def_dumpspec_from_plugin()
+            else:
+                self.ds_hash = None
+                self.def_dumpspec = {}
 
-            # for pkg in self.PLUGIN_PKGS:
+                # for pkg in self.PLUGIN_PKGS:
             #     # self.venv.venv_pip('install', pkg, *self.ndx_param)
             #     self.venv.venv_pip('install', pkg)
 
@@ -1553,47 +1745,50 @@ six [('==', '1.10.0')]
             modlist = self._list_modules(startswith=self.args.startswith,
                                          official_only=self.args.official_only,
                                          private_only=self.args.private_only)
-            for mod in modlist:
-                eles = mod.rstrip('.whl').split('-')
-                if len(eles) not in (5,):
-                    raise RuntimeError('PPM.do_plugin: Invalid format for wheel file "%s"' % mod)
-                ved = {
-                    'version': eles[1],
-                    'python-tag': eles[2],
-                    'abi-tag': eles[3],
-                    'flatform-tag': eles[4],
-                }
-                dsj = self._dumpspec_json(eles[0], eles[1])
-                ved['display_name'] = dsj.get('display_name')
-                ved['description'] = dsj.get('description')
-                ved['owner'] = dsj.get('owner')
-                ved['group'] = dsj.get('group')
-                ved['platform'] = dsj.get('platform')
-                ved['last_modify_datetime'] = dsj.get('last_modify_datetime')
-                ved['icon'] = dsj.get('icon')
-                ved['sha256'] = dsj.get('sha256')
-                if eles[0] not in modd:
-                    modd[eles[0]] = [ved]
-                    modds[eles[0]] = [dsj]
-                else:
-                    b_found = False
-                    for ve in modd[eles[0]]:
-                        if ve['version'] == eles[1]:
-                            b_found = True
-                            break
-                    if not b_found:
-                        modd[eles[0]].append(ved)
-                        modds[eles[0]].append(dsj)
-            # modd 에 있는 ved 목록에 대하여 내림차순 정렬
-            # cmp_items_py3 = cmp_to_key(version_compare)
-            for k, v in modd.items():
-                if len(v) <= 1:
-                    continue
-                modd[k] = sorted(v, key=cmp_to_key(version_compare), reverse=True)
-            for k, v in modds.items():
-                if len(v) <= 1:
-                    continue
-                modds[k] = sorted(v, key=cmp_to_key(plugin_version_compare), reverse=True)
+            modd, modds = self._get_saved_dumpspec(modlist)
+            if not (modd and modds):
+                for mod in modlist:
+                    eles = mod.rstrip('.whl').split('-')
+                    if len(eles) not in (5,):
+                        raise RuntimeError('PPM.do_plugin: Invalid format for wheel file "%s"' % mod)
+                    ved = {
+                        'version': eles[1],
+                        'python-tag': eles[2],
+                        'abi-tag': eles[3],
+                        'flatform-tag': eles[4],
+                    }
+                    dsj = self._dumpspec_json(eles[0], eles[1])
+                    ved['display_name'] = dsj.get('display_name')
+                    ved['description'] = dsj.get('description')
+                    ved['owner'] = dsj.get('owner')
+                    ved['group'] = dsj.get('group')
+                    ved['platform'] = dsj.get('platform')
+                    ved['last_modify_datetime'] = dsj.get('last_modify_datetime')
+                    ved['icon'] = dsj.get('icon')
+                    ved['sha256'] = dsj.get('sha256')
+                    if eles[0] not in modd:
+                        modd[eles[0]] = [ved]
+                        modds[eles[0]] = [dsj]
+                    else:
+                        b_found = False
+                        for ve in modd[eles[0]]:
+                            if ve['version'] == eles[1]:
+                                b_found = True
+                                break
+                        if not b_found:
+                            modd[eles[0]].append(ved)
+                            modds[eles[0]].append(dsj)
+                # modd 에 있는 ved 목록에 대하여 내림차순 정렬
+                # cmp_items_py3 = cmp_to_key(version_compare)
+                for k, v in modd.items():
+                    if len(v) <= 1:
+                        continue
+                    modd[k] = sorted(v, key=cmp_to_key(version_compare), reverse=True)
+                for k, v in modds.items():
+                    if len(v) <= 1:
+                        continue
+                    modds[k] = sorted(v, key=cmp_to_key(plugin_version_compare), reverse=True)
+                self._set_saved_dumpspec(modlist, modd, modds)
 
             ####################################################################
             # 사용자 plugin_modules를 포함한 --requirements-txt 의 모듈 스펙을 파싱
@@ -1652,54 +1847,9 @@ six [('==', '1.10.0')]
             ####################################################################
             elif self.args.plugin_cmd == 'dumpspec':
                 self.sta.log(StatLogger.LT_2, "Getting the specifications of plugins")
-                rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')
+                # rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')  # 2020.02.20
+                rd = self._cmd_modspec(modds, modspec)
                 json.dump(rd, ofp)
-            ####################################################################
-            # plugin 오프라인 용 저장소 만들기 (나중에 http.server 로 동작가능)
-            ####################################################################
-            # elif self.args.plugin_cmd == 'dumppi':
-            #     self.sta.log(StatLogger.LT_2, "Preparing offline plugin reposotory")
-            #     if not self.args.dumppi_folder:
-            #         raise RuntimeError(
-            #             'plugin dumppi command need --dumppi-folder option')
-            #     # pip2pi \work\p2p -r \work\reqtest.txt --index https://pypi-official.argos-labs.com/pypi -S
-            #     rd = self._cmd_modspec(modd, modspec)
-            #     # dp_req_file = '%s%s.dumppi.%d.txt' % (tmpdir, os.path.sep, randint(100000, 999999))
-            #     # with open(dp_req_file, 'w') as dp_ofp:
-            #     modl = list()
-            #     for mod in sorted([x for x in rd.keys()]):
-            #         if isinstance(rd[mod], list):
-            #             for ved in rd[mod]:
-            #                 line = '%s==%s' % (mod, ved['version'])
-            #                 # dp_ofp.write('%s\n' % line)
-            #                 modl.append(line)
-            #         elif isinstance(rd[mod], dict):
-            #             line = '%s==%s' % (mod, rd[mod]['version'])
-            #             # dp_ofp.write('%s\n' % line)
-            #             modl.append(line)
-            #         # else raise runtime
-            #     from libpip2pi.commands import pip2pi
-            #     if not os.path.exists(self.args.dumppi_folder):
-            #         os.makedirs(self.args.dumppi_folder)
-            #     args = [
-            #         'pip2pi',
-            #         self.args.dumppi_folder,
-            #     ]
-            #     args.extend(self.ndx_param)
-            #     # if sys.platform == 'win32':
-            #     args.append('--no-symlink')  # win32 고려
-            #     args.extend(modl)
-            #     args.extend(self.DUMPPI_PKGS)
-            #     self.logger.debug('pip2pi(%s)' % ' '.join(args))
-            #     # pip2pi p2p --index https://pypi-official.argos-labs.com/pypi
-            #     # --trusted-host pypi-official.argos-labs.com
-            #     # --extra-index-url https://pypi-test.argos-labs.com/simple
-            #     # --trusted-host pypi-test.argos-labs.com --no-symlink
-            #     # argoslabs.ai.translate==1.410.1357 argoslabs.ai.tts==1.330.1500
-            #
-            #     # _ = pip2pi(args)
-            #     po = subprocess.Popen(args)
-            #     po.wait()
             return 0
         finally:
             if self.args.outfile and ofp != sys.stdout:
@@ -1770,7 +1920,7 @@ six [('==', '1.10.0')]
     # ==========================================================================
     def _get____tk____(self, u___i, p___w):
         try:
-            root_url = self._get_URL_OAUTH(is_on_premise=self._is_on_premise())
+            root_url = self._get_URL_OAUTH()
             cookies = {
                 'JSESSIONID': '04EFBA89842288248F32F9EC19B7423E',
             }
@@ -1797,10 +1947,12 @@ six [('==', '1.10.0')]
                 'username': u___i,
                 'password': p___w,
             }
+            self.sta.log(StatLogger.LT_2, "Getting OAuth")
             r = requests.post('%s/oauth/token' % root_url,
                               headers=headers, cookies=cookies, data=data)
             if r.status_code // 10 != 20:
                 raise RuntimeError('PPM._dumpspec_user: API Error!')
+            self.sta.log(StatLogger.LT_3, "Getting OAuth done")
             jd = json.loads(r.text)
             return 'Bearer %s' % jd['access_token']
         except Exception as e:
@@ -1812,34 +1964,36 @@ six [('==', '1.10.0')]
     def do(self):
         try:
             self.logger.info('PPM.do: starting... %s' % self.args.command)
+            setattr(self.args, "last_only", getattr(self.args, "last_only", False))
+            setattr(self.args, "official_only", getattr(self.args, "official_only", False))
+            if not self.args.official_only:
+                if self.args.pr_user:
+                    setattr(self.args, 'user', self.args.pr_user)
+                elif not hasattr(self.args, 'user'):
+                    setattr(self.args, 'user', None)
+                if self.args.pr_user_auth:
+                    setattr(self.args, 'user_auth', self.args.pr_user_auth)
+                elif not hasattr(self.args, 'user_auth'):
+                    setattr(self.args, 'user_auth', None)
+                # 만약 --pr-user, --pr-user-pass 를 입력한 경우
+                if self.args.user and self.args.pr_user_pass and not self.args.pr_user_auth:
+                    setattr(self.args, 'user_auth',
+                            self._get____tk____(self.args.user, self.args.pr_user_pass))
+                # pam_id 처리
+                if not hasattr(self.args, 'pam_id'):
+                    setattr(self.args, 'pam_id', None)
 
-            if self.args.pr_user:
-                setattr(self.args, 'user', self.args.pr_user)
-            elif not hasattr(self.args, 'user'):
-                setattr(self.args, 'user', None)
-            if self.args.pr_user_auth:
-                setattr(self.args, 'user_auth', self.args.pr_user_auth)
-            elif not hasattr(self.args, 'user_auth'):
-                setattr(self.args, 'user_auth', None)
-            # 만약 --pr-user, --pr-user-pass 를 입력한 경우
-            if self.args.user and self.args.pr_user_pass and not self.args.pr_user_auth:
-                setattr(self.args, 'user_auth',
-                        self._get____tk____(self.args.user, self.args.pr_user_pass))
-            # pam_id 처리
-            if not hasattr(self.args, 'pam_id'):
-                setattr(self.args, 'pam_id', None)
-
-            if self.args.command in ('upload',):
-                # 만약 upload 에서 --pr-user 옵션을 안 준 경우, 사용자를 물어서 가져옴
-                if not self.args.user:
-                    user = input('%s command need user id for ARGOS RPA, User ID? '
-                                 % self.args.command)
-                    setattr(self.args, 'user', user)
-                # 만약 upload 에서 --pr-user 옵션만 주고 실행했을 때는 암호를 물어서 가져옴
-                if not self.args.user_auth:
-                    u___p = getpass('%s command need user password for ARGOS RPA, User Password? '
-                                    % self.args.command)
-                    setattr(self.args, 'user_auth', self._get____tk____(self.args.user, u___p))
+                if self.args.command in ('upload',):
+                    # 만약 upload 에서 --pr-user 옵션을 안 준 경우, 사용자를 물어서 가져옴
+                    if not self.args.user:
+                        user = input('%s command need user id for ARGOS RPA, User ID? '
+                                     % self.args.command)
+                        setattr(self.args, 'user', user)
+                    # 만약 upload 에서 --pr-user 옵션만 주고 실행했을 때는 암호를 물어서 가져옴
+                    if not self.args.user_auth:
+                        u___p = getpass('%s command need user password for ARGOS RPA, User Password? '
+                                        % self.args.command)
+                        setattr(self.args, 'user_auth', self._get____tk____(self.args.user, u___p))
 
             if hasattr(self.args, 'subargs'):
                 subargs = self._check_subargs(self.args.subargs)
@@ -1847,8 +2001,8 @@ six [('==', '1.10.0')]
                 subargs = []
             # officail 및 private의 --index 내용 가져오기
             self._get_indices()
-            # s3에서 pypi-official의 module 및 버전 목록을 구해옴
-            self.mod_ver_list = self._mod_ver_list_from_s3()
+            # pypi-official의 module 및 버전 목록을 구해옴
+            self.mod_ver_list = self._mod_ver_list_from_plugin()
             if not getattr(sys, 'frozen', False) and self.args.self_upgrade:
                 is_common, is_ppm = self._can_self_upgrade()
                 # noinspection PyProtectedMember
@@ -1994,7 +2148,7 @@ six [('==', '1.10.0')]
                                         base_dir=os.path.basename(current_wd))
                     if not os.path.exists(zf):
                         raise RuntimeError('PPM.do: Cannot build zip file "%s" to submit' % zf)
-                    req = get_xpath(self.config, '/repository/req')
+                    req = self.args.submit_url
                     if not req:
                         raise RuntimeError('PPM.do: Cannot submit to "%s"' % req)
                     sdu = SimpleDownUpload(url=req, token=self.args.submit_key)
@@ -2016,7 +2170,7 @@ six [('==', '1.10.0')]
                 self.sta.log(StatLogger.LT_2, "upload plugin file to the private repository")
                 for pkg in self.UPLOAD_PKGS:
                     self.venv.venv_pip('install', pkg, *self.ndx_param)
-
+                # _get_indices() 에서 'private-repositories' 정보를 구해왔음
                 pri_reps = get_xpath(self.config, '/private-repositories')
                 if not pri_reps:
                     raise RuntimeError('PPM.do: Private repository (private-repositories) '
@@ -2085,7 +2239,19 @@ six [('==', '1.10.0')]
               glob.glob(os.path.join(self.pkgpath, '**', '__init__.py'),
                         recursive=True)]
         for d in map(os.path.dirname, fl):
-            d = "'%s'" % d.replace(os.path.sep, '.')
+            md = d.replace(os.path.sep, '.')
+            # 'alabs.ppm.pyinst.venv.Lib.site-packages.pip' 와 같이
+            # 'alabs.ppm.pyinst' 가 없는데 하위가 나올 수 있어서
+            # 이런 경우에는 append 하지 않음
+            md_list = md.split('.')
+            b_missed = False
+            for i in range(3, len(md_list)):
+                if "'%s'" % md[:i] not in pkghistory:
+                    b_missed = True
+                    break
+            if b_missed:
+                continue
+            d = "'%s'" % md
             if d not in pkghistory:
                 pkghistory.append(d)
 
@@ -2231,40 +2397,39 @@ setup(
             self.logger.debug('PPM.setup: %s=<%s>' % (sucpath, sucstr))
         # instead use package_data
         # if os.path.exists(os.path.join(self.pkgpath, 'MANIFEST.in')):
-        #     shutil.copy(os.path.join(self.pkgpath, 'MANIFEST.in'), supath)
-
+        #     shutil.copy(os.path.join(self.pkgpath, 'MANIFEST.in'), self.basepath)
         r = self.venv.venv_py(supath, *args, getstdout=True)
         self.logger.info('PPM.setup: end.')
         return r
 
 
-################################################################################
-def get_repository_env():
-    cf = CONF_PATH
-    if not os.path.exists(cf):
-        with open(cf, 'w') as ofp:
-            ofp.write(_conf_last_contents)
-    with open(cf) as ifp:
-        if yaml.__version__ >= '5.1':
-            # noinspection PyUnresolvedReferences
-            dcf = yaml.load(ifp, Loader=yaml.FullLoader)
-        else:
-            dcf = yaml.load(ifp)
-    need_conf_upgrade = False
-    if 'version' not in dcf:
-        need_conf_upgrade = True
-    elif ver_compare(dcf['version'], _conf_last_version) < 0:
-        need_conf_upgrade = True
-    if need_conf_upgrade:
-        with open(cf, 'w') as ofp:
-            ofp.write(_conf_last_contents)
-        with open(cf) as ifp:
-            if yaml.__version__ >= '5.1':
-                # noinspection PyUnresolvedReferences
-                dcf = yaml.load(ifp, Loader=yaml.FullLoader)
-            else:
-                dcf = yaml.load(ifp)
-    return dcf
+# ################################################################################
+# def get_repository_env():
+#     cf = CONF_PATH
+#     if not os.path.exists(cf):
+#         with open(cf, 'w') as ofp:
+#             ofp.write(_conf_last_contents)
+#     with open(cf) as ifp:
+#         if yaml.__version__ >= '5.1':
+#             # noinspection PyUnresolvedReferences
+#             dcf = yaml.load(ifp, Loader=yaml.FullLoader)
+#         else:
+#             dcf = yaml.load(ifp)
+#     need_conf_upgrade = False
+#     if 'version' not in dcf:
+#         need_conf_upgrade = True
+#     elif ver_compare(dcf['version'], _conf_last_version) < 0:
+#         need_conf_upgrade = True
+#     if need_conf_upgrade:
+#         with open(cf, 'w') as ofp:
+#             ofp.write(_conf_last_contents)
+#         with open(cf) as ifp:
+#             if yaml.__version__ >= '5.1':
+#                 # noinspection PyUnresolvedReferences
+#                 dcf = yaml.load(ifp, Loader=yaml.FullLoader)
+#             else:
+#                 dcf = yaml.load(ifp)
+#     return dcf
 
 
 ################################################################################
@@ -2326,27 +2491,10 @@ def _main(argv=None):
         ppm_exe_init(sta)
     cwd = os.getcwd()
     try:
-        dcf = get_repository_env()
+        # dcf = get_repository_env()
         parser = ArgumentParser(
-            description='''ARGOS-LABS Plugin Package Manager
-
-This manager use private PyPI repository.
-set {conf_path} as follows:
-
-{conf_contents}
-
-* repository is the main plugin modules's store
-  * url is the url of ARGOS RPA+ main pypi module
-  NB) ARGOS RPA+ main module is not allowed to upload directly
-      but submit first and then ARGOS team to decide 
-* private-repositories are the list of user's private plugin modules's store
-  * name is the name of private repository (for example "internal", "external") 
-  * url is the url of pypi module
-  * username is the user name at pypi repository
-  * password is the user password at pypi repository
-  NB) username and password is only needed for upload
-      upload is only valid for private repositories
-'''.format(conf_path=CONF_PATH, conf_contents=_conf_contents_dict[_conf_last_version]), formatter_class=argparse.RawTextHelpFormatter)
+            description='''ARGOS-LABS Plugin Package Manager''',
+            formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument('--new-py', action='store_true',
                             help='making new python venv environment at py.%s' %
                             sys.platform)
@@ -2378,6 +2526,8 @@ set {conf_path} as follows:
         ss = subps.add_parser('submit', help='submit to upload server')
         _ = ss.add_argument('--submit-key',
                             help="token key to submit")
+        ss.add_argument('submit_url',
+                        help="URL to submit for plugin")
         sp = subps.add_parser('upload', help='upload this module to pypi server')
         sp.add_argument('repository_name', nargs='?',
                         help="repository name from the list of private repositories. "
@@ -2442,6 +2592,8 @@ set {conf_path} as follows:
                         help="filename to save the stdout into a file")
         sp.add_argument('--requirements-txt',
                         help="filename to read modules from requirements.txt instead plugin_module parameters")
+        sp.add_argument('--without-cache', action='store_true',
+                        help="module filter to start with")
 
         ########################################################################
         # pip command
@@ -2503,7 +2655,7 @@ set {conf_path} as follows:
             try:
                 logger = get_logger(LOG_PATH, loglevel=loglevel)
                 _venv = VEnv(args, logger=logger)
-                ppm = PPM(_venv, args, dcf, logger=logger, sta=sta)
+                ppm = PPM(_venv, args, logger=logger, sta=sta)
                 return ppm.do()
             finally:
                 logging.shutdown()
