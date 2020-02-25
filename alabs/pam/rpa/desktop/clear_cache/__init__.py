@@ -96,6 +96,8 @@ def clear_cache(mcxt, argspec):
     if argspec.chrome_cookie:
         cmd = list()
         cmd.append('del /q /f "%localappdata%\\Google\\Chrome\\User Data\\Default\\*Cookies*.*')
+        cmd.append('RunDll32.exe InetCpl.cpl,ClearMyTracksByProcess 2')
+        cmd.append('del /q /f "%appdata%\\Microsoft\\Windows\\Cookies"')
         commands.append(cmd)
 
 
