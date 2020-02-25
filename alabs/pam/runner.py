@@ -677,7 +677,7 @@ class Runner(mp.Process):
                   "CUR_STEP_INDEX": self.scenario.current_step_index, }
 
         self.scenario._repeat_stack = list()
-        self.scenario.set_step_by_index = int(args[0])
+        self.scenario.set_step_by_index(int(args[0]))
         self.scenario.set_current_item_by_index(int(args[1]))
 
         after = {"REPEAT_STACK": self.scenario._repeat_stack,
