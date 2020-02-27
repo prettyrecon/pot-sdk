@@ -119,7 +119,8 @@ def tags_to_xpath_parser(args):
 ################################################################################
 def tags_to_xpath(args):
     value = tags_to_xpath_parser(args)
-    xpath = f'//body/*/{tag_name}\[@{attr_type}="{attr_value}"]'.format(value)
+    # xpath = f'//body/*/{tag_name}\[@{attr_type}="{attr_value}"]'.format(value)
+    xpath = '//{tag_name}[@{attr_type}="{attr_value}"]'.format(**value)
     return xpath
 
 
