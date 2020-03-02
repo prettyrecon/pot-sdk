@@ -1262,13 +1262,52 @@ class Navigate(Items):
 
 
 ################################################################################
-class DocumentComplete(Items):
-    # OCR
-    references = ('imageMatch',)
+class Document(Items):
+    # OnLoadEvent
+    references = ('verifyResultAction',)
+
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+        # HTML 태그 존재를 기준으로 판단
+        cmd.append('//html')
+        cmd.append('--timeout')
+        cmd.append(str(int(int(self['timeOut']) * 0.001 )))
+        return tuple(cmd)
 
     # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('OnLoad Event')
+        if not self._scenario.web_driver:
+            msg = 'Openbrowser(Selenium) Must be running before using ' \
+                  'OnLoad Event.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.wait_for_element {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            # TODO: 에러처리 고려가 필요
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return self['verifyResultAction'], False, data['MESSAGE'],
+
+        status = data['RETURN_VALUE']['RESULT']
+        self.log_msg.pop()
+        return self['verifyResultAction'], status, data['MESSAGE'],
+
 
 
 ################################################################################
