@@ -1367,12 +1367,75 @@ class CompareText(Items):
 
 ################################################################################
 class WaitingPopup(Items):
-    # OCR
-    references = ('imageMatch',)
+    # WaitingPopup
+    # {"watingPopup": {
+    #     "URL": "aaaaa",
+    #     "title": "asdr"
+    # },
+    # "verifyResultAction": {
+    #     "successActionType": "Go",
+    #     "successActionValue": 0,
+    #     "successMemoGroupCode": 0,
+    #     "successActionRepeatCount": 5,
+    #     "successStepNum": -1,
+    #     "successItemNum": -1,
+    #     "failActionType": "Error",
+    #     "failActionValue": 0,
+    #     "failMemoGroupCode": 0,
+    #     "failActionRepeatCount": 5,
+    #     "failStepNum": -1,
+    #     "failItemNum": -1
+    # },}
+    references = ('watingPopup', 'verifyResultAction')
 
     # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+
+        cmd.append(json.dumps(self['watingPopup']['title']))
+        if self['watingPopup']['URL']:
+            cmd.append('--process_name')
+            cmd.append(json.dumps(self['watingPopup']['URL']))
+
+        cmd.append('--timeout')
+        cmd.append(str(int(int(self['timeOut']) * 0.001)))
+        return tuple(cmd)
+
+        # ==========================================================================
+
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('OnLoad Event')
+        if not self._scenario.web_driver:
+            msg = 'Open Web Browser(Selenium) Must be running ' \
+                  'before using this operation.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.wait_for_new_window {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            # TODO: 에러처리 고려가 필요
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return self['verifyResultAction'], False, data['MESSAGE'],
+
+        status = data['RETURN_VALUE']['RESULT']
+        self.log_msg.pop()
+        return self['verifyResultAction'], status, data['MESSAGE'],
+
 
 
 ################################################################################
