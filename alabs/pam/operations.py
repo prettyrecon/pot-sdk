@@ -1511,12 +1511,53 @@ class DeleteFile(Items):
 
 ################################################################################
 class ClosePopup(Items):
-    # OCR
-    references = ('imageMatch',)
+    # ClosePopup
+    # 가져올 참고 데이터 없음
+    references = tuple()
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+
+        # 메인을 제외한 Window ID
+        hdls = self._scenario.web_driver.window_handles
+        hdls.remove(self._scenario.web_driver.main_window)
+        cmd += hdls
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Close Popup')
+        if not self._scenario.web_driver:
+            msg = 'Openbrowser(Selenium) Must be running before using ' \
+                  'OnLoad Event.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.close_web_windows {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
+
+
 
 ################################################################################
 class EndScenario(Items):
