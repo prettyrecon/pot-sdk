@@ -1351,11 +1351,14 @@ class Navigate(Items):
 
         with captured_output() as (out, err):
             wdrv = webdriver.Chrome(**options)
+
         if err.getvalue():
             self.logger.error(self.log_msg.format(err.getvalue()))
         self.logger.info(self.log_msg.format(out.getvalue()))
         wdrv.get(url)
         self._scenario.web_driver = wdrv
+        self._scenario.web_driver.main_window = wdrv.window_handles[0]
+
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
 
