@@ -353,7 +353,9 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
         cmd = list()
         # filename
@@ -406,21 +408,16 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments_for_select_window(self):
         cmd = list()
 
         # title
-        code, data = self._variables.convert(self['imageMatch']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['title'])
         # name
-        code, data = self._variables.convert(
-            self['imageMatch']['processName'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['processName'])
         return tuple(cmd)
 
     # ==========================================================================
