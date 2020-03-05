@@ -1123,12 +1123,98 @@ class Repeat(Items):
 
 ################################################################################
 class SendEmail(Items):
-    # OCR
-    references = ('imageMatch',)
+    # SendEmail
+    '''
+    "sendEmail": {
+            "smtpHost": "mail2.vivans.net",
+            "smtpPort": 587,
+            "useSsl": true,
+            "smtpId": "deokyu@vivans.net",
+            "smtpPassword": "ENC::fINEjX2G1wBd2z0EW4mXuQ==",
+            "senderMailAddress": "deokyu@vivans.net",
+            "receiverMailAddress": "deokyu@vivans.net;deokyu@argos-labs.com",
+            "mailTitle": "hi it's test SSL",
+            "mailContent": "hello world!!!",
+            "attachFileList": "C:\\Users\\argos\\AppData\\Roaming\\ArgosScenarioStudio\\TestRun\\Scenario.json;",
+            "bccList": "test_email_1@gmail.com;test_email_2@gmail.com",
+            "ccList": "hong18s@gmail.com "
+          }
+    '''
+    references = ('sendEmail',)
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        """
+        # 'python -m alabs.pam.rpa.desktop.send_email ' \
+        # 'mail2.vivans.net 25 ' \
+        # 'deokyu@vivans.net vivans123$ ' \
+        # 'deokyu@vivans.net ' \
+        # '"deokyu@argos-labs.com,deokyu@vivans.net" ' \
+        # 'HelloThere4 "Hello World!!!!!" ' \
+        # '--cc "hong18s@gmail.com" ' \
+        # '--bcc "im.ddo.lee@gmail.com" ' \
+        # '--attach .env --attach .gitignre'
+        :return:
+        """
+
+        cmd = list()
+        # Server Info
+        cmd.append(self['sendEmail']['smtpHost'])
+        cmd.append(str(self['sendEmail']['smtpPort']))
+
+        cmd.append(self['sendEmail']['smtpId'])
+        cmd.append(self['sendEmail']['smtpPassword'])  # Todo: 복호화
+        cmd.append(self['sendEmail']['senderMailAddress'])
+        to = self['sendEmail']['receiverMailAddress'].replace(';', ',')
+        cmd.append(to)
+
+        cmd.append(self['sendEmail']['mailTitle'])
+        cmd.append(self['sendEmail']['mailContent'])
+
+        cc = self['sendEmail']['ccList']
+        if cc:
+            cmd.append('--cc')
+            cc = cc.replace(';', ',')
+            cmd.append(cc)
+
+        bcc = self['sendEmail']['bccList']
+        if bcc:
+            cmd.append('--bcc')
+            bcc = bcc.replace(';', ',')
+            cmd.append(bcc)
+
+        attaches = self['sendEmail']['attachFileList']
+        if attaches:
+            attaches = list(attaches.split(';'))
+            for attach in attaches:
+                cmd.append('--attach')
+                cmd.append(attach)
+
+        ssl = self['sendEmail']['useSsl']
+        if ssl:
+            cmd.append('--ssl')
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Send Email')
+        cmd = '{} -m alabs.pam.rpa.desktop.send_email {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE,
+                None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
