@@ -895,7 +895,9 @@ class HTMLAction(Items):
     references = ('htmlAction',)
 
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
         cmd = list()
         # URL
@@ -905,25 +907,23 @@ class HTMLAction(Items):
 
         from alabs.pam.rpa.web.html_action import tags_to_xpath
         if 'Tag' == self['htmlAction']['findType']:
-            data = '|'.join([self['htmlAction']['tagName'],
-                              self['htmlAction']['attName'],
-                              self['htmlAction']['attValue']])
-            _, data = self._variables.convert(data)
-            xpath = tags_to_xpath(data.split('|'))
+            xpath = tags_to_xpath([self['htmlAction']['tagName'],
+                                   self['htmlAction']['attName'],
+                                   self['htmlAction']['attValue']])
         else:
-            _, xpath = self._variables.convert(self['htmlAction']['xPath'])
+            xpath = self['htmlAction']['xPath']
         cmd.append(xpath)
 
         action = self['htmlAction']['actionType']
         js_event = 'set_value' if action == 'setValue' else action
         cmd.append(js_event)
 
-        _, parameters = self._variables.convert(self['htmlAction']['sendValue'])
+        parameters = self['htmlAction']['sendValue']
         cmd.append('--js_params')
         cmd.append(parameters)
 
         if self['htmlAction']['frameName']:
-            _, iframe = self._variables.convert(self['htmlAction']['frameName'])
+            iframe = self['htmlAction']['frameName']
             cmd.append('--iframe')
             cmd.append(iframe)
 
