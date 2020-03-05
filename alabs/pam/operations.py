@@ -78,6 +78,41 @@ def arguments_options_fileout(f):
     return func
 
 
+def non_latin_characters(f):
+    """
+    argument용으로 사용
+    영어가 아닌 문자열 일괄처리
+    :param f:
+    :return:
+    """
+    @wraps(f)
+    def func(*args, **kwargs):
+        cmd = f(*args, **kwargs)
+        if not cmd:
+            return cmd
+        cmd = [json.dumps(x, ensure_ascii=False) if not x.startswith('--')
+               else x for x in cmd]
+        return tuple(cmd)
+    return func
+
+
+def convert_variable(f):
+    """
+    argument 용 장식자
+    모든 argument 내용을 변수 변환
+    :param f:
+    :return:
+    """
+    @wraps(f)
+    def func(*args, **kwargs):
+        SEPERATOR = '\x1f'
+        conv = args[0]._variables.convert
+        cmd = f(*args, **kwargs)
+        cmd = SEPERATOR.join(cmd)
+        code, cmd = conv(cmd)
+        return cmd.split(SEPERATOR)
+    return func
+
 ################################################################################
 def request_handler(f):
     @wraps(f)
@@ -873,23 +908,27 @@ class HTMLAction(Items):
 
         from alabs.pam.rpa.web.html_action import tags_to_xpath
         if 'Tag' == self['htmlAction']['findType']:
-            tag_name = self['htmlAction']['tagName']
-            attr_name = self['htmlAction']['attName']
-            attr_value = self['htmlAction']['attValue']
-            xpath = tags_to_xpath([tag_name, attr_name, attr_value])
+            data = '|'.join([self['htmlAction']['tagName'],
+                              self['htmlAction']['attName'],
+                              self['htmlAction']['attValue']])
+            _, data = self._variables.convert(data)
+            xpath = tags_to_xpath(data.split('|'))
         else:
-            xpath = self['htmlAction']['xPath']
-        cmd.append(json.dumps(xpath))
+            _, xpath = self._variables.convert(self['htmlAction']['xPath'])
+        cmd.append(xpath)
 
-        js_event = self['htmlAction']['actionType']
+        action = self['htmlAction']['actionType']
+        js_event = 'set_value' if action == 'setValue' else action
         cmd.append(js_event)
-        parameters = self['htmlAction']['sendValue']
+
+        _, parameters = self._variables.convert(self['htmlAction']['sendValue'])
         cmd.append('--js_params')
         cmd.append(parameters)
 
         if self['htmlAction']['frameName']:
+            _, iframe = self._variables.convert(self['htmlAction']['frameName'])
             cmd.append('--iframe')
-            cmd.append(self['htmlAction']['frameName'])
+            cmd.append(iframe)
 
         return tuple(cmd)
 
