@@ -66,12 +66,13 @@ def send_email(mcxt, argspec):
     status = True
     message = ''
     try:
+        msg = MIMEMultipart()
         receiver_emails = list()
         receiver_emails += argspec.to.split(',')
         if argspec.bcc:
             receiver_emails += argspec.bcc.split(',')
         if argspec.cc:
-            message["Cc"] = argspec.cc
+            msg["Cc"] = argspec.cc
             receiver_emails += argspec.cc.split(',')
 
         subject = argspec.subject
@@ -81,15 +82,14 @@ def send_email(mcxt, argspec):
         smtp_server = argspec.smtp_host
         smtp_port = argspec.smtp_port
 
-        # Create a multipart message and set headers
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = argspec.to
-        message["Subject"] = subject
+        # Create a multipart msg and set headers
+        msg["From"] = sender_email
+        msg["To"] = argspec.to
+        msg["Subject"] = subject
 
         # plain/html 형태로 내용 형태 지정
         part1 = MIMEText(body, "plain")
-        message.attach(part1)
+        msg.attach(part1)
 
         # 파일첨부
         attaches = argspec.attach if argspec.attach else list()
@@ -105,9 +105,9 @@ def send_email(mcxt, argspec):
                 "Content-Disposition",
                 f"attachment; filename= {filename}",
             )
-            message.attach(part)
+            msg.attach(part)
 
-        text = message.as_string()
+        text = msg.as_string()
 
         if argspec.ssl:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS)

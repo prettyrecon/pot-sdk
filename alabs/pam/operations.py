@@ -1158,6 +1158,12 @@ class SendEmail(Items):
         # '--attach .env --attach .gitignre'
         :return:
         """
+        from alabs.pam.common.crypt import argos_decrypt
+
+        def replace_semi_and_spaces(text):
+            text = text.replace(';', ',')
+            text = text.replace(' ', '')
+            return text
 
         cmd = list()
         # Server Info
@@ -1165,30 +1171,37 @@ class SendEmail(Items):
         cmd.append(str(self['sendEmail']['smtpPort']))
 
         cmd.append(self['sendEmail']['smtpId'])
-        cmd.append(self['sendEmail']['smtpPassword'])  # Todo: 복호화
+
+        password = argos_decrypt(self['sendEmail']['smtpPassword'],
+                           self._scenario.hash_key,
+                           self._scenario.iv)
+        cmd.append(password)
+
         cmd.append(self['sendEmail']['senderMailAddress'])
-        to = self['sendEmail']['receiverMailAddress'].replace(';', ',')
+        to = replace_semi_and_spaces(self['sendEmail']['receiverMailAddress'])
         cmd.append(to)
 
-        cmd.append(self['sendEmail']['mailTitle'])
-        cmd.append(self['sendEmail']['mailContent'])
+        cmd.append(json.dumps(self['sendEmail']['mailTitle']))
+        cmd.append(json.dumps(self['sendEmail']['mailContent']))
 
         cc = self['sendEmail']['ccList']
         if cc:
             cmd.append('--cc')
-            cc = cc.replace(';', ',')
+            cc = replace_semi_and_spaces(cc)
             cmd.append(cc)
 
         bcc = self['sendEmail']['bccList']
         if bcc:
             cmd.append('--bcc')
-            bcc = bcc.replace(';', ',')
+            bcc = replace_semi_and_spaces(bcc)
             cmd.append(bcc)
 
         attaches = self['sendEmail']['attachFileList']
         if attaches:
             attaches = list(attaches.split(';'))
             for attach in attaches:
+                if not attach:
+                    continue
                 cmd.append('--attach')
                 cmd.append(attach)
 
