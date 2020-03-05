@@ -54,6 +54,15 @@ class Scenario(dict):
     def description(self):
         return self.setdefault('description', '')
 
+    # 암호·복호화 관련 프로퍼티 ==================================================
+    @property
+    def hash_key(self):
+        return self['hashKey']
+
+    @property
+    def iv(self):
+        return "2RmmGyA4M63oKxmOV3pzoA=="
+
     # 사용된 의존 플러그인 프로퍼티 ==============================================
     @property
     def plugins(self):
