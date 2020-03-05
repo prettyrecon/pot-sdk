@@ -312,10 +312,10 @@ class Delay(Items):
     # ==========================================================================
     @property
     @arguments_options_fileout
+    @convert_variable
     def arguments(self)->tuple:
         cmd = list()
-        code, data = self._variables.convert(self['delay']['delay'])
-        cmd.append(data)
+        cmd.append(self['delay']['delay'])
         return tuple(cmd)
 
     # ==========================================================================
