@@ -1167,43 +1167,56 @@ class SendEmail(Items):
 
         cmd = list()
         # Server Info
-        cmd.append(self['sendEmail']['smtpHost'])
-        cmd.append(str(self['sendEmail']['smtpPort']))
+        code, data = self._variables.convert(self['sendEmail']['smtpHost'])
+        cmd.append(data)
 
-        cmd.append(self['sendEmail']['smtpId'])
+        code, data = self._variables.convert(str(self['sendEmail']['smtpPort']))
+        cmd.append(data)
 
-        password = argos_decrypt(self['sendEmail']['smtpPassword'],
-                           self._scenario.hash_key,
-                           self._scenario.iv)
+        code, data = self._variables.convert(self['sendEmail']['smtpId'])
+        cmd.append(data)
+
+        code, data = self._variables.convert(self['sendEmail']['smtpPassword'])
+        password = argos_decrypt(data, 
+                                 self._scenario.hash_key,
+                                 self._scenario.iv)
         cmd.append(password)
 
-        cmd.append(self['sendEmail']['senderMailAddress'])
-        to = replace_semi_and_spaces(self['sendEmail']['receiverMailAddress'])
+        code, data = self._variables.convert(
+            self['sendEmail']['senderMailAddress'])
+        cmd.append(data)
+        
+        code, data = self._variables.convert(
+            self['sendEmail']['receiverMailAddress'])
+        to = replace_semi_and_spaces(data)
         cmd.append(to)
 
-        cmd.append(json.dumps(self['sendEmail']['mailTitle']))
-        cmd.append(json.dumps(self['sendEmail']['mailContent']))
+        code, data = self._variables.convert(self['sendEmail']['mailTitle'])
+        cmd.append(json.dumps(data, ensure_ascii=False))
+        code, data = self._variables.convert(self['sendEmail']['mailContent'])
+        cmd.append(json.dumps(data, ensure_ascii=False))
 
-        cc = self['sendEmail']['ccList']
+        code, cc = self._variables.convert(self['sendEmail']['ccList'])
         if cc:
             cmd.append('--cc')
             cc = replace_semi_and_spaces(cc)
             cmd.append(cc)
 
-        bcc = self['sendEmail']['bccList']
+        code, bcc = self._variables.convert(self['sendEmail']['bccList'])
         if bcc:
             cmd.append('--bcc')
             bcc = replace_semi_and_spaces(bcc)
             cmd.append(bcc)
 
-        attaches = self['sendEmail']['attachFileList']
+        code, attaches = self._variables.convert(
+            self['sendEmail']['attachFileList'])
         if attaches:
             attaches = list(attaches.split(';'))
             for attach in attaches:
                 if not attach:
                     continue
                 cmd.append('--attach')
-                cmd.append(attach)
+                cmd.append(json.dumps(attach, ensure_ascii=False))
 
         ssl = self['sendEmail']['useSsl']
         if ssl:
