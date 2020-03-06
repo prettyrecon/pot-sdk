@@ -49,7 +49,9 @@ ENCYPT_MAKR = "ENC::"
 
 
 ################################################################################
-def argos_decrypt(enc_text, key, iv):
+def argos_decrypt(enc_text:str, key, iv):
+    if not enc_text.startswith(ENCYPT_MAKR):
+        return enc_text
     enc_text = enc_text[len(ENCYPT_MAKR):]
     aes = EncryptAES(key, iv)
     return aes.decrypt(enc_text)

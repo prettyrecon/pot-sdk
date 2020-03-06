@@ -490,6 +490,7 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
@@ -510,21 +511,15 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments_for_select_window(self):
         cmd = list()
-
         # title
-        code, data = self._variables.convert(self['imageMatch']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['title'])
         # name
-        code, data = self._variables.convert(
-            self['imageMatch']['processName'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['processName'])
         return tuple(cmd)
 
     # ==========================================================================
@@ -577,21 +572,20 @@ class MouseScroll(Items):
     # ==========================================================================
     @property
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
-        v = int(self['mouseScroll']['scrollLines'])
+        v = str(self['mouseScroll']['scrollLines'])
         return '--vertical', v
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Scroll')
         cmd = '{} -m alabs.pam.rpa.autogui.scroll {}'.format(
-            self.python_executable, ' '.join([str(x) for x in self.arguments]))
+            self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('MouseScrolling Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        subprocess.Popen(cmd, shell=True)
         data = run_subprocess(cmd)
-        # return scroll(*self.arguments)
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -797,11 +791,12 @@ class StopProcess(Items):
     # "stopProcess": {"processName": "notepad"}
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
     def arguments(self) -> tuple:
         res = list()
         res.append('--process_name')
-        process = self['stopProcess']['processName']
+        _, process = self._variables.convert(self['stopProcess']['processName'])
         if -1 == process.rfind('.exe'):
             process = process + '.exe'
         res.append(process)
@@ -842,19 +837,17 @@ class SelectWindow(Items):
     references = ('selectWindow',)
 
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
         cmd = list()
 
         # title
-        code, data = self._variables.convert(self['selectWindow']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
+        cmd.append(self['selectWindow']['title'])
 
         # name
-        code, data = self._variables.convert(self['selectWindow']['URL'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
+        cmd.append(self['selectWindow']['URL'])
 
         if self['selectWindow']['isClick']:
             pass
@@ -964,6 +957,8 @@ class BrowserScript(Items):
     # {'browserScript': {'script': 'script'}}
     # ==========================================================================
     @property
+    @non_latin_characters
+    @convert_variable
     def arguments(self):
         script = self['browserScript']['script']
         return script,
@@ -1319,7 +1314,11 @@ class SetVariable(Items):
             self['setVariable']['VariableName'])
 
         if self['setVariable']['valueFromType'] == 'Text':
-            value = self['setVariable']['textValue']
+            from alabs.pam.common.crypt import argos_decrypt
+            _, value = self._variables.convert(self['setVariable']['textValue'])
+            value = argos_decrypt(value,
+                                  self._scenario.hash_key,
+                                  self._scenario.iv)
 
         elif self['setVariable']['valueFromType'] == 'Clipboard':
             import pyperclip
@@ -1515,12 +1514,14 @@ class CompareText(Items):
                 result.append("-c")
                 result.append(v.upper())
             _, v = self._variables.convert(value['leftValue']['VariableText'])
-            result.append(v if v.isdigit() else json.dumps(v))
+            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False) 
+            result.append(v)
             # '>', '<' 리다이렉트 문자 보호
             v = value['logicalOperator']
             result.append(json.dumps(v) if len(v) == 1 else v)
             _, v = self._variables.convert(value['rightValue']['VariableText'])
-            result.append(v if v.isdigit() else json.dumps(v))
+            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False)
+            result.append(v)
 
         return tuple(result)
 
@@ -1569,7 +1570,9 @@ class WaitingPopup(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self):
         cmd = list()
         # URL
@@ -1577,17 +1580,16 @@ class WaitingPopup(Items):
         # Session ID
         cmd.append(self._scenario.web_driver.session_id)
 
-        cmd.append(json.dumps(self['watingPopup']['title']))
+        cmd.append(self['watingPopup']['title'])
         if self['watingPopup']['URL']:
             cmd.append('--process_name')
-            cmd.append(json.dumps(self['watingPopup']['URL']))
+            cmd.append(self['watingPopup']['URL'])
 
         cmd.append('--timeout')
         cmd.append(str(int(int(self['timeOut']) * 0.001)))
         return tuple(cmd)
 
-        # ==========================================================================
-
+    # ==========================================================================
     @request_handler
     def __call__(self, *args, **kwargs):
         self.log_msg.push('OnLoad Event')
@@ -1624,6 +1626,8 @@ class DeleteFile(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
+    @convert_variable
     def arguments(self):
         cmd = list()
         cmd.append(self['deleteFile']['filePath'])
@@ -1732,7 +1736,9 @@ class UserParams(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self):
         data = self['userInputs']
         cmd = list()
@@ -1744,14 +1750,14 @@ class UserParams(Items):
             group_name = d['groupName']
             cmd.append('--input')
             message = d['message'] if d['message'] else d['variableName']
-            cmd.append(json.dumps(message, ensure_ascii=False))
+            cmd.append(message)
             cmd.append(d['variableName'])
-            cmd.append(json.dumps(d['defaultValue'], ensure_ascii=False))
-            cmd.append(json.dumps(d['description'], ensure_ascii=False))
+            cmd.append(d['defaultValue'])
+            cmd.append(d['description'])
         cmd.insert(0, group_name)
         if title:
             cmd.append('--title')
-            cmd.append(json.dumps(title, ensure_ascii=False))
+            cmd.append(title)
         return tuple(cmd)
 
     # ==========================================================================
@@ -1918,28 +1924,25 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self):
         cmd = list()
-        code, title = self._variables.convert(self['popupInteraction']['title'])
+        title = self['popupInteraction']['title']
         if not title:
-            title = json.dumps("No Message")
-        cmd.append(json.dumps(title, ensure_ascii=False))
+            title = "No Message"
+        cmd.append(title)
         cmd.append("--button")
 
-        code, title = self._variables.convert(
-            self['popupInteraction']['firstButtonTitle'])
-        cmd.append(json.dumps(title, ensure_ascii=False))
-        action = self.actions[
-            self['popupInteraction']['firstButtonAction']]
+        cmd.append(self['popupInteraction']['firstButtonTitle'])
+        action = self.actions[self['popupInteraction']['firstButtonAction']]
         cmd.append(action)
 
         for b in ['second', 'third']:
             if self.actions[self['popupInteraction'][b + 'ButtonAction']]:
                 cmd.append("--button")
-                code, title = self._variables.convert(
-                    self['popupInteraction'][b + 'ButtonTitle'])
-                cmd.append(json.dumps(title, ensure_ascii=False))
+                cmd.append(self['popupInteraction'][b + 'ButtonTitle'])
                 action = self.actions[
                     self['popupInteraction'][b + 'ButtonAction']]
                 cmd.append(action)
