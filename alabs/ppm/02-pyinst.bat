@@ -14,13 +14,9 @@ REM sign.bat
 pyinstaller ^
     --onefile ^
     --add-data pyinst;. ^
+    --add-data setup.yaml;. ^
     __main__.py
 rem    --uac-admin ^
-rem    --add-data cacert.pem;pip\_vendor\certifi ^
-rem    --add-data pythonw.exe;. ^
-rem    --add-data pyvenv.cfg;. ^
-rem    --add-data pip;pip ^
-rem    --add-data venv.zip;. ^
 
 if %ERRORLEVEL% == 0 goto :next2
     echo "Errors encountered during pyinstaller.  Exited with status: %errorlevel%"

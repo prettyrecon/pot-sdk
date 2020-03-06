@@ -16,9 +16,12 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/02/26]
+#   - get version 명령을 주면 setup.yaml 에 있는 버전 가져오도록 설정
 #  * [2020/02/25]
 #   - plugin 명령에 --without-cache 옵션을 추가하여 서버에서 캐쉬 없이 결과를
 #     가져오도록 함 (work woth 조성은)
+#   - 조팀 요청에 따라 --plugin-index 추가
 #  * [2020/02/21]
 #   - %homepath%\.argos-rpa-config.yaml 설정파일 이용
 #   - 기존 %homepath%\.argos-rpa.conf 는 이용하지 않도록 함
@@ -467,9 +470,13 @@ class VEnv(object):
     # ==========================================================================
     def get_line_str(self, line):
         try:
+            if not line:
+                return ""
             line = line.decode("utf-8").rstrip()
         except UnicodeDecodeError:
             cd = chardet.detect(line)
+            if not (cd and 'encoding' in cd):
+                return ""
             line = line.decode(cd['encoding']).rstrip()
         except Exception as err:
             self.logger.error('get_line_str: Error: %s' % str(err))
@@ -655,7 +662,7 @@ class PPM(object):
     ]
     URL_PLUGIN = [
         'https://pypi-official.argos-labs.com/data/plugin-static-files',
-        'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins', # OLD
+        'https://s3-us-west-2.amazonaws.com/rpa-file.argos-labs.com/plugins',  # OLD
     ]
     URL_DEF_DUMPSPEC = '%s/dumpspec-def-all.json'
     URL_MOD_VER = '%s/mod-ver-list.json'
@@ -689,6 +696,9 @@ class PPM(object):
 
     # ==========================================================================
     def _get_URL_OFFPI(self):
+        if self.args.plugin_index:
+            if self.args.plugin_index not in self.URL_OFFPI:
+                self.URL_OFFPI.insert(0, self.args.plugin_index)
         if self.url_config and 'alabsPpmHost' in self.url_config and \
                 self.url_config['alabsPpmHost'] and \
                 self.url_config['alabsPpmHost'] not in self.URL_OFFPI:
@@ -718,8 +728,9 @@ class PPM(object):
         if self.url_config and 'oauthHost' in self.url_config and \
                 self.url_config['oauthHost']:
             # 'https://api-rpa.argos-labs.com/oauth2' ==>
-            # 'https://api-rpa.argos-labs.com/api/chief'
-            api_chief = self.url_config['oauthHost'][:-6] + 'api/chief'
+            # 'https://api-rpa.argos-labs.com/api/chief'  # by 조성은
+            s = self.url_config['oauthHost']
+            api_chief = '/'.join(s.split('/')[:-1]) + '/api/chief'
             if api_chief not in self.URL_API_CHIEF:
                 url = api_chief
                 self.URL_API_CHIEF.insert(0, url)
@@ -731,11 +742,15 @@ class PPM(object):
 
     # ==========================================================================
     def _get_URL_PLUGIN(self):
+        if self.args.plugin_index:
+            if self.args.plugin_index not in self.URL_OFFPI:
+                self.URL_OFFPI.insert(0, self.args.plugin_index)
         if self.url_config and 'alabsPpmHost' in self.url_config and \
                 self.url_config['alabsPpmHost']:
             # 'https://pypi-official.argos-labs.com/pypi' ==>
             # 'https://pypi-official.argos-labs.com/data/plugin-static-files'
-            plugin_data = self.url_config['alabsPpmHost'][:-4] + 'data/plugin-static-files'
+            s = self.url_config['alabsPpmHost']
+            plugin_data = '/'.join(s.split('/')[:-1]) + '/data/plugin-static-files'
             if plugin_data not in self.URL_PLUGIN:
                 url = plugin_data
                 self.URL_PLUGIN.insert(0, url)
@@ -898,34 +913,39 @@ class PPM(object):
 
     # ==========================================================================
     def _get_private_repositories(self):
-        url = '%s/chief/repositories' \
-              % self._get_URL_API_CHIEF()
+        # /chief/repositories 로 사용하는 API를 /repositories 로 수정 요청 (조성은)
+        # 아직은 서비스와 On-Premise 에 일치 문제 때문에 두 개 모두 테스트
+        urls = (
+                '%s/repositories' % self._get_URL_API_CHIEF(),
+                '%s/chief/repositories' % self._get_URL_API_CHIEF(),
+        )
         try:
-            headers = {
-                'Accept': 'application/json',
-            }
-            if not self.args.pam_id:
-                headers['authorization'] = self.args.user_auth
-                r = requests.get(url, headers=headers)
-            else:
-                params = (
-                    ('user_id', self.args.user),
-                    ('pam_auth_key', self.args.user_auth),
-                    ('pam_mac_address', self.args.pam_id),
-                )
-                r = requests.get(url, headers=headers, params=params)
-            if r.status_code // 10 != 20:
-                msg = 'Get private plugin for user "%s" Error: API result is %s' \
-                      % (self.args.user, r.status_code)
-                sys.stderr.write('%s\n' % msg)
-                self.logger.error(msg)
-                return False
-            else:
-                self._set_private_repositories(json.loads(r.text))
-                return True
+            for url in urls:
+                headers = {
+                    'Accept': 'application/json',
+                }
+                if not self.args.pam_id:
+                    headers['authorization'] = self.args.user_auth
+                    r = requests.get(url, headers=headers)
+                else:
+                    params = (
+                        ('user_id', self.args.user),
+                        ('pam_auth_key', self.args.user_auth),
+                        ('pam_mac_address', self.args.pam_id),
+                    )
+                    r = requests.get(url, headers=headers, params=params)
+                if r.status_code // 10 == 20:
+                    self._set_private_repositories(json.loads(r.text))
+                    return True
+            msg = 'Get private plugin for user "%s" Error: API result is %s' \
+                  % (self.args.user, r.status_code)
+            sys.stderr.write('%s\n' % msg)
+            self.logger.error(msg)
+            return False
         except Exception as err:
-            self.sta.log(StatLogger.LT_2, 'Error: to connect "%s"' % url)
-            msg = '_get_private_repositories Error to connect "%s": \n%s\n' % (url, str(err))
+            self.sta.log(StatLogger.LT_2, 'Error: to connect %s' % 'or'.join(urls))
+            msg = '_get_private_repositories Error to connect "%s": \n%s\n' \
+                  % ('or'.join(urls), str(err))
             sys.stderr.write(msg)
             self.logger.error(msg)
             return False
@@ -938,7 +958,7 @@ class PPM(object):
         self.sta.log(StatLogger.LT_2, 'Starting to get list of plugin repositories')
         url = self._get_URL_OFFPI()
         if not url:
-            raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % CONF_NAME)
+            raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % YAML_NAME)
         self.indices.append(url)
         self.ndx_param.append('--index')
         self.ndx_param.append(url)
@@ -1186,7 +1206,7 @@ class PPM(object):
                     self._dumpspec_json_save(modname, version, jd)
                 return jd
             except Exception:
-                err_msg = 'Cannot get S3 dumpspec for ("%s", "%s")' % (modname, version)
+                err_msg = 'Cannot get dumpspec for ("%s", "%s")' % (modname, version)
                 self.sta.error(err_msg)
                 self.logger.debug(err_msg)
             mname = '%s==%s' % (modname, version)
@@ -1250,7 +1270,7 @@ class PPM(object):
             self.sta.error('Error to get user dependent information. Please logout STU and login again.')
             raise RuntimeError('PPM._dumpspec_user: API Error!')
             # mdlist = [
-            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.ai.tts', 'plugin_version': '1.330.1500'},
+            #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.google.tts', 'plugin_version': '1.330.1500'},
             #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rest', 'plugin_version': '1.315.1054'},
             #     {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.api.rossum', 'plugin_version': '1.327.1355'},
             #     # {'user_id': 'seonme@vivans.net', 'plugin_id': 'argoslabs.data.excel', 'plugin_version': '1.425.1322'},
@@ -1961,6 +1981,30 @@ six [('==', '1.10.0')]
             return None
 
     # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def get_version(self):
+        su_yaml_files = [
+            os.path.join(os.path.dirname(__file__), 'setup.yaml'),
+        ]
+        if hasattr(sys, '_MEIPASS'):
+            su_yaml_files.append(os.path.join(os.path.abspath(sys._MEIPASS), 'setup.yaml'))
+        su_yaml_file = None
+        for syf in su_yaml_files:
+            if os.path.exists(syf):
+                su_yaml_file = syf
+                break
+        if not su_yaml_file:
+            raise IOError('Cannot get version info from setup.yaml')
+        with open(su_yaml_file, encoding='utf-8') as ifp:
+            if yaml.__version__ >= '5.1':
+                # noinspection PyUnresolvedReferences
+                su_yaml = yaml.load(ifp, Loader=yaml.FullLoader)
+            else:
+                su_yaml = yaml.load(ifp)
+        print('Version %s' % su_yaml['setup']['version'])
+        return 0
+
+    # ==========================================================================
     def do(self):
         try:
             self.logger.info('PPM.do: starting... %s' % self.args.command)
@@ -2013,6 +2057,8 @@ six [('==', '1.10.0')]
             # get commond
             ####################################################################
             if self.args.command == 'get':
+                if self.args.get_cmd == 'version':
+                    return self.get_version()
                 if self.args.get_cmd == 'repository':
                     self.sta.log(StatLogger.LT_2, 'Connecting offcial repository')
                     print(self.indices[0])
@@ -2174,7 +2220,7 @@ six [('==', '1.10.0')]
                 pri_reps = get_xpath(self.config, '/private-repositories')
                 if not pri_reps:
                     raise RuntimeError('PPM.do: Private repository (private-repositories) '
-                                       'is not set at %s' % CONF_NAME)
+                                       'is not set at %s' % YAML_NAME)
                 pri_rep = None
                 if not self.args.repository_name:
                     pri_rep = pri_reps[0]
@@ -2185,20 +2231,20 @@ six [('==', '1.10.0')]
                             break
                 if not pri_reps:
                     raise RuntimeError('PPM.do: Private repository "%s" is not exists at %s'
-                                       % (self.args.repository_name, CONF_NAME))
+                                       % (self.args.repository_name, YAML_NAME))
 
                 pr_url = pri_rep.get('url')
                 pr_user = pri_rep.get('username')
                 pr_pass = pri_rep.get('password')
                 if not pr_url:
                     raise RuntimeError('PPM.do: url of private repository is not set, please '
-                                       'check private-repositories at %s' % CONF_NAME)
+                                       'check private-repositories at %s' % YAML_NAME)
                 if not pr_user:
                     raise RuntimeError('PPM.do: username of private repository is not set, please '
-                                       'check private-repositories at %s' % CONF_NAME)
+                                       'check private-repositories at %s' % YAML_NAME)
                 if not pr_pass:
                     raise RuntimeError('PPM.do: password of private repository is not set, please '
-                                       'check private-repositories at %s' % CONF_NAME)
+                                       'check private-repositories at %s' % YAML_NAME)
                 gl = glob.glob('dist/%s*.whl' % self.pkgname)
                 if not gl:
                     raise RuntimeError('PPM.do: Cannot find wheel package file at "%s",'
@@ -2516,6 +2562,8 @@ def _main(argv=None):
                             help="user authentication for private plugin repository command, usually this is for program")
         parser.add_argument('--on-premise', action='store_true',
                             help="If this flag is set applied to on-premise environment")
+        parser.add_argument('--plugin-index',
+                            help="Set official plugin index, default is https://pypi-official.argos-labs.com/pypi")
 
         subps = parser.add_subparsers(help='ppm command help', dest='command')
         ########################################################################
@@ -2545,8 +2593,8 @@ def _main(argv=None):
         ########################################################################
         sp = subps.add_parser('get', help='get command')
         sp.add_argument('get_cmd', metavar='get_sub_cmd',
-                        choices=['repository', 'trusted-host', 'private'],
-                        help="get command {'repository', 'trusted-host', 'private'}")
+                        choices=['version', 'repository', 'trusted-host', 'private'],
+                        help="get command {'version', 'repository', 'trusted-host', 'private'}")
 
         ########################################################################
         # plugin command

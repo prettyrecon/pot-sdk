@@ -257,6 +257,15 @@ class TU(TestCase):
             self.assertTrue(True)
 
     # ==========================================================================
+    def test_0115_version(self):
+        try:
+            r = _main(['get', 'version'])
+            self.assertTrue(r == 0)
+        except Exception as e:
+            print(e)
+            self.assertTrue(False)
+
+    # ==========================================================================
     def test_0120_get(self):
         with captured_output() as (out, err):
             r = _main(['get', 'repository'])
@@ -368,7 +377,10 @@ class TU(TestCase):
     # ==========================================================================
     def test_0395_plugin_get_all_output(self):
         # --flush-cache 캐쉬를 지우면 오래 걸림 (특히 플러그인이 많을 경우)
-        cmd = ['plugin', 'get', '--official-only', '--without-cache']
+        cmd = [
+            '--plugin-index', 'https://pypi-official.argos-labs.com/pypi',
+            'plugin', 'get', '--official-only', '--without-cache',
+        ]
         with captured_output() as (out, err):
             r = _main(cmd)
         self.assertTrue(r == 0)
@@ -855,7 +867,7 @@ class TU(TestCase):
         try:
             cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
                    'plugin', 'venv',
-                   # 'argoslabs.ai.translate',
+                   # 'argoslabs.google.translate',
                    'argoslabs.data.binaryop',
                    '--outfile', venvout]
             r = _main(cmd)
@@ -1181,7 +1193,7 @@ class TU(TestCase):
         try:
             cmd = [
                 'pip', 'download',
-                'argoslabs.ai.translate',
+                'argoslabs.google.translate',
                 '--dest', tmpdir,
                 '--no-deps',
                 '--index', 'https://pypi-official.argos-labs.com/pypi',
@@ -1194,7 +1206,7 @@ class TU(TestCase):
             ]
             r = _main(cmd)
             self.assertTrue(r == 0)
-            fl = glob.glob(os.path.join(tmpdir, 'argoslabs.ai.translate-*.whl'))
+            fl = glob.glob(os.path.join(tmpdir, 'argoslabs.google.translate-*.whl'))
             self.assertTrue(len(fl) == 1)
         finally:
             # if tmpdir and os.path.exists(tmpdir):
@@ -1309,7 +1321,7 @@ class TU(TestCase):
 #     def test_0750_plugin_venv_success(self):
 #         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
 #         try:
-#             cmd = ['plugin', 'venv', 'argoslabs.ai.translate', '--outfile', venvout]
+#             cmd = ['plugin', 'venv', 'argoslabs.google.translate', '--outfile', venvout]
 #             r = _main(cmd)
 #             self.assertTrue(r == 0)
 #             with open(venvout) as ifp:
