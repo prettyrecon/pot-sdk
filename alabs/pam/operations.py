@@ -113,6 +113,7 @@ def convert_variable(f):
         return cmd.split(SEPERATOR)
     return func
 
+
 ################################################################################
 def request_handler(f):
     @wraps(f)
@@ -1371,10 +1372,21 @@ class Navigate(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+
         from selenium import webdriver
         url, size = self.arguments
         chrome_driver = get_conf().get('/WEB_DRIVER/CHROME_DRIVER_WINDOWS')
         options = dict()
+
+        # 명령어 Non-Blocking 설정
+        from selenium.webdriver.common.desired_capabilities import \
+            DesiredCapabilities
+        caps = DesiredCapabilities().CHROME
+        # caps["pageLoadStrategy"] = "normal"  # complete
+        # caps["pageLoadStrategy"] = "eager"  #  interactive
+        caps["pageLoadStrategy"] = "none"
+        options['desired_capabilities'] = caps
+
         options['executable_path'] = chrome_driver
         if size['is_change_size']:
             from selenium.webdriver.chrome.options import Options

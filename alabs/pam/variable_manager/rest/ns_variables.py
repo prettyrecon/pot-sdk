@@ -27,7 +27,7 @@
 ################################################################################
 
 # noinspection PyProtectedMember
-from flask_restplus import Namespace, Resource, reqparse
+from flask_rextx import Namespace, Resource, reqparse
 from flask import request
 from alabs.pam.variable_manager import variables
 # from alabs.pam.variable_manager import ResponseData, \

@@ -47,7 +47,7 @@ variables = Variables(base_index=1)
 
 import os
 from flask import Flask
-from flask_restplus import Api
+from flask_rextx import Api
 from alabs.pam.variable_manager.rest.ns_variables import api as ns_variables
 
 

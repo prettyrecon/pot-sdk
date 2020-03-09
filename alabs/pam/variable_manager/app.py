@@ -7,7 +7,7 @@ __license__ = "MIT"
 
 import os
 from flask import Flask
-from flask_restplus import Api
+from flask_rextx import Api
 from alabs.pam.variable_manager.rest.ns_variables import api as ns_variables
 from alabs.pam.variable_manager import REST_API_PREFIX, \
     REST_API_NAME, REST_API_VERSION

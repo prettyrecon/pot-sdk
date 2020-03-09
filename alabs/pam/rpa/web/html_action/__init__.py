@@ -45,6 +45,15 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 ################################################################################
 def create_driver_session(session_id, executor_url):
     from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
+    # 명령어 Non-Blocking 설정
+    from selenium.webdriver.common.desired_capabilities import \
+        DesiredCapabilities
+    caps = DesiredCapabilities().CHROME
+    # caps["pageLoadStrategy"] = "normal"  # complete
+    # caps["pageLoadStrategy"] = "eager"  #  interactive
+    caps["pageLoadStrategy"] = "none"
+
+
 
     # Save the original function, so we can revert our patch
     org_command_execute = RemoteWebDriver.execute
@@ -60,7 +69,7 @@ def create_driver_session(session_id, executor_url):
     RemoteWebDriver.execute = new_command_execute
 
     new_driver = webdriver.Remote(command_executor=executor_url,
-                                  desired_capabilities={})
+                                  desired_capabilities=caps)
     new_driver.session_id = session_id
 
     # Replace the patched function with original function
