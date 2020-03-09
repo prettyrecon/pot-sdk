@@ -2,7 +2,7 @@
 # coding=utf8
 """
 ====================================
- :mod:`argoslabs.ai.tts.tests.test_me`
+ :mod:`alabs.pam.tests.test_me.tests.test_me`
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: ARGOS-LABS License
@@ -30,7 +30,6 @@ ARGOS LABS plugin module : unittest
 import os
 import sys
 from unittest import TestCase
-
 
 
 ################################################################################

@@ -115,11 +115,11 @@ del /Q/S %USERPROFILE%\.argos-rpa.venv\2019*
 if %ERRORLEVEL% NEQ 0 goto :errorscript
 
 echo "test_0700_pip_install"
-%PPM% pip install argoslabs.ai.tts --index https://pypi-official.argos-labs.com/pypi --trusted-host pypi-official.argos-labs.com --extra-index-url https://pypi-test.argos-labs.com/simple --trusted-host pypi-test.argos-labs.com --extra-index-url https://pypi-demo.argos-labs.com/simple --trusted-host pypi-demo.argos-labs.com
+%PPM% pip install argoslabs.google.tts --index https://pypi-official.argos-labs.com/pypi --trusted-host pypi-official.argos-labs.com --extra-index-url https://pypi-test.argos-labs.com/simple --trusted-host pypi-test.argos-labs.com --extra-index-url https://pypi-demo.argos-labs.com/simple --trusted-host pypi-demo.argos-labs.com
 if %ERRORLEVEL% NEQ 0 goto :errorscript
 
 echo "test_0605_plugin_venv_success"
-%PPM% --pr-user mcchae@gmail.com --pr-user-pass ghkd67vv plugin venv argoslabs.ai.tts
+%PPM% --pr-user mcchae@gmail.com --pr-user-pass ghkd67vv plugin venv argoslabs.google.tts
 if %ERRORLEVEL% NEQ 0 goto :errorscript
 
 echo "test_0610_plugin_venv_success"
