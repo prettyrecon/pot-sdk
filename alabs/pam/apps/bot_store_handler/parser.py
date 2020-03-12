@@ -1,6 +1,5 @@
 import werkzeug
-from flask_rextx import reqparse
-from flask_rextx import reqparse
+from flask_restx import reqparse
 
 file_upload = reqparse.RequestParser()
 file_upload.add_argument(

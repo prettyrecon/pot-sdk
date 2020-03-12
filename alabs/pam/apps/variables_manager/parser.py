@@ -1,5 +1,5 @@
 
-from flask_rextx import reqparse
+from flask_restx import reqparse
 
 variables_parser = reqparse.RequestParser()
 variables_parser.add_argument('path', type=str, location=['form', 'args'])

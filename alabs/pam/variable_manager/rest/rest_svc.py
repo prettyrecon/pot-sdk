@@ -50,7 +50,7 @@
 ################################################################################
 import os
 from flask import Flask
-from flask_rextx import Api
+from flask_restx import Api
 from alabs.rest import ns_api, on_load
 
 # from vivans.rest import MONGO_API_PREFIX, MONGO_API_NAME, MONGO_API_VERSION, \
