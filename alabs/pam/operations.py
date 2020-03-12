@@ -1649,10 +1649,13 @@ class DeleteFile(Items):
     def __call__(self, *args, **kwargs):
         self.log_msg.push('FileDelete')
         file = self.arguments[0]
+        import pathlib
+        file = str(pathlib.WindowsPath(json.loads(file)))
         if not os.path.isfile(file):
             self.log_msg.pop()
-            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
-                                           None, 'The file is not existed')
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE,
+                None, f'The file, {file} is not existed.')
         try:
             os.remove(file)
             message = 'Succeeded to delete the file.'
