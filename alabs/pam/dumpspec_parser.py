@@ -24,15 +24,31 @@ def store(v):
     :param v:
     :return: ['hello',] or ['--example', 'hello']
     """
-    ret = list()
-    if v['value']:
-        ret.append(cast_type(v['type'], v['value']))
-    elif v['default']:
-        ret.append(cast_type(v['type'], v['default']))
-    else:
+
+    if not v['value']:
         return None
-    if len(v['option_strings']):
-        ret.insert(0, v['option_strings'][0])
+
+    delimiter = '|*|*|'
+    vs = v['value'].split(delimiter)
+
+    ret = list()
+    for value in vs:
+        if len(v['option_strings']):
+            ret.append(v['option_strings'][0])
+        if value:
+            ret.append(cast_type(v['type'], value))
+        elif v['default']:
+            ret.append(cast_type(v['type'], v['default']))
+
+
+    # if v['value']:
+    #     ret.append(cast_type(v['type'], v['value']))
+    # elif v['default']:
+    #     ret.append(cast_type(v['type'], v['default']))
+    # else:
+    #     return None
+    # if len(v['option_strings']):
+    #     ret.insert(0, v['option_strings'][0])
     return ret
 
 
