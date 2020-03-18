@@ -24,6 +24,7 @@ pyperclip
 selenium
 wda
 keyboard
+pytesseract
 
 # Select Window for Windows
 pywin32

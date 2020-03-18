@@ -48,6 +48,9 @@ web_drv = dict()
 web_drv["CHROME_DRIVER_WINDOWS"] = str(PROGRAM_WEB_DRIVER / 'chromedriver.exe')
 web_drv["WEB_DRIVER_EXECUTOR_URL"] = ''
 
+tesseract = dict()
+TESSERACT_PATH = pathlib.WindowsPath("C:\\Program Files\\Tesseract-OCR")
+
 manager = dict()
 manager['IP'] = '127.0.0.1'
 manager['PORT'] = 8012
@@ -57,7 +60,7 @@ manager['VARIABLE_MANAGER_PORT'] = 8012
 
 external_program = dict()
 external_program['PPM'] = str(PAM / 'alabs-ppm.exe')
-
+external_program['TESSERACT_EXECUTABLE'] = str(TESSERACT_PATH / "tesseract.exe")
 
 _conf = {
         'PATH': path,

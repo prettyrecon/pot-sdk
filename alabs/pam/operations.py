@@ -820,16 +820,105 @@ class StopProcess(Items):
 ################################################################################
 class ReadImageText(Items):
     # OCR
-    references = ('imageMatch',)
-
+    references = ('imageMatch', 'recordType', 'navigate', 'selectWindow')
+    # {"imageMatch": {"clickType": "Left", "clickMotionType": "DownAndUP",
+    #                     "cropImageLocation": "14, 99, 250, 45",
+    #                     "searchLocation": "0, 0, 1014, 279",
+    #                     "ocrLocation": "-3, 3, 250, 36", "clickPoint": "0, 0",
+    #                     "cropImageFileName": "temp_b828f69eb92c4c80a95b4c84bfb9d301_1_bbd3f75a9fb74e14a8facd54b456e2c1_1_CropImage.png",
+    #                     "cropImageFileChecksum": "83A5AA7DFCA65F26FDA44D24603D4CC6",
+    #                     "ocrImageFileName": "temp_b828f69eb92c4c80a95b4c84bfb9d301_1_bbd3f75a9fb74e14a8facd54b456e2c1_0_OcrImage.png",
+    #                     "ocrImageFileChecksum": "A0849AA2A63EE58ED3CFCE25C4B9991B",
+    #                     "similarity": "50", "highLow": "High",
+    #                     "isShownAdv": true, "isCaptcha": false,
+    #                     "isSkipOCRFailure": false,
+    #                     "setNumberOfCharacters": false,
+    #                     "numberOfCharacters": "", "captchaEngine": "",
+    #                     "highLowDS": "Above", "title": "Title - Chrome",
+    #                     "processName": "chrome", "ocrOptionName": "Option0",
+    #                     "ocrFilterOptionToString": "False,3,3,False,30,255,Binary,False,0,False,False,False",
+    #                     "ocrReadTextFormat": "|", "ocrLib": "Tesseract",
+    #                     "ocrLang": "eng", "imageIndex": "0",
+    #                     "magnificationRatio": 1}, "recordType": "FullScreen",
+    #      "navigate": {"Width": 0, "Height": 0, "IsChageSize": false},
+    #      "selectWindow": {"URL": "chrome", "title": "Title - Chrome",
+    #                       "isClick": false, "IsMove": false, "IsChange": false,
+    #                       "clickPointX": 0, "clickPointY": 0,
+    #                       "MoveLocationX": 0, "MoveLocationY": 0,
+    #                       "ChangeWidth": 0, "ChangeHeight": 0}}
     # ==========================================================================
     @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
-        return tuple()
+        cmd = list()
+        # Tesseract Path
+        if "Tesseract" == self['imageMatch']['ocrLib']:
+            cmd.append(get_conf().get('/EXTERNAL_PROG/TESSERACT_EXECUTABLE'))
+        else:
+            raise ValueError(f'{self["imageIndex"]["orcLib"]} is not supported')
+
+        # Image Path
+        image_path = pathlib.Path(get_image_path(self._scenario._scenario_filename)) / self['imageMatch']['ocrImageFileName']
+        cmd.append(str(image_path))
+
+        # Language
+        cmd.append('--lang')
+        cmd.append(self['imageMatch']['ocrLang'])
+
+        filters_name = ['use_gaussianblur', 'gaussianblur_w', 'gaussianblur_h',
+                        'use_threshold', 'threshold_low', 'threshold_high', 'threshold_type',
+                        'edgepreserving', 'minimum', 'digit_only', 'remove_space', 'etc']
+        filter_values = self['imageMatch']['ocrFilterOptionToString'].split(',')
+        filters = dict(zip(filters_name, filter_values))
+        boolean = {"True": True, "False": False}
+
+        # Digit Only
+        if boolean[filters['digit_only']]:
+            cmd.append('--digit_only')
+
+        # GaussianBlur
+        if boolean[filters['use_gaussianblur']]:
+            cmd.append(filters['gaussianblur_w'])
+            cmd.append(filters['gaussianblur_h'])
+
+        # Threshold
+        if boolean[filters['use_threshold']]:
+            cmd.append(filters['threshold_low'])
+            cmd.append(filters['threshold_high'])
+            cmd.append(filters['threshold_type'])
+
+        # TessData
+
+        # Edge Preserving
+        if boolean[filters['edgepreserving']]:
+            cmd.append('--edgepreserv')
+
+        # Remove Space
+        if boolean[filters['remove_space']]:
+            cmd.append('--remove_space')
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('OCR')
+        cmd = '{} -m alabs.pam.rpa.desktop.ocr {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
+
 
 
 ################################################################################
@@ -2101,7 +2190,7 @@ class Plugin(Items):
     # ==========================================================================
     @property
     def arguments(self):
-        cmd = plugin_spec_parser(self['pluginDumpspec'])
+        cmd = plugin_spec_parser(self['pluginDumpspec'], logger=self.logger)
         return cmd
 
     # ==========================================================================
