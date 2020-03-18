@@ -126,9 +126,9 @@ def get_plugin_dumpspec(dumpspec):
 
 
 ################################################################################
-def plugin_spec_parser(dumpspec: dict):
+def plugin_spec_parser(dumpspec: dict, logger):
     # 플러그인 실행과 관련없는 항목
-    variables = VariableManagerAPI(pid=str(os.getpid()), )
+    variables = VariableManagerAPI(pid=str(os.getpid()), logger=logger )
     exclude_specs = ('dumpspec', 'help', 'outfile', 'infile', 'errfile',
                     'statfile', 'logfile', 'loglevel', 'verbose', 'fileread',)
 

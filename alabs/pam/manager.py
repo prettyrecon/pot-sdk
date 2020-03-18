@@ -20,7 +20,7 @@ import site
 # mp.set_start_method('spawn')
 
 
-logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
+
 
 
 ################################################################################
@@ -45,7 +45,7 @@ class PamManager(list):
     ############################################################################
     def __init__(self, *args):
         list.__init__(self, *args)
-        global logger
+        logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         self.logger = logger
         try:
             os.environ['PARENT_SITE'] = site.getsitepackages()[1]
@@ -117,7 +117,7 @@ class PamManager(list):
             scenario.update(scenario.get_modules_list())
             if scenario.plugins:
                 with captured_output() as (out, _):
-                    get_venv(scenario.plugins)
+                    get_venv(scenario.plugins, self.logger)
                 self.logger.debug(StructureLogFormat(VENV_PATH=out.read()))
                 out = out.getvalue().strip().split('\n')[-1]
                 runner.RUNNER.venv_path = out
@@ -252,7 +252,9 @@ class PamManager(list):
 
 ################################################################################
 # 파이썬 가상환경 생성, 가져오기
-def get_venv(requirements):
+def get_venv(requirements, logger=None):
+    if not logger:
+        logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
     if not isinstance(requirements, (list, tuple)):
         raise TypeError
     # PPM에 가상환경 생성 요청

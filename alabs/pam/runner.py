@@ -148,10 +148,10 @@ def activate_virtual_environment(f):
     # 멀티프로세싱에서 데코레이터를 사용하기 위해서 functools.wraps를 사용
     @wraps(f)
     def func(*args, **kwargs):
-        logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
-        logger.info('Activating the virtual environment for the runner...')
+        # logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
+        # logger.info('Activating the virtual environment for the runner...')
         exec_path = sys.executable
-        logger.debug(StructureLogFormat(EXEC_PATH=exec_path))
+        # logger.debug(StructureLogFormat(EXEC_PATH=exec_path))
 
         # 패스 설정
         old_os_path = os.environ.get('PATH', '')
@@ -194,13 +194,13 @@ def activate_virtual_environment(f):
             if old_python_path:
                 pp += old_python_path.split(';')
             os.environ['PYTHONPATH'] = ';'.join(pp)
-
-        logger.debug(StructureLogFormat(
-            PARENT_PATH=old_os_path,
-            PARENT_PYTHONPATH=old_python_path,
-            SITE_PACKAGES=site_packages,
-            RUNNER_PATH=os.environ['PATH'],
-            RUNNER_PYTHONPATH=os.environ['PYTHONPATH']))
+        #
+        # logger.debug(StructureLogFormat(
+        #     PARENT_PATH=old_os_path,
+        #     PARENT_PYTHONPATH=old_python_path,
+        #     SITE_PACKAGES=site_packages,
+        #     RUNNER_PATH=os.environ['PATH'],
+        #     RUNNER_PYTHONPATH=os.environ['PYTHONPATH']))
 
         # 실제 함수 실행
         multiprocessing.freeze_support()
@@ -211,6 +211,8 @@ def activate_virtual_environment(f):
 
 ################################################################################
 class Runner(mp.Process):
+    NAME = ['raven', 'brad', 'benny']
+
     class Status(enum.Enum):
         IDLE = 'Idle'
         PREPARING = 'Preparing'
@@ -225,9 +227,10 @@ class Runner(mp.Process):
     def __init__(self, scenario, pipe, event, *args, **kwargs):
         # super(Runner, self).__init__(*args, **kwargs)
         super(Runner, self).__init__()
-        self._name = str(os.getpid())
-        self.logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
-        self.log_prefix = LogMessageHelper()
+        if len(Runner.NAME) <= 0:
+            self._name = str(os.getpid())
+        else:
+            self._name = Runner.NAME.pop(0)
 
         self.created_datetime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         self._main_python_executable = None
@@ -302,7 +305,6 @@ class Runner(mp.Process):
         else:
             path = self.venv_path / pathlib.Path('bin/python')
         return str(path)
-
     # 브레이크 포인트 ===========================================================
     @property
     def break_points(self) -> tuple:
@@ -408,6 +410,9 @@ class Runner(mp.Process):
         return ret
 
     # ==========================================================================
+    def set_defalut_system_variable(self, scn):
+        scenario_name = scn
+    # ==========================================================================
     @activate_virtual_environment
     def run(self, *args, **kwargs):
         """
@@ -416,8 +421,10 @@ class Runner(mp.Process):
         :param kwargs:
         :return:
         """
-
-        self.logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
+        log = f'runner_{self.name}.log'
+        log_file = pathlib.Path(
+            get_conf().get('/PATH/CURRENT_PAM_LOG_DIR')) / log
+        self.logger = get_logger(str(log_file))
         self.log_prefix = LogMessageHelper(logger=self.logger)
         self.log_prefix.clear()
         self.log_prefix.push('Runner')
@@ -442,7 +449,7 @@ class Runner(mp.Process):
             self.log_prefix.push('Preparing')
             # TODO: PIPE에 뭐가 들어있을지 알 수 없음
             scenario_path = self._pipe.recv()
-            scenario = Scenario()
+            scenario = Scenario(logger=self.logger)
             scenario.load_scenario(scenario_path)
             self.scenario = scenario
             if not self.scenario:

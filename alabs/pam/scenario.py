@@ -4,7 +4,7 @@ from alabs.common.util.vvlogger import get_logger, StructureLogFormat, \
 from alabs.pam.operations import *
 from alabs.pam.conf import get_conf
 
-logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
+
 
 ITEM_DIVISION_TYPE = {
         "SystemCall": "systemCallType",
@@ -20,9 +20,10 @@ VIRTUAL_ENV_PATH = None
 class Scenario(dict):
 
     # ==========================================================================
-    def __init__(self):
+    def __init__(self, logger=None):
         dict.__init__(self)
-        global logger
+        if not logger:
+            logger = get_logger(get_conf().get('/PATH/PAM_LOG'))
         self.logger = logger
         self.log_msg = LogMessageHelper()
         self._info = dict()
@@ -121,15 +122,11 @@ class Scenario(dict):
         :param filename:
         :return:
         """
-        global logger
         with codecs.open(filename, 'r', 'utf-8-sig') as f:
             try:
                 scn = json.load(f)
             except Exception as e:
-                logger.error(str(e))
                 raise TypeError('The Scenario`s json File is Something Wrong')
-            finally:
-                logger.debug(StructureLogFormat(SCN_FILE_PATH=str(filename)))
         return scn
 
     # ==========================================================================
