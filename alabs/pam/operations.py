@@ -2204,6 +2204,9 @@ class Plugin(Items):
             self.logger.debug(StructureLogFormat(PLUGIN_OUT=value))
 
         if self['pluginResultType'] == 'String':
+            if not self['pluginResultVariable']:
+                self.logger.warn('No variable name for the plugin result')
+                return None
             path = self['pluginResultVariable']['VariableText']
             self._variables.create(path, value)
         elif self['pluginResultType'] == 'CSV':
@@ -2211,6 +2214,7 @@ class Plugin(Items):
             header = self['pluginResultHasHeader']
             data = result_as_csv(group, value, header=header)
             if not data:
+                self.logger.warn('No variable name for the plugin result')
                 return None
             for path, v in data:
                 self._variables.create(path, v)
@@ -2218,6 +2222,9 @@ class Plugin(Items):
             # File
             pathlib.Path(self['pluginResultFilePath']).write_text(value)
             path = self['pluginResultVariable']['VariableText']
+            if not self['pluginResultVariable']:
+                self.logger.warn('No variable name for the plugin result')
+                return None
             self._variables.create(path, self['pluginResultFilePath'])
         else:
             self.logger.warn('pluginResultType is None.')
