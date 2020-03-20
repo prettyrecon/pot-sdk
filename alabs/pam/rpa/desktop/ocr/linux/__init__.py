@@ -65,7 +65,7 @@ def image_preprocessing(image_path, gaussianblur=None, threshold=None,
     if gaussianblur:
         w, h = gaussianblur
         # 양의 홀수 값만 처리
-        cv2.GaussianBlur(img, (w, h), 0)
+        cv2.GaussianBlur(img, (int(w), int(h)), 0)
 
     if threshold:
         low, high, threshold_type = threshold
@@ -78,7 +78,7 @@ def image_preprocessing(image_path, gaussianblur=None, threshold=None,
                    'Otsu': cv2.THRESH_OTSU,
                    'Triangle': cv2.THRESH_TRIANGLE}
 
-        cv2.threshold(img, low, high, th_type[threshold_type])
+        cv2.threshold(img, int(low), int(high), th_type[threshold_type])
 
     if edgepreserv:
         cv2.edgePreservingFilter(img)

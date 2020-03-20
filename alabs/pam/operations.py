@@ -228,6 +228,7 @@ class Items(dict):
         self.logger = logger
         self.log_msg = LogMessageHelper()
         self._scenario = scenario
+        self._data = data
         t = dict()
         t['ITEM'] = dict()
         for r in self.item_ref:
@@ -880,11 +881,13 @@ class ReadImageText(Items):
 
         # GaussianBlur
         if boolean[filters['use_gaussianblur']]:
+            cmd.append('--gaussianblur')
             cmd.append(filters['gaussianblur_w'])
             cmd.append(filters['gaussianblur_h'])
 
         # Threshold
         if boolean[filters['use_threshold']]:
+            cmd.append('--threshold')
             cmd.append(filters['threshold_low'])
             cmd.append(filters['threshold_high'])
             cmd.append(filters['threshold_type'])
@@ -902,14 +905,17 @@ class ReadImageText(Items):
         return tuple(cmd)
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        self.log_msg.push('OCR')
+    def run(self):
         cmd = '{} -m alabs.pam.rpa.desktop.ocr {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
-        data = run_subprocess(cmd)
+        return run_subprocess(cmd)
 
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        self.log_msg.push('OCR')
+        data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -1563,11 +1569,63 @@ class Component(Items):
 ################################################################################
 class TextMatch(Items):
     # OCR
-    references = ('imageMatch',)
+    references = ('imageMatch', 'recordType', 'navigate', 'selectWindow',
+                  'verifyResultAction')
 
     # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments_for_select_window(self):
+        cmd = list()
+
+        # title
+        cmd.append(self['imageMatch']['title'])
+        # name
+        cmd.append(self['imageMatch']['processName'])
+        return tuple(cmd)
+
+    # ==========================================================================
+    def __call__select_window(self):
+        cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
+            self.python_executable,
+            ' '.join(self.arguments_for_select_window))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
+        data = run_subprocess(cmd)
+        return data
+
+    # ==========================================================================
+    def __call__ocr(self):
+        ocr = ReadImageText(self._data, self._scenario, self.logger)
+        ocr.python_executable = self.python_executable
+        return ocr.run()
+
+    # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Text Match')
+        data = self.__call__ocr()
+        if not data['RETURN_CODE']:
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE, None, data['MESSAGE'])
+
+        status = self['imageMatch']['text'] == data['RETURN_VALUE']
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(
+            COMMAND=f'{self["imageMatch"]["text"]} == {data["RETURN_VALUE"]}'))
+        if not status:
+            # TODO: 에러처리 고려가 필요
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return self['verifyResultAction'], False, data['MESSAGE'],
+
+        self.log_msg.pop()
+        return self['verifyResultAction'], status, data['MESSAGE'],
+
 
 
 ################################################################################
