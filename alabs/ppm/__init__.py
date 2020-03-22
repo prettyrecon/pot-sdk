@@ -16,6 +16,11 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/03/21]
+#   - YAML_PATH 파일이 없을 경우 upload 에서 오류 수정 (default 설정 저장)
+#   - upload 에서 서버 암호 잘못 입력한 경우 체크 오류 수정
+#  * [2020/03/18]
+#   - requests.get 등에서 verity=False 로 가져오도록 함 (NCSoft On-Premise 문제)
 #  * [2020/02/26]
 #   - get version 명령을 주면 setup.yaml 에 있는 버전 가져오도록 설정
 #  * [2020/02/25]
@@ -173,6 +178,15 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ################################################################################
 YAML_NAME = '.argos-rpa-config.yaml'
 YAML_PATH = os.path.join(str(Path.home()), YAML_NAME)
+YAML_CONFIG = """# Default Service config
+- WebServiceHost: https://manager-rpa.argos-labs.com
+  FileServiceHost: https://manager-rpa.argos-labs.com
+  ImageServiceHost: api.rpa.argos-labs.com:8080
+  OnDemandResultWebServer: rpa.argos-labs.com
+  LoginPageHost: https://rpa.argos-labs.com/clear.html
+  UpdateUrl: http://patch-rpa.argos-labs.com/Patch/SSUpdateNew/SS.yaml
+  HostAlias: RPA
+  alabsPpmHost: https://pypi-official.argos-labs.com/pypi"""
 LOG_NAME = '.argos-rpa.log'
 LOG_PATH = os.path.join(str(Path.home()), LOG_NAME)
 OUT_NAME = '.argos-rpa.out'
@@ -773,6 +787,9 @@ class PPM(object):
         self.venv = _venv
         self.args = args
         self.url_config = {}    # %homepath%\.argos-rpa-config.yaml (yaml)
+        if not os.path.exists(YAML_PATH):
+            with open (YAML_PATH, 'w', encoding='utf-8') as ofp:
+                ofp.write(YAML_CONFIG)
         if os.path.exists(YAML_PATH):
             with open(YAML_PATH, encoding='utf-8') as ifp:
                 if yaml.__version__ >= '5.1':
@@ -926,14 +943,14 @@ class PPM(object):
                 }
                 if not self.args.pam_id:
                     headers['authorization'] = self.args.user_auth
-                    r = requests.get(url, headers=headers)
+                    r = requests.get(url, headers=headers, verify=False)
                 else:
                     params = (
                         ('user_id', self.args.user),
                         ('pam_auth_key', self.args.user_auth),
                         ('pam_mac_address', self.args.pam_id),
                     )
-                    r = requests.get(url, headers=headers, params=params)
+                    r = requests.get(url, headers=headers, params=params, verify=False)
                 if r.status_code // 10 == 20:
                     self._set_private_repositories(json.loads(r.text))
                     return True
@@ -943,9 +960,9 @@ class PPM(object):
             self.logger.error(msg)
             return False
         except Exception as err:
-            self.sta.log(StatLogger.LT_2, 'Error: to connect %s' % 'or'.join(urls))
+            self.sta.log(StatLogger.LT_2, 'Error: to connect %s' % ' or '.join(urls))
             msg = '_get_private_repositories Error to connect "%s": \n%s\n' \
-                  % ('or'.join(urls), str(err))
+                  % (' or '.join(urls), str(err))
             sys.stderr.write(msg)
             self.logger.error(msg)
             return False
@@ -1097,7 +1114,7 @@ class PPM(object):
         self.sta.log(StatLogger.LT_3, 'Get hash specification "%s"' %
                      ds_hash_url.split('/')[-1])
         # 우선 해쉬를 가져와서 해당 파일이 로컬에 저장되었나 확인
-        r = requests.get(ds_hash_url)
+        r = requests.get(ds_hash_url, verify=False)
         if r.status_code // 10 == 20:
             self.ds_hash = r.content.decode()
 
@@ -1113,7 +1130,7 @@ class PPM(object):
                 with open(ds_file, encoding='utf-8') as ifp:
                     return json.load(ifp)
         # 캐쉬가 없으면 실제 json을 다운로드 하고
-        r = requests.get(url_def_dumpspec)
+        r = requests.get(url_def_dumpspec, verify=False)
         if r.status_code // 10 != 20:
             self.sta.error("download %s error!" % url_def_dumpspec)
             raise RuntimeError('Cannot get "%s"' % url_def_dumpspec)
@@ -1138,7 +1155,7 @@ class PPM(object):
             self.logger.error('Found "%s" module but not version "%s" in self.def_dumpspec' % (modname, version))
         url_dumpspec = self.URL_DUMPSPEC % self._get_URL_PLUGIN()
         url = url_dumpspec.format(plugin_name=modname, version=version)
-        r = requests.get(url)
+        r = requests.get(url, verify=False)
         if r.status_code // 10 != 20:
             self.sta.error("download %s error!" % url)
             raise RuntimeError('Cannot get "%s"' % url)
@@ -1157,7 +1174,7 @@ class PPM(object):
                         return json.load(ifp)
             url_mod_ver = self.URL_MOD_VER % self._get_URL_PLUGIN()
             self.sta.log(StatLogger.LT_2, "Downloading %s" % url_mod_ver.split('/')[-1])
-            r = requests.get(url_mod_ver)
+            r = requests.get(url_mod_ver, verify=False)
             if r.status_code // 10 != 20:
                 self.sta.error("download %s error!" % url_mod_ver)
                 raise RuntimeError('Cannot get "%s"' % url_mod_ver)
@@ -1969,7 +1986,7 @@ six [('==', '1.10.0')]
             }
             self.sta.log(StatLogger.LT_2, "Getting OAuth")
             r = requests.post('%s/oauth/token' % root_url,
-                              headers=headers, cookies=cookies, data=data)
+                              headers=headers, cookies=cookies, data=data, verify=False)
             if r.status_code // 10 != 20:
                 raise RuntimeError('PPM._dumpspec_user: API Error!')
             self.sta.log(StatLogger.LT_3, "Getting OAuth done")
@@ -2035,9 +2052,14 @@ six [('==', '1.10.0')]
                         setattr(self.args, 'user', user)
                     # 만약 upload 에서 --pr-user 옵션만 주고 실행했을 때는 암호를 물어서 가져옴
                     if not self.args.user_auth:
-                        u___p = getpass('%s command need user password for ARGOS RPA, User Password? '
-                                        % self.args.command)
-                        setattr(self.args, 'user_auth', self._get____tk____(self.args.user, u___p))
+                        u___p = self.args.pr_user_pass
+                        if not u___p:
+                            u___p = getpass('%s command need user password for ARGOS RPA, User Password? '
+                                            % self.args.command)
+                        tk = self._get____tk____(self.args.user, u___p)
+                        if not tk:
+                            raise RuntimeError('Invalid UserID or Password')
+                        setattr(self.args, 'user_auth', tk)
 
             if hasattr(self.args, 'subargs'):
                 subargs = self._check_subargs(self.args.subargs)
