@@ -78,6 +78,42 @@ def arguments_options_fileout(f):
     return func
 
 
+def non_latin_characters(f):
+    """
+    argument용으로 사용
+    영어가 아닌 문자열 일괄처리
+    :param f:
+    :return:
+    """
+    @wraps(f)
+    def func(*args, **kwargs):
+        cmd = f(*args, **kwargs)
+        if not cmd:
+            return cmd
+        cmd = [json.dumps(x, ensure_ascii=False) if not x.startswith('--')
+               else x for x in cmd]
+        return tuple(cmd)
+    return func
+
+
+def convert_variable(f):
+    """
+    argument 용 장식자
+    모든 argument 내용을 변수 변환
+    :param f:
+    :return:
+    """
+    @wraps(f)
+    def func(*args, **kwargs):
+        SEPERATOR = '\x1f'
+        conv = args[0]._variables.convert
+        cmd = f(*args, **kwargs)
+        cmd = SEPERATOR.join(cmd)
+        code, cmd = conv(cmd)
+        return cmd.split(SEPERATOR)
+    return func
+
+
 ################################################################################
 def request_handler(f):
     @wraps(f)
@@ -277,10 +313,10 @@ class Delay(Items):
     # ==========================================================================
     @property
     @arguments_options_fileout
+    @convert_variable
     def arguments(self)->tuple:
         cmd = list()
-        code, data = self._variables.convert(self['delay']['delay'])
-        cmd.append(data)
+        cmd.append(self['delay']['delay'])
         return tuple(cmd)
 
     # ==========================================================================
@@ -318,7 +354,9 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
         cmd = list()
         # filename
@@ -371,21 +409,16 @@ class SearchImage(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments_for_select_window(self):
         cmd = list()
 
         # title
-        code, data = self._variables.convert(self['imageMatch']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['title'])
         # name
-        code, data = self._variables.convert(
-            self['imageMatch']['processName'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['processName'])
         return tuple(cmd)
 
     # ==========================================================================
@@ -458,6 +491,7 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
     def arguments(self) -> tuple:
         cmd = list()
@@ -478,21 +512,15 @@ class ImageMatch(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments_for_select_window(self):
         cmd = list()
-
         # title
-        code, data = self._variables.convert(self['imageMatch']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['title'])
         # name
-        code, data = self._variables.convert(
-            self['imageMatch']['processName'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
-
+        cmd.append(self['imageMatch']['processName'])
         return tuple(cmd)
 
     # ==========================================================================
@@ -545,21 +573,20 @@ class MouseScroll(Items):
     # ==========================================================================
     @property
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
-        v = int(self['mouseScroll']['scrollLines'])
+        v = str(self['mouseScroll']['scrollLines'])
         return '--vertical', v
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Scroll')
         cmd = '{} -m alabs.pam.rpa.autogui.scroll {}'.format(
-            self.python_executable, ' '.join([str(x) for x in self.arguments]))
+            self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('MouseScrolling Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
 
-        subprocess.Popen(cmd, shell=True)
         data = run_subprocess(cmd)
-        # return scroll(*self.arguments)
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -765,11 +792,12 @@ class StopProcess(Items):
     # "stopProcess": {"processName": "notepad"}
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
     def arguments(self) -> tuple:
         res = list()
         res.append('--process_name')
-        process = self['stopProcess']['processName']
+        _, process = self._variables.convert(self['stopProcess']['processName'])
         if -1 == process.rfind('.exe'):
             process = process + '.exe'
         res.append(process)
@@ -810,19 +838,17 @@ class SelectWindow(Items):
     references = ('selectWindow',)
 
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self) -> tuple:
         cmd = list()
 
         # title
-        code, data = self._variables.convert(self['selectWindow']['title'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
+        cmd.append(self['selectWindow']['title'])
 
         # name
-        code, data = self._variables.convert(self['selectWindow']['URL'])
-        # TODO: code 값에 따른 에러처리 필요
-        cmd.append(json.dumps(data))
+        cmd.append(self['selectWindow']['URL'])
 
         if self['selectWindow']['isClick']:
             pass
@@ -858,17 +884,71 @@ class SelectWindow(Items):
 
 
 ################################################################################
-class HtmlAction(Items):
-    # OCR
-    references = ('imageMatch',)
+class HTMLAction(Items):
+    # HTML Action
+    references = ('htmlAction',)
+
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self) -> tuple:
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+
+        from alabs.pam.rpa.web.html_action import tags_to_xpath
+        if 'Tag' == self['htmlAction']['findType']:
+            xpath = tags_to_xpath([self['htmlAction']['tagName'],
+                                   self['htmlAction']['attName'],
+                                   self['htmlAction']['attValue']])
+        else:
+            xpath = self['htmlAction']['xPath']
+        cmd.append(xpath)
+
+        action = self['htmlAction']['actionType']
+        js_event = 'set_value' if action == 'setValue' else action
+        cmd.append(js_event)
+
+        parameters = self['htmlAction']['sendValue']
+        cmd.append('--js_params')
+        cmd.append(parameters)
+
+        if self['htmlAction']['frameName']:
+            iframe = self['htmlAction']['frameName']
+            cmd.append('--iframe')
+            cmd.append(iframe)
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        if False:
+        self.log_msg.push('HtmlAction')
+        if not self._scenario.web_driver:
+            msg = 'Openbrowser(Selenium) Must be running before using ' \
+                      'HtmlAction.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
             return make_follow_job_request(
-                OperationReturnCode.FAILED_ABORT, None, '')
-        return make_follow_job_request(
-            OperationReturnCode.SUCCEED_CONTINUE, None, '')
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.html_action {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
+
 
 
 ################################################################################
@@ -878,6 +958,8 @@ class BrowserScript(Items):
     # {'browserScript': {'script': 'script'}}
     # ==========================================================================
     @property
+    @non_latin_characters
+    @convert_variable
     def arguments(self):
         script = self['browserScript']['script']
         return script,
@@ -1073,12 +1155,113 @@ class Repeat(Items):
 
 ################################################################################
 class SendEmail(Items):
-    # OCR
-    references = ('imageMatch',)
+    # SendEmail
+    '''
+    "sendEmail": {
+            "smtpHost": "mail2.vivans.net",
+            "smtpPort": 587,
+            "useSsl": true,
+            "smtpId": "deokyu@vivans.net",
+            "smtpPassword": "ENC::fINEjX2G1wBd2z0EW4mXuQ==",
+            "senderMailAddress": "deokyu@vivans.net",
+            "receiverMailAddress": "deokyu@vivans.net;deokyu@argos-labs.com",
+            "mailTitle": "hi it's test SSL",
+            "mailContent": "hello world!!!",
+            "attachFileList": "C:\\Users\\argos\\AppData\\Roaming\\ArgosScenarioStudio\\TestRun\\Scenario.json;",
+            "bccList": "test_email_1@gmail.com;test_email_2@gmail.com",
+            "ccList": "hong18s@gmail.com "
+          }
+    '''
+    references = ('sendEmail',)
+
+    # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self):
+        """
+        # 'python -m alabs.pam.rpa.desktop.send_email ' \
+        # 'mail2.vivans.net 25 ' \
+        # 'deokyu@vivans.net vivans123$ ' \
+        # 'deokyu@vivans.net ' \
+        # '"deokyu@argos-labs.com,deokyu@vivans.net" ' \
+        # 'HelloThere4 "Hello World!!!!!" ' \
+        # '--cc "hong18s@gmail.com" ' \
+        # '--bcc "im.ddo.lee@gmail.com" ' \
+        # '--attach .env --attach .gitignre'
+        :return:
+        """
+        from alabs.pam.common.crypt import argos_decrypt
+
+        def replace_semi_and_spaces(text):
+            text = text.replace(';', ',')
+            text = text.replace(' ', '')
+            return text
+
+        cmd = list()
+        # Server Info
+        cmd.append(self['sendEmail']['smtpHost'])
+        cmd.append(str(self['sendEmail']['smtpPort']))
+
+        cmd.append(self['sendEmail']['smtpId'])
+        password = argos_decrypt(self['sendEmail']['smtpPassword'],
+                                 self._scenario.hash_key,
+                                 self._scenario.iv)
+        cmd.append(password)
+
+        cmd.append(self['sendEmail']['senderMailAddress'])
+
+        to = replace_semi_and_spaces(self['sendEmail']['receiverMailAddress'])
+        cmd.append(to)
+
+        cmd.append(self['sendEmail']['mailTitle'])
+        cmd.append(self['sendEmail']['mailContent'])
+
+        cc = self['sendEmail']['ccList']
+        if cc:
+            cmd.append('--cc')
+            cc = replace_semi_and_spaces(cc)
+            cmd.append(cc)
+
+        bcc = self['sendEmail']['bccList']
+        if bcc:
+            cmd.append('--bcc')
+            bcc = replace_semi_and_spaces(bcc)
+            cmd.append(bcc)
+
+        attaches = self['sendEmail']['attachFileList']
+        if attaches:
+            attaches = list(attaches.split(';'))
+            for attach in attaches:
+                if not attach:
+                    continue
+                cmd.append('--attach')
+                cmd.append(attach)
+
+        ssl = self['sendEmail']['useSsl']
+        if ssl:
+            cmd.append('--ssl')
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Send Email')
+        cmd = '{} -m alabs.pam.rpa.desktop.send_email {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE,
+                None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################
@@ -1132,7 +1315,11 @@ class SetVariable(Items):
             self['setVariable']['VariableName'])
 
         if self['setVariable']['valueFromType'] == 'Text':
-            value = self['setVariable']['textValue']
+            from alabs.pam.common.crypt import argos_decrypt
+            _, value = self._variables.convert(self['setVariable']['textValue'])
+            value = argos_decrypt(value,
+                                  self._scenario.hash_key,
+                                  self._scenario.iv)
 
         elif self['setVariable']['valueFromType'] == 'Clipboard':
             import pyperclip
@@ -1185,10 +1372,21 @@ class Navigate(Items):
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
+
         from selenium import webdriver
         url, size = self.arguments
         chrome_driver = get_conf().get('/WEB_DRIVER/CHROME_DRIVER_WINDOWS')
         options = dict()
+
+        # 명령어 Non-Blocking 설정
+        from selenium.webdriver.common.desired_capabilities import \
+            DesiredCapabilities
+        caps = DesiredCapabilities().CHROME
+        # caps["pageLoadStrategy"] = "normal"  # complete
+        # caps["pageLoadStrategy"] = "eager"  #  interactive
+        caps["pageLoadStrategy"] = "none"
+        options['desired_capabilities'] = caps
+
         options['executable_path'] = chrome_driver
         if size['is_change_size']:
             from selenium.webdriver.chrome.options import Options
@@ -1202,23 +1400,65 @@ class Navigate(Items):
 
         with captured_output() as (out, err):
             wdrv = webdriver.Chrome(**options)
+
         if err.getvalue():
             self.logger.error(self.log_msg.format(err.getvalue()))
         self.logger.info(self.log_msg.format(out.getvalue()))
         wdrv.get(url)
         self._scenario.web_driver = wdrv
+        self._scenario.web_driver.main_window = wdrv.window_handles[0]
+
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
 
 
 ################################################################################
-class DocumentComplete(Items):
-    # OCR
-    references = ('imageMatch',)
+class Document(Items):
+    # OnLoadEvent
+    references = ('verifyResultAction',)
+
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+        # HTML 태그 존재를 기준으로 판단
+        cmd.append('//html')
+        cmd.append('--timeout')
+        cmd.append(str(int(int(self['timeOut']) * 0.001 )))
+        return tuple(cmd)
 
     # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('OnLoad Event')
+        if not self._scenario.web_driver:
+            msg = 'Openbrowser(Selenium) Must be running before using ' \
+                  'OnLoad Event.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.wait_for_element {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            # TODO: 에러처리 고려가 필요
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return self['verifyResultAction'], False, data['MESSAGE'],
+
+        status = data['RETURN_VALUE']['RESULT']
+        self.log_msg.pop()
+        return self['verifyResultAction'], status, data['MESSAGE'],
+
 
 
 ################################################################################
@@ -1286,12 +1526,14 @@ class CompareText(Items):
                 result.append("-c")
                 result.append(v.upper())
             _, v = self._variables.convert(value['leftValue']['VariableText'])
-            result.append(v if v.isdigit() else json.dumps(v))
+            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False) 
+            result.append(v)
             # '>', '<' 리다이렉트 문자 보호
             v = value['logicalOperator']
             result.append(json.dumps(v) if len(v) == 1 else v)
             _, v = self._variables.convert(value['rightValue']['VariableText'])
-            result.append(v if v.isdigit() else json.dumps(v))
+            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False)
+            result.append(v)
 
         return tuple(result)
 
@@ -1317,12 +1559,76 @@ class CompareText(Items):
 
 ################################################################################
 class WaitingPopup(Items):
-    # OCR
-    references = ('imageMatch',)
+    # WaitingPopup
+    # {"watingPopup": {
+    #     "URL": "aaaaa",
+    #     "title": "asdr"
+    # },
+    # "verifyResultAction": {
+    #     "successActionType": "Go",
+    #     "successActionValue": 0,
+    #     "successMemoGroupCode": 0,
+    #     "successActionRepeatCount": 5,
+    #     "successStepNum": -1,
+    #     "successItemNum": -1,
+    #     "failActionType": "Error",
+    #     "failActionValue": 0,
+    #     "failMemoGroupCode": 0,
+    #     "failActionRepeatCount": 5,
+    #     "failStepNum": -1,
+    #     "failItemNum": -1
+    # },}
+    references = ('watingPopup', 'verifyResultAction')
 
     # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+
+        cmd.append(self['watingPopup']['title'])
+        if self['watingPopup']['URL']:
+            cmd.append('--process_name')
+            cmd.append(self['watingPopup']['URL'])
+
+        cmd.append('--timeout')
+        cmd.append(str(int(int(self['timeOut']) * 0.001)))
+        return tuple(cmd)
+
+    # ==========================================================================
+    @request_handler
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('OnLoad Event')
+        if not self._scenario.web_driver:
+            msg = 'Open Web Browser(Selenium) Must be running ' \
+                  'before using this operation.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.wait_for_new_window {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            # TODO: 에러처리 고려가 필요
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return self['verifyResultAction'], False, data['MESSAGE'],
+
+        status = data['RETURN_VALUE']['RESULT']
+        self.log_msg.pop()
+        return self['verifyResultAction'], status, data['MESSAGE'],
+
 
 
 ################################################################################
@@ -1332,6 +1638,8 @@ class DeleteFile(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
+    @convert_variable
     def arguments(self):
         cmd = list()
         cmd.append(self['deleteFile']['filePath'])
@@ -1359,12 +1667,53 @@ class DeleteFile(Items):
 
 ################################################################################
 class ClosePopup(Items):
-    # OCR
-    references = ('imageMatch',)
+    # ClosePopup
+    # 가져올 참고 데이터 없음
+    references = tuple()
+
+    # ==========================================================================
+    @property
+    @arguments_options_fileout
+    def arguments(self):
+        cmd = list()
+        # URL
+        cmd.append(self._scenario.web_driver.command_executor._url)
+        # Session ID
+        cmd.append(self._scenario.web_driver.session_id)
+
+        # 메인을 제외한 Window ID
+        hdls = self._scenario.web_driver.window_handles
+        hdls.remove(self._scenario.web_driver.main_window)
+        cmd += hdls
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Close Popup')
+        if not self._scenario.web_driver:
+            msg = 'Openbrowser(Selenium) Must be running before using ' \
+                  'OnLoad Event.'
+            self.logger.error(self.log_msg.format(msg))
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_ABORT, None, msg)
+
+        cmd = '{} -m alabs.pam.rpa.web.close_web_windows {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        data = run_subprocess(cmd)
+
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
+
+
 
 ################################################################################
 class EndScenario(Items):
@@ -1399,7 +1748,9 @@ class UserParams(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self):
         data = self['userInputs']
         cmd = list()
@@ -1411,14 +1762,14 @@ class UserParams(Items):
             group_name = d['groupName']
             cmd.append('--input')
             message = d['message'] if d['message'] else d['variableName']
-            cmd.append(json.dumps(message, ensure_ascii=False))
+            cmd.append(message)
             cmd.append(d['variableName'])
-            cmd.append(json.dumps(d['defaultValue'], ensure_ascii=False))
-            cmd.append(json.dumps(d['description'], ensure_ascii=False))
+            cmd.append(d['defaultValue'])
+            cmd.append(d['description'])
         cmd.insert(0, group_name)
         if title:
             cmd.append('--title')
-            cmd.append(json.dumps(title, ensure_ascii=False))
+            cmd.append(title)
         return tuple(cmd)
 
     # ==========================================================================
@@ -1585,28 +1936,25 @@ class PopupInteraction(Items):
 
     # ==========================================================================
     @property
+    @non_latin_characters
     @arguments_options_fileout
+    @convert_variable
     def arguments(self):
         cmd = list()
-        code, title = self._variables.convert(self['popupInteraction']['title'])
+        title = self['popupInteraction']['title']
         if not title:
-            title = json.dumps("No Message")
-        cmd.append(json.dumps(title, ensure_ascii=False))
+            title = "No Message"
+        cmd.append(title)
         cmd.append("--button")
 
-        code, title = self._variables.convert(
-            self['popupInteraction']['firstButtonTitle'])
-        cmd.append(json.dumps(title, ensure_ascii=False))
-        action = self.actions[
-            self['popupInteraction']['firstButtonAction']]
+        cmd.append(self['popupInteraction']['firstButtonTitle'])
+        action = self.actions[self['popupInteraction']['firstButtonAction']]
         cmd.append(action)
 
         for b in ['second', 'third']:
             if self.actions[self['popupInteraction'][b + 'ButtonAction']]:
                 cmd.append("--button")
-                code, title = self._variables.convert(
-                    self['popupInteraction'][b + 'ButtonTitle'])
-                cmd.append(json.dumps(title, ensure_ascii=False))
+                cmd.append(self['popupInteraction'][b + 'ButtonTitle'])
                 action = self.actions[
                     self['popupInteraction'][b + 'ButtonAction']]
                 cmd.append(action)

@@ -7,7 +7,7 @@ __license__ = "MIT"
 
 
 from flask import Flask
-from flask_restplus import Api
+from flask_rextx import Api
 from .app import api as test_api
 
 

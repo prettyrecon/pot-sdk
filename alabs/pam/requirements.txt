@@ -5,10 +5,11 @@ alabs.common
 alabs.ppm
 pyparsing
 
+
 numpy
 gevent
 flask
-flask-restplus
+flask-restx
 PyYaml
 chardet
 requests
@@ -26,3 +27,6 @@ keyboard
 # Select Window for Windows
 pywin32
 psutil
+
+# Crypto for Windows
+pycryptodome

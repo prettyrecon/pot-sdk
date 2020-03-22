@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import json
-from flask_restplus import Namespace, Resource
+from flask_rextx import Namespace, Resource
 from flask import request, jsonify, make_response
 from alabs.pam.variable_manager import variables, number_format
 from alabs.pam.apps.variables_manager.parser import variables_parser

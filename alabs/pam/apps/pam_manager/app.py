@@ -2,7 +2,7 @@ import os
 import pathlib
 import zipfile
 import tempfile
-from flask_restplus import Namespace, Resource
+from flask_rextx import Namespace, Resource
 from flask import request, send_file
 api = Namespace('manager', description="PAM MANAGER")
 # from alabs.pam.scenario import Scenario

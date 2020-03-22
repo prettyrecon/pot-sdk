@@ -75,7 +75,7 @@ def pam_manager(argspec, logger):
         monkey.patch_all()
         from gevent.pywsgi import WSGIServer
         from flask import Flask
-        from flask_restplus import Api
+        from flask_rextx import Api
 
         from alabs.pam.apps.pam_manager.app import api as ns_manager
 

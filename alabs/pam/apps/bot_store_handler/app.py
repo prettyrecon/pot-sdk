@@ -6,7 +6,7 @@ from flask import jsonify, make_response
 from flask import request
 from werkzeug.exceptions import BadRequest
 
-from flask_restplus import Namespace, Resource
+from flask_rextx import Namespace, Resource
 
 from alabs.pam.apps.bot_store_handler.parser import file_upload
 from alabs.pam.scenario_repository import ScenarioRepoHandler
