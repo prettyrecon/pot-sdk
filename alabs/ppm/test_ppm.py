@@ -16,6 +16,11 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/03/21]
+#   - YAML_PATH 파일이 없을 경우 upload 에서 오류 수정 (default 설정 저장)
+#   - upload 에서 서버 암호 잘못 입력한 경우 체크 오류 수정
+#  * [2020/03/18]
+#   - requests.get 등에서 verity=False 로 가져오도록 함 (NCSoft On-Premise 문제)
 #  * [2019/12/06]
 #   - on-premise에서 --official-only 는 무시하도록 함
 #  * [2019/08/26]
@@ -220,6 +225,18 @@ class TU(TestCase):
     def test_0050_submit_without_key(self):
         try:
             _main(['submit'])
+            self.assertTrue(False)
+        except Exception as e:
+            print(e)
+            self.assertTrue(True)
+
+    # ==========================================================================
+    def test_0058_upload_invalid_passwd(self):
+        # 사설 저장소에 wheel upload
+        try:
+            r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv22',
+                       '--venv', 'upload'])
+            # self.assertTrue(r == 0)
             self.assertTrue(False)
         except Exception as e:
             print(e)
