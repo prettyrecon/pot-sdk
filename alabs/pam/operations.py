@@ -1439,13 +1439,100 @@ class SetVariable(Items):
 
 ################################################################################
 class Excel(Items):
-    # OCR
-    references = ('imageMatch',)
+    # Excel
+    references = ('excel',)
+
+    # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self):
+        cmd = list()
+        cmd.append(self['excel']['fileName'])
+        cmd.append(self['excel']['workSheet'])
+
+        for item in self['excel']['valueItems']:
+            value = None
+            if self['excel']['actionType'] == 'Read':
+                cmd.append('--read')
+            else:
+                cmd.append('--write')
+                v = item['variable']['VariableText']
+                code, value = self._variables.get(v)
+
+                if isinstance(value, list):
+                    # value = [json.loads(x) for x in value]
+                    value = [json.dumps(x, ensure_ascii=False) for x in value]
+            params = dict(cell=item['cellRange'],
+                          orientation=item['dataDirection'],
+                          values=value)
+            cmd.append(json.dumps(params, ensure_ascii=False))
+        return tuple(cmd)
+
+
+    # ==========================================================================
+    @staticmethod
+    def recursive_convert(data, out=None):
+        """
+        포함된 모든 리스트를 순회하며 데이터 변환
+        :param data:
+        :param out:
+        :return:
+        """
+        if not out:
+            out = list()
+        if isinstance(data, list):
+            for d in data:
+                out.append(Excel.recursive_convert(d))
+        else:
+            try:
+                return json.loads(data)
+            except json.decoder.JSONDecodeError:
+                return data
+        return out
+
+    def assemble_variable_request(self, data):
+        var_name = [x['variable']['VariableText'] for x in self['excel']['valueItems']]
+        values = [x for x in data for x in x]
+        return list(zip(var_name, values))
+
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        self.log_msg.push('Excel Basic')
+        cmd = '{} -m alabs.pam.rpa.desktop.excel_basics {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
+
+        function = None
+        if 'Read' == self['excel']['actionType']:
+            value = data['RETURN_VALUE']['VALUE']
+            value = self.recursive_convert(value)
+            from alabs.pam.runner import ResultHandler
+            value = self.assemble_variable_request(value)
+            function = (ResultHandler.VARIABLE_SET_VALUES.value, value)
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       function, '')
+
+
+################################################################################
+class Beep(Items):
+    # Beep
+    references = ('beep',)
+
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         return
-
 
 ################################################################################
 class Navigate(Items):
