@@ -683,21 +683,20 @@ class TypeText(Items):
             value = data
         elif "UserVariable" == _type:
             # TODO: 없는 자료일 경우 처리
-            variable_name = "{{%s.%s}}" % (
-                self['typeText']['userVariableGroup'],
-                self['typeText']['userVariableName'])
+            variable_name = self['typeText']['userVariableText']
             code, value = self._variables.get(variable_name)
         else:
             # TODO: 없는 자료일 경우 처리
             # Saved Data
             code, value = self._variables.get("{{saved_data}}")
 
+        # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
+        # value = value.replace('`', '\`')
+        if isinstance(value, list):
+            value = ','.join([str(v) for v in value])
         # 불필요한 리턴문자 삭제
         value = value.replace('\r\n', '\n')
         value = value.replace('\r', '\n')
-
-        # 리눅스 Bash에서 해당 문자열은 멀티라인을 뜻하므로 이스케이프문자 처리
-        # value = value.replace('`', '\`')
         cmd.append(json.dumps(value,  ensure_ascii=False))
 
         # 파라메터로 못 넘기는 문자를 위해 피클링
@@ -2310,8 +2309,17 @@ def result_as_csv(group, data:str, header=True):
     # ['Brad', 'brad@argos-labs.com', 'hello']]
 
     data = StringIO(data)
-    data = csv.reader(data, delimiter=',')
-    data = list(data)
+    data = csv.reader(data, delimiter=',', skipinitialspace=True, quotechar='"')
+    r = list()
+    for row in data:
+        c = list()
+        for col in row:
+            try:
+                c.append(json.loads(col))
+            except json.decoder.JSONDecodeError:
+                c.append(col)
+        r.append(c)
+    data = r
 
     # 변수 이름 만들기
     # 헤더가 없다면 엑셀컬럼 순서로 생성
