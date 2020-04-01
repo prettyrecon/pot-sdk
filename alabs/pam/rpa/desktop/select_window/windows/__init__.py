@@ -34,6 +34,8 @@ from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from pathlib import Path
+from alabs.common.util.vvtest import captured_output
+
 
 ################################################################################
 # Version
@@ -69,42 +71,53 @@ def select_window(mcxt, argspec):
             str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                    MESSAGE="No title or process name.")))
         return
+    try:
+        # 입력한 프로세스명에 .exe 가 없을경우 .exe 붙이기
+        process_name = check_process_name(process_name)
 
-    # 입력한 프로세스명에 .exe 가 없을경우 .exe 붙이기
-    process_name = check_process_name(process_name)
+        # 방법.1 win32api 함수를 이용하여 창의 handle 값 가져오기
+        handle = win32gui.FindWindow(process_name, process_title)
 
-    # 방법.1 win32api 함수를 이용하여 창의 handle 값 가져오기
-    handle = win32gui.FindWindow(process_name, process_title)
+        # 방법.2  특정 name 의 프로세스 내에서 title 을 비교해서 찾기
+        # 방법.3  모든 프로세스내에서 title 을 비교해서 찾기
+        if handle == 0:
+            handle = find_window_handle(process_name, process_title)
 
-    # 방법.2  특정 name 의 프로세스 내에서 title 을 비교해서 찾기
-    # 방법.3  모든 프로세스내에서 title 을 비교해서 찾기
-    if handle == 0:
-        handle = find_window_handle(process_name, process_title)
+        # handle 을 찾지 못했을 경우 리턴
+        if handle == 0:
+            sys.stderr.write(
+                str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                       MESSAGE="Couldn't find any window "
+                                               "to match.")))
+            exit(-1)
 
-    # handle 을 찾지 못했을 경우 리턴
-    if handle == 0:
-        sys.stderr.write(
-            str(StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
-                                   MESSAGE="Couldn't find any window "
-                                           "to match.")))
-        exit(-1)
+        if argspec.location is not None:
+            # 위치 조정
+            move_window(handle, argspec.location[0], argspec.location[1])
+        if argspec.size is not None:
+            # 사이즈 조정
+            change_window_size(handle, argspec.size[0], argspec.size[1])
+        # 포커스
+        active_window(handle)
 
-    if argspec.location is not None:
-        # 위치 조정
-        move_window(handle, argspec.location[0], argspec.location[1])
-    if argspec.size is not None:
-        # 사이즈 조정
-        change_window_size(handle, argspec.size[0], argspec.size[1])
-    # 포커스
-    active_window(handle)
+        # 윈도우의 위치 사이즈 정보를 리턴
+        result = get_window_rect(handle)
+        data = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,MESSAGE='')
+        sys.stdout.write(str(data))
+        mcxt.logger.info(result)
+        mcxt.logger.info('>>>end...')
+        return data
+    except Exception as e:
+        import traceback
+        with captured_output() as (out, err):
+            traceback.print_exc(file=out)
+            data = StructureLogFormat(RETURN_CODE=False,
+                                      MESSAGE='Failed to find the window.')
+            mcxt.logger.error(out.getvalue())
+        sys.stderr.write(str(data))
+        return data
 
-    # 윈도우의 위치 사이즈 정보를 리턴
-    result = get_window_rect(handle)
-    data = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,MESSAGE='')
-    sys.stdout.write(str(data))
-    mcxt.logger.info(result)
-    mcxt.logger.info('>>>end...')
-    return data
+
 
 
 ################################################################################

@@ -937,6 +937,10 @@ class ReadImageText(Items):
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
+            # 실패 무시 옵션 사용시
+            if self['imageMatch']['isSkipOCRFailure']:
+                return make_follow_job_request(
+                    OperationReturnCode.FAILED_CONTINUE, None, '')
             return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
                                            None, data['MESSAGE'])
         from alabs.pam.runner import ResultHandler
