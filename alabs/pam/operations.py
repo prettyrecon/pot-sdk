@@ -820,7 +820,8 @@ class StopProcess(Items):
 ################################################################################
 class ReadImageText(Items):
     # OCR
-    references = ('imageMatch', 'recordType', 'navigate', 'selectWindow')
+    references = ('imageMatch', 'recordType', 'navigate', 'selectWindow',
+                  'recordType')
     # {"imageMatch": {"clickType": "Left", "clickMotionType": "DownAndUP",
     #                     "cropImageLocation": "14, 99, 250, 45",
     #                     "searchLocation": "0, 0, 1014, 279",
@@ -904,6 +905,12 @@ class ReadImageText(Items):
         return tuple(cmd)
 
     # ==========================================================================
+    def __call__select_window(self):
+        sw = SelectWindow(self._data, self._scenario, self.logger)
+        sw.python_executable = self.python_executable
+        return sw.run()
+
+    # ==========================================================================
     def run(self):
         cmd = '{} -m alabs.pam.rpa.desktop.ocr {}'.format(
             self.python_executable, ' '.join(self.arguments))
@@ -914,15 +921,31 @@ class ReadImageText(Items):
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('OCR')
+
+        # 어플리케이션 검색 옵션 처리
+        if 'app' == self['recordType'].lower():
+            data = self.__call__select_window()
+            if not data['RETURN_CODE']:
+                self.log_msg.pop()
+                return make_follow_job_request(
+                    OperationReturnCode.FAILED_CONTINUE, None,
+                    data['MESSAGE'])
+
+            self['imageMatch']['searchLocation'] = data['RETURN_VALUE']
+
         data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
             return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
                                            None, data['MESSAGE'])
+        from alabs.pam.runner import ResultHandler
+        value = (('{{saved_data}}', data['RETURN_VALUE'],),)
+        function = (ResultHandler.VARIABLE_SET_VALUES.value, value)
         self.log_msg.pop()
+
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
-                                       None, '')
+                                       function, '')
 
 
 
@@ -958,14 +981,17 @@ class SelectWindow(Items):
         return tuple(cmd)
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        self.log_msg.push('SelectWindow')
+    def run(self):
         cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
-        data = run_subprocess(cmd)
+        return run_subprocess(cmd)
 
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        self.log_msg.push('SelectWindow')
+        data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
