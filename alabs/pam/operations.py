@@ -642,14 +642,17 @@ class MouseClick(Items):
         return tuple(cmd)
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        self.log_msg.push('Click')
+    def run(self):
         cmd = '{} -m alabs.pam.rpa.autogui.click {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        return run_subprocess(cmd)
 
-        data = run_subprocess(cmd)
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        self.log_msg.push('Click')
+        data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -715,14 +718,17 @@ class TypeText(Items):
         return tuple(cmd)
 
     # ==========================================================================
-    def __call__(self, *args, **kwargs):
-        self.log_msg.push('Type Text')
+    def run(self):
         cmd = '{} -m alabs.pam.rpa.autogui.type_text {}'.format(
             self.python_executable, ' '.join(self.arguments))
         self.logger.info(self.log_msg.format('TypeText Calling...'))
         self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        return run_subprocess(cmd)
 
-        data = run_subprocess(cmd)
+    # ==========================================================================
+    def __call__(self, *args, **kwargs):
+        self.log_msg.push('Type Text')
+        data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -1979,6 +1985,92 @@ class ClosePopup(Items):
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
 
+
+################################################################################
+class WindowObject(Items):
+    references = ('windowObject',)
+
+    # "windowObject": {
+    #     "xPath": "/Pane[@ClassName=\\\"#32769\\\"][@Name=\\\"Desktop\\\"]/Window[@ClassName=\\\"CalcFrame\\\"][@Name=\\\"Calculator\\\"]/Pane[@ClassName=\\\"CalcFrame\\\"]/Button[@ClassName=\\\"Button\\\"][@Name=\\\"1\\\"]",
+    #     "actionType": "Click",
+    #     "clickType": "Left",
+    #     "TextInputValue": "",
+    #     "location": "20, 12"
+    # },
+
+    # ==========================================================================
+    def __call__click(self, location):
+        self._data['mouseClick'] = {
+            'baseAreaType': 'FullScreen',
+            'clickType': self['windowObject']['clickType'],
+            'clickMotionType': 'DownAndUP',
+            'clickPoint': location,
+            'frameName': None, 'tagName': None, 'attName': None,
+            'attValue': None, 'appName': '', 'title': '',
+            'IsActivvateWindow': False, 'classPath': None}
+        mc = MouseClick(self._data, self._scenario, self.logger)
+        mc.python_executable = self.python_executable
+        return mc.run()
+
+    # ==========================================================================
+    def __call__type_text(self):
+        self._data['typeText'] = {
+            'typeTextType': 'Text',
+            'keyValue': self['windowObject']['TextInputValue'],
+            'variableName': None, 'variableCode': None,
+            'userVariableGroup': None, 'userVariableName': None,
+            'userVariableIsArray': False, 'useVirtualKeyboard': False,
+            'useSecurityCard': False, 'securityCardLeftSide': False}
+        tt = TypeText(self._data, self._scenario, self.logger)
+        tt.python_executable = self.python_executable
+        return tt.run()
+    # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self):
+        cmd = list()
+        driver = get_conf().get('/APP_DRIVER')
+        cmd.append(driver['APP_DRIVER'])
+        # xpath = self['windowObject']['xPath'].replace('\\\\', '')
+        # print(xpath)
+        # xpath = self['windowObject']['xPath'].replace('\\', '')
+        xpath = self['windowObject']['xPath'].replace('\\', '')
+        print(xpath)
+        cmd.append(xpath)
+        print(cmd)
+        return tuple(cmd)
+
+    def run(self):
+        cmd = '{} -m alabs.pam.rpa.desktop.window_object {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        return run_subprocess(cmd)
+
+    # ==========================================================================
+    def __call__(self):
+        self.log_msg.push('Window Object')
+        data = self.run()
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
+        location = data['RETURN_VALUE']['RESULT']
+        x, y = [int(n) for n in self['windowObject']['location'].split(',')]
+        location = f'{location["x"] + x}, {location["y"] + y}'
+        self.__call__click(location)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_CONTINUE,
+                                           None, data['MESSAGE'])
+
+        self.log_msg.pop()
+        return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
+                                       None, '')
 
 
 ################################################################################

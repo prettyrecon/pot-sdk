@@ -48,6 +48,9 @@ web_drv = dict()
 web_drv["CHROME_DRIVER_WINDOWS"] = str(PROGRAM_WEB_DRIVER / 'chromedriver.exe')
 web_drv["WEB_DRIVER_EXECUTOR_URL"] = ''
 
+app_drv = dict()
+app_drv["APP_DRIVER"] = str("C:\Program Files (x86)\Windows Application Driver\WinAppDriver.exe")
+
 tesseract = dict()
 TESSERACT_PATH = pathlib.WindowsPath("C:\\Program Files\\Tesseract-OCR")
 
@@ -67,6 +70,7 @@ _conf = {
         'MANAGER': manager,
         'EXTERNAL_PROG': external_program,
         'WEB_DRIVER': web_drv,
+        'APP_DRIVER': app_drv,
     }
 
 
