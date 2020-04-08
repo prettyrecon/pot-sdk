@@ -1562,12 +1562,97 @@ class Excel(Items):
 ################################################################################
 class Beep(Items):
     # Beep
+    # "beep": {
+    #     "beepSound": "Beep",
+    #     "duration": 2,
+    #     "nextActionType": "Go",
+    #     "nextActionValue": "",
+    #     "stepNum": -1
+    # }
     references = ('beep',)
+    actions = {
+        "Disuse": None,
+        "Go": "MoveOn",
+        "Resume scenario": "Resume",
+        "FinishScenario": "AbortScenarioButNoError",
+        "Error": "TreatAsError",
+        "FinishStep": "IgnoreFailure",
+        "Jump": "JumpForward",
+        "BackJump": "JumpBackward",
+        "Goto": "JumpToOperation",
+        "StepJump": "JumpToStep",
+        "Restart": "RestartFromTop"
+    }
 
+    # ==========================================================================
+    @property
+    @non_latin_characters
+    @arguments_options_fileout
+    @convert_variable
+    def arguments(self):
+        cmd = list()
+        if 'Beep' == self['beep']['beepSound']:
+            cmd.append('--beep')
+        else:
+            cmd.append('--sound')
+        cmd.append('--duration')
+        cmd.append(str(self['beep']['duration']))
+
+        return tuple(cmd)
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
-        return
+        self.log_msg.push('Beep')
+        cmd = '{} -m alabs.pam.rpa.desktop.beep {}'.format(
+            self.python_executable, ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+
+        data = run_subprocess(cmd)
+        if not data['RETURN_CODE']:
+            self.logger.error(data['MESSAGE'])
+            self.log_msg.pop()
+            return make_follow_job_request(OperationReturnCode.FAILED_ABORT,
+                                           None, data['MESSAGE'])
+
+        from alabs.pam.runner import ResultHandler
+        next_action_type = self.actions[self['beep']['nextActionType']]
+
+        status = OperationReturnCode.SUCCEED_CONTINUE
+        function = None
+        message = data['MESSAGE']
+
+        if next_action_type in ("MoveOn", "Resume"):
+            message = 'User chose the resume button.'
+        elif next_action_type == "TreatAsError":
+            status = OperationReturnCode.FAILED_ABORT
+            message = "User chose 'Treat as Error'"
+        elif next_action_type == "IgnoreFailure":
+            function = (ResultHandler.SCENARIO_FINISH_STEP.value, None)
+            message = "User chose 'IgnoreFailure' button."
+        elif next_action_type == "AbortScenarioButNoError":
+            function = (ResultHandler.SCENARIO_FINISH_SCENARIO.value, None)
+            message = "User chose 'AbortScenarioButNoError'"
+        elif next_action_type == "JumpToOperation":
+            value = self['beep']['nextActionValue']
+            function = (ResultHandler.SCENARIO_SET_ITEM.value, (value,))
+        elif next_action_type == "JumpToStep":
+            value = self['beef']['stepNum']
+            function = (ResultHandler.SCENARIO_SET_STEP.value, (value,))
+        elif next_action_type == "JumpForward":
+            value = self['beep']['nextActionValue']
+            function = (ResultHandler.SCENARIO_JUMP_FORWARD.value, (value,))
+        elif next_action_type == "JumpBackward":
+            value = self['beep']['nextActionValue']
+            function = (ResultHandler.SCENARIO_JUMP_BACKWARD.value, (value,))
+        elif next_action_type == "RestartFromTop":
+            status = OperationReturnCode.FAILED_ABORT
+            message = "The option, 'RestartFromTop' is not supported."
+        else:
+            pass
+        self.log_msg.pop()
+        return make_follow_job_request(status, function, message)
+
 
 ################################################################################
 class Navigate(Items):
