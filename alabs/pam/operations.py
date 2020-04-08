@@ -19,7 +19,6 @@ from alabs.common.util.vvlogger import StructureLogFormat, LogMessageHelper
 from alabs.pam.conf import get_conf
 from alabs.pam.definitions import OperationReturnCode
 
-
 ################################################################################
 ITEM_DIVISION_TYPE = {
     "SystemCall": "systemCallType",
@@ -55,7 +54,7 @@ def get_image_path(path):
 
 
 ################################################################################
-def separate_coord(coord:str)->tuple:
+def separate_coord(coord: str) -> tuple:
     return tuple(coord.replace(' ', '').split(','))
 
 
@@ -75,6 +74,7 @@ def arguments_options_fileout(f):
             arguments += ['--logfile', log]
             arguments += ['--loglevel', 'debug']
         return tuple(arguments)
+
     return func
 
 
@@ -85,6 +85,7 @@ def non_latin_characters(f):
     :param f:
     :return:
     """
+
     @wraps(f)
     def func(*args, **kwargs):
         cmd = f(*args, **kwargs)
@@ -93,6 +94,7 @@ def non_latin_characters(f):
         cmd = [json.dumps(x, ensure_ascii=False) if not x.startswith('--')
                else x for x in cmd]
         return tuple(cmd)
+
     return func
 
 
@@ -103,6 +105,7 @@ def convert_variable(f):
     :param f:
     :return:
     """
+
     @wraps(f)
     def func(*args, **kwargs):
         SEPERATOR = '\x1f'
@@ -111,6 +114,7 @@ def convert_variable(f):
         cmd = SEPERATOR.join(cmd)
         code, cmd = conv(cmd)
         return cmd.split(SEPERATOR)
+
     return func
 
 
@@ -119,7 +123,7 @@ def request_handler(f):
     @wraps(f)
     def func(*args, **kwargs):
         from alabs.pam.runner import ResultHandler, ResultAction
-        ref, code,  message = f(*args, **kwargs)
+        ref, code, message = f(*args, **kwargs)
 
         status = OperationReturnCode.SUCCEED_CONTINUE
         function = None
@@ -163,7 +167,9 @@ def request_handler(f):
         else:
             raise Exception("Not Supported Type {}".format(action))
         return make_follow_job_request(status, function, message)
+
     return func
+
 
 ################################################################################
 def make_follow_job_request(status, function=None, message=''):
@@ -223,7 +229,7 @@ class Items(dict):
     item_type = None
     python_executable = None
 
-    def __init__(self, data:dict, scenario, logger=None):
+    def __init__(self, data: dict, scenario, logger=None):
         dict.__init__(self)
         self.logger = logger
         self.log_msg = LogMessageHelper()
@@ -264,11 +270,12 @@ class ExecuteProcess(Items):
     #                        ' http://192.168.99.250/scenarios/LA-Scenario0010'
     #                        '/00_locateimage.html'}}
     BROWSERS = {
-        'CHROME':{
+        'CHROME': {
             'win32': 'start chrome.exe'
         }
     }
-    def browser(self, cmd:str):
+
+    def browser(self, cmd: str):
         import re
         import sys
         if sys.platform == 'win32':
@@ -280,7 +287,7 @@ class ExecuteProcess(Items):
     # ==========================================================================
     @property
     # @arguments_options_fileout
-    def arguments(self)-> tuple:
+    def arguments(self) -> tuple:
         code, data = self._variables.convert(
             self['executeProcess']['executeFilePath'])
         if code != 200:
@@ -309,13 +316,14 @@ class ExecuteProcess(Items):
 class Delay(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('delay',)
+
     # {'delay': {'delay': '4000'}}
 
     # ==========================================================================
     @property
     @arguments_options_fileout
     @convert_variable
-    def arguments(self)->tuple:
+    def arguments(self) -> tuple:
         cmd = list()
         cmd.append(self['delay']['delay'])
         return tuple(cmd)
@@ -328,7 +336,7 @@ class Delay(Items):
         msec = self['delay']['delay']
         self.logger.debug(StructureLogFormat(MSEC=msec))
         time.sleep(int(msec) * 0.001)
-        
+
         self.log_msg.pop()
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
@@ -339,6 +347,7 @@ class SearchImage(Items):
     # LocateImage
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('imageMatch', 'recordType')
+
     # {'imageMatch': {'clickType': 'Left', 'clickMotionType': 'DownAndUP',
     #                 'cropImageLocation': '330, 115, 330, 452',
     #                 'searchLocation': '0, 0, 1650, 1080',
@@ -463,12 +472,11 @@ class SearchImage(Items):
                                        None, '')
 
 
-
-
 ################################################################################
 class ImageMatch(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('imageMatch', 'verifyResultAction', 'recordType')
+
     # {'imageMatch': {'clickType': 'Left', 'clickMotionType': 'DownAndUP',
     #                 'cropImageLocation': '6, 19, 277, 43',
     #                 'searchLocation': '0, 0, 1114, 191',
@@ -570,6 +578,7 @@ class ImageMatch(Items):
 class MouseScroll(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('mouseScroll',)
+
     # 'mouseScroll': {'scrollX': '0', 'scrollY': '0', 'scrollLines': '40'}
     # ==========================================================================
     @property
@@ -602,6 +611,7 @@ class MouseScroll(Items):
 class MouseClick(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('mouseClick',)
+
     # 'mouseClick': {'baseAreaType': 'FullScreen', 'clickType': 'Left',
     #                'clickMotionType': 'DownAndUP', 'clickPoint': '147, 649',
     #                'frameName': None, 'tagName': None, 'attName': None,
@@ -663,11 +673,11 @@ class MouseClick(Items):
                                        None, '')
 
 
-
 ################################################################################
 class TypeText(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('typeText',)
+
     # 'typeText': {'typeTextType': 'Text', 'keyValue': 'ArgosLabs',
     #              'variableName': None, 'variableCode': None,
     #              'userVariableGroup': None, 'userVariableName': None,
@@ -700,7 +710,7 @@ class TypeText(Items):
         # 불필요한 리턴문자 삭제
         value = value.replace('\r\n', '\n')
         value = value.replace('\r', '\n')
-        cmd.append(json.dumps(value,  ensure_ascii=False))
+        cmd.append(json.dumps(value, ensure_ascii=False))
 
         # 파라메터로 못 넘기는 문자를 위해 피클링
         # TODO: 파일 저장하는 위치를 바꿀 필요가 있음
@@ -743,6 +753,7 @@ class TypeText(Items):
 class TypeKeys(Items):
     item_type = Items.Type.EXECUTABLE_ITEM
     references = ('keycodes',)
+
     # 'keycodes': [
     #     {'txt': '[Enter]', 'lcontrol': False, 'lalt': False, 'lshift': False,
     #      'rcontrol': False, 'ralt': False, 'rshift': False, 'lWin': False,
@@ -795,6 +806,7 @@ class TypeKeys(Items):
 ################################################################################
 class StopProcess(Items):
     references = ('stopProcess',)
+
     # "stopProcess": {"processName": "notepad"}
     # ==========================================================================
     @property
@@ -823,11 +835,13 @@ class StopProcess(Items):
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
 
+
 ################################################################################
 class ReadImageText(Items):
     # OCR
     references = ('imageMatch', 'recordType', 'navigate', 'selectWindow',
                   'recordType')
+
     # {"imageMatch": {"clickType": "Left", "clickMotionType": "DownAndUP",
     #                     "cropImageLocation": "14, 99, 250, 45",
     #                     "searchLocation": "0, 0, 1014, 279",
@@ -867,7 +881,9 @@ class ReadImageText(Items):
             raise ValueError(f'{self["imageIndex"]["orcLib"]} is not supported')
 
         # Image Path
-        image_path = pathlib.Path(get_image_path(self._scenario._scenario_filename)) / self['imageMatch']['ocrImageFileName']
+        image_path = pathlib.Path(
+            get_image_path(self._scenario._scenario_filename)) / \
+                     self['imageMatch']['ocrImageFileName']
         cmd.append(str(image_path))
 
         # Language
@@ -875,8 +891,10 @@ class ReadImageText(Items):
         cmd.append(self['imageMatch']['ocrLang'])
 
         filters_name = ['use_gaussianblur', 'gaussianblur_w', 'gaussianblur_h',
-                        'use_threshold', 'threshold_low', 'threshold_high', 'threshold_type',
-                        'edgepreserving', 'minimum', 'digit_only', 'remove_space', 'etc']
+                        'use_threshold', 'threshold_low', 'threshold_high',
+                        'threshold_type',
+                        'edgepreserving', 'minimum', 'digit_only',
+                        'remove_space', 'etc']
         filter_values = self['imageMatch']['ocrFilterOptionToString'].split(',')
         filters = dict(zip(filters_name, filter_values))
         boolean = {"True": True, "False": False}
@@ -958,7 +976,6 @@ class ReadImageText(Items):
                                        function, '')
 
 
-
 ################################################################################
 class SelectWindow(Items):
     # OCR
@@ -1012,7 +1029,6 @@ class SelectWindow(Items):
                                        None, '')
 
 
-
 ################################################################################
 class HTMLAction(Items):
     # HTML Action
@@ -1058,7 +1074,7 @@ class HTMLAction(Items):
         self.log_msg.push('HtmlAction')
         if not self._scenario.web_driver:
             msg = 'Openbrowser(Selenium) Must be running before using ' \
-                      'HtmlAction.'
+                  'HtmlAction.'
             self.logger.error(self.log_msg.format(msg))
             self.log_msg.pop()
             return make_follow_job_request(
@@ -1080,11 +1096,11 @@ class HTMLAction(Items):
                                        None, '')
 
 
-
 ################################################################################
 class BrowserScript(Items):
     # JavaScripts
     references = ('browserScript',)
+
     # {'browserScript': {'script': 'script'}}
     # ==========================================================================
     @property
@@ -1122,9 +1138,11 @@ class ReadImage(Items):
     def __call__(self, *args, **kwargs):
         return
 
+
 ################################################################################
 class Goto(Items):
     references = ('gotoAction',)
+
     # "gotoAction":{
     #   "stepDisplayName":"1","itemDisplayName":"[1] Operation 1",
     #   "stepNum":1,"itemNum":1},
@@ -1156,7 +1174,7 @@ class Repeat(Items):
     references = ('repeat',)
 
     # ==========================================================================
-    def __init__(self, data:dict, scenario, logger):
+    def __init__(self, data: dict, scenario, logger):
         Items.__init__(self, data, scenario, logger)
         self._variables.create("{{rp.index}}", self.start_index)
         self._start_item_order = self._scenario.current_item_index + 1
@@ -1174,6 +1192,7 @@ class Repeat(Items):
     @property
     def start_item_order(self):
         return self._start_item_order
+
     @start_item_order.setter
     def start_item_order(self, idx):
         self._start_item_order = idx
@@ -1431,6 +1450,7 @@ class ClearCache(Items):
 class SetVariable(Items):
     # OCR
     references = ('setVariable',)
+
     # "setVariable": {
     #     "valueFromType": "Text",
     #     "textValue": "Labs",
@@ -1471,7 +1491,6 @@ class SetVariable(Items):
                                        None, '')
 
 
-
 ################################################################################
 class Excel(Items):
     # Excel
@@ -1505,7 +1524,6 @@ class Excel(Items):
             cmd.append(json.dumps(params, ensure_ascii=False))
         return tuple(cmd)
 
-
     # ==========================================================================
     @staticmethod
     def recursive_convert(data, out=None):
@@ -1528,7 +1546,8 @@ class Excel(Items):
         return out
 
     def assemble_variable_request(self, data):
-        var_name = [x['variable']['VariableText'] for x in self['excel']['valueItems']]
+        var_name = [x['variable']['VariableText'] for x in
+                    self['excel']['valueItems']]
         values = [x for x in data for x in x]
         return list(zip(var_name, values))
 
@@ -1660,6 +1679,7 @@ class Navigate(Items):
     # 사니리오 인스턴스에 웹드라이버 인스턴스를 등록해서 사용
     # 이후 관련 오퍼레이션들은 시나리오에 웹드라이버가 등록되어 있는지 검사 후 동작
     references = ('navigate',)
+
     # "navigate": {"URL": "http://www.daum.net", "Width": 0, "Height": 0,
     #              "IsChageSize": false}
 
@@ -1669,7 +1689,7 @@ class Navigate(Items):
         code, url = self._variables.convert(self['navigate']['URL'])
         size = {'is_change_size': self['navigate']['IsChageSize'],
                 'width': self['navigate']['Width'],
-                'height': self['navigate']['Height'],}
+                'height': self['navigate']['Height'], }
         return url, size
 
     # ==========================================================================
@@ -1730,7 +1750,7 @@ class Document(Items):
         # HTML 태그 존재를 기준으로 판단
         cmd.append('//html')
         cmd.append('--timeout')
-        cmd.append(str(int(int(self['timeOut']) * 0.001 )))
+        cmd.append(str(int(int(self['timeOut']) * 0.001)))
         return tuple(cmd)
 
     # ==========================================================================
@@ -1760,7 +1780,6 @@ class Document(Items):
         status = data['RETURN_VALUE']['RESULT']
         self.log_msg.pop()
         return self['verifyResultAction'], status, data['MESSAGE'],
-
 
 
 ################################################################################
@@ -1834,11 +1853,11 @@ class TextMatch(Items):
         return self['verifyResultAction'], status, data['MESSAGE'],
 
 
-
 ################################################################################
 class CompareText(Items):
     # OCR
     references = ('compareText', 'verifyResultAction')
+
     # "compareText": {"compareTextValues": [
     #     {"relationalOperator": null, "logicalOperator": "==",
     #      "leftValue": {"GroupName": "ABC", "VariableName": "ABC",
@@ -1880,7 +1899,7 @@ class CompareText(Items):
                 result.append("-c")
                 result.append(v.upper())
             _, v = self._variables.convert(value['leftValue']['VariableText'])
-            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False) 
+            v = v if v.isdigit() else json.dumps(v, ensure_ascii=False)
             result.append(v)
             # '>', '<' 리다이렉트 문자 보호
             v = value['logicalOperator']
@@ -1982,7 +2001,6 @@ class WaitingPopup(Items):
         status = data['RETURN_VALUE']['RESULT']
         self.log_msg.pop()
         return self['verifyResultAction'], status, data['MESSAGE'],
-
 
 
 ################################################################################
@@ -2109,6 +2127,7 @@ class WindowObject(Items):
         tt = TypeText(self._data, self._scenario, self.logger)
         tt.python_executable = self.python_executable
         return tt.run()
+
     # ==========================================================================
     @property
     @non_latin_characters
@@ -2185,6 +2204,7 @@ class EndStep(Items):
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        function, '')
 
+
 ################################################################################
 class UserParams(Items):
     references = ('userInputs',)
@@ -2240,8 +2260,6 @@ class UserParams(Items):
             cmd.append('--title')
             cmd.append(json.dumps(title))
         return tuple(cmd)
-
-
 
     # ==========================================================================
     def __call__(self, *args, **kwargs):
@@ -2355,7 +2373,8 @@ class UserParams(Items):
         except Exception as e:
             status = OperationReturnCode.FAILED_CONTINUE
             message = 'The saved file has something wrong. ' \
-                      'Please, delete the file. {} : {}'.format(saved_var_file, str(e))
+                      'Please, delete the file. {} : {}'.format(saved_var_file,
+                                                                str(e))
         finally:
             return dict(STATUS=status, DATA=data, MESSAGE=message)
 
@@ -2484,7 +2503,7 @@ class PopupInteraction(Items):
 
 
 ################################################################################
-def excel_column_calculate(n:int, d:list):
+def excel_column_calculate(n: int, d: list):
     """
     Excel의 `A`, `AA` 와 같은 값을 Column 값을 쉽게 구할 수 있습니다.
     :param n: 첫 번째 Column 기준으로 1 이상의 수
@@ -2507,7 +2526,7 @@ def excel_column_calculate(n:int, d:list):
 
 
 ################################################################################
-def result_as_csv(group, data:str, header=True):
+def result_as_csv(group, data: str, header=True):
     var_form = '{{{{{}.{}}}}}'
     # 줄 단위로 분리
     # [['name', 'address', 'data'],
@@ -2543,10 +2562,10 @@ def result_as_csv(group, data:str, header=True):
 
 ################################################################################
 class Plugin(Items):
-
     references = ('pluginDumpspec', 'pluginResultType', 'pluginResultGroupName',
                   'pluginResultVariable', 'pluginResultFilePath',
                   'pluginResultHasHeader')
+
     # ==========================================================================
     @property
     def arguments(self):
@@ -2624,13 +2643,3 @@ class Plugin(Items):
         self.log_msg.pop()
         return make_follow_job_request(OperationReturnCode.SUCCEED_CONTINUE,
                                        None, '')
-
-
-
-
-
-
-
-
-
-
