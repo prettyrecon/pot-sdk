@@ -442,6 +442,14 @@ class SearchImage(Items):
         data = run_subprocess(cmd)
         return data
 
+    def run(self):
+        cmd = '{} -m alabs.pam.rpa.autogui.locate_image {}'.format(
+            self.python_executable,
+            ' '.join(self.arguments))
+        self.logger.info(self.log_msg.format('Calling...'))
+        self.logger.debug(StructureLogFormat(COMMAND=cmd))
+        return run_subprocess(cmd)
+
     # ==========================================================================
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Locate Image')
@@ -452,16 +460,9 @@ class SearchImage(Items):
                 self.log_msg.pop()
                 return make_follow_job_request(
                     OperationReturnCode.FAILED_CONTINUE, None, data['MESSAGE'])
-
             self['imageMatch']['searchLocation'] = data['RETURN_VALUE']
 
-        cmd = '{} -m alabs.pam.rpa.autogui.locate_image {}'.format(
-            self.python_executable,
-            ' '.join(self.arguments))
-        self.logger.info(self.log_msg.format('Calling...'))
-        self.logger.debug(StructureLogFormat(COMMAND=cmd))
-
-        data = run_subprocess(cmd)
+        data = self.run()
         if not data['RETURN_CODE']:
             self.logger.error(data['MESSAGE'])
             self.log_msg.pop()
@@ -779,8 +780,8 @@ class TypeKeys(Items):
             res.append(self.add_options(v))
 
         intervals = [int(x['interval']) * 0.001 for x in self['keycodes']]
-        arguments = list(zip(res, intervals))
-        return arguments
+        cmd = list(zip(res, intervals))
+        return cmd
 
     @arguments_options_fileout
     def add_options(self, arg):
@@ -883,7 +884,8 @@ class ReadImageText(Items):
         # Image Path
         image_path = pathlib.Path(
             get_image_path(self._scenario._scenario_filename)) / \
-                     self['imageMatch']['ocrImageFileName']
+                     self['imageMatch']['cropImageFileName']
+                     # self['imageMatch']['ocrImageFileName']
         cmd.append(str(image_path))
 
         # Language
@@ -926,6 +928,17 @@ class ReadImageText(Items):
         if boolean[filters['remove_space']]:
             cmd.append('--remove_space')
 
+        # Search Area
+        cmd.append('--search_area')
+        cmd += separate_coord(self['imageMatch']['searchLocation'])
+        # cmd.append(' '.join(separate_coord(self['imageMatch']['searchLocation'])))
+
+        # OCR Area
+        cmd.append('--ocr_area')
+        cmd += separate_coord(self['imageMatch']['ocrLocation'])
+        # cmd.append(' '.join(separate_coord(self['imageMatch']['ocrLocation'])))
+
+
         return tuple(cmd)
 
     # ==========================================================================
@@ -947,15 +960,33 @@ class ReadImageText(Items):
         self.log_msg.push('OCR')
 
         # 어플리케이션 검색 옵션 처리
-        if 'app' == self['recordType'].lower():
+        screen_shot_type = self['recordType'].lower()
+        if 'app' == screen_shot_type:
             data = self.__call__select_window()
-            if not data['RETURN_CODE']:
-                self.log_msg.pop()
-                return make_follow_job_request(
-                    OperationReturnCode.FAILED_CONTINUE, None,
-                    data['MESSAGE'])
+            code = data['RETURN_CODE']
+            location = data['RETURN_VALUE']
+            message = data['MESSAGE']
 
-            self['imageMatch']['searchLocation'] = data['RETURN_VALUE']
+        elif 'web' == screen_shot_type:
+            self['imageMatch']['web'] = True
+            data = self.__call__select_window()
+            code = data['RETURN_CODE']
+            location = data['RETURN_VALUE']
+            message = data['MESSAGE']
+
+        else:
+            # Full Screen
+            code = True
+            location = self['imageMatch']['searchLocation']
+            message = ''
+
+        if not code:
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE, None,
+                message)
+
+        self['imageMatch']['searchLocation'] = location
 
         data = self.run()
         if not data['RETURN_CODE']:
@@ -1005,6 +1036,8 @@ class SelectWindow(Items):
             cmd.append(str(self['selectWindow']['MoveLocationX']))
             cmd.append(str(self['selectWindow']['MoveLocationY']))
 
+        if 'web' in self['selectWindow']:
+            cmd.append('--web_window')
         return tuple(cmd)
 
     # ==========================================================================
@@ -1814,14 +1847,9 @@ class TextMatch(Items):
 
     # ==========================================================================
     def __call__select_window(self):
-        cmd = '{} -m alabs.pam.rpa.desktop.select_window {}'.format(
-            self.python_executable,
-            ' '.join(self.arguments_for_select_window))
-        self.logger.info(self.log_msg.format('Calling...'))
-        self.logger.debug(StructureLogFormat(COMMAND=cmd))
-
-        data = run_subprocess(cmd)
-        return data
+        sw = SelectWindow(self._data, self._scenario, self.logger)
+        sw.python_executable = self.python_executable
+        return sw.run()
 
     # ==========================================================================
     def __call__ocr(self):
@@ -1833,6 +1861,36 @@ class TextMatch(Items):
     @request_handler
     def __call__(self, *args, **kwargs):
         self.log_msg.push('Text Match')
+
+        # 어플리케이션 검색 옵션 처리
+        screen_shot_type = self['recordType'].lower()
+        if 'app' == screen_shot_type:
+            data = self.__call__select_window()
+            code = data['RETURN_CODE']
+            location = data['RETURN_VALUE']
+            message = data['MESSAGE']
+
+        elif 'web' == screen_shot_type:
+            self['imageMatch']['web'] = True
+            data = self.__call__select_window()
+            code = data['RETURN_CODE']
+            location = data['RETURN_VALUE']
+            message = data['MESSAGE']
+
+        else:
+            # Full Screen
+            code = True
+            location = self['imageMatch']['searchLocation']
+            message = ''
+
+        if not code:
+            self.log_msg.pop()
+            return make_follow_job_request(
+                OperationReturnCode.FAILED_CONTINUE, None,
+                message)
+
+        self['imageMatch']['searchLocation'] = location
+
         data = self.__call__ocr()
         if not data['RETURN_CODE']:
             self.log_msg.pop()

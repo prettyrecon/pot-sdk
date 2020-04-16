@@ -29,6 +29,7 @@ import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 
 ################################################################################
@@ -45,7 +46,7 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 ################################################################################
 @func_log
-def find_image_loacation(mcxt, argspec):
+def find_image_location(mcxt, argspec):
     """
     plugin job function
     :param mcxt: module context
@@ -62,6 +63,7 @@ def find_image_loacation(mcxt, argspec):
     if not location:
         value = False
 
+    location = ', '.join(map(str, list(location)))
     result = StructureLogFormat(RETURN_CODE=True,
                                 RETURN_VALUE={
                                     'RESULT': value,
@@ -104,9 +106,8 @@ def _main(*args):
                           metavar='0', help='')
         mcxt.add_argument('--similarity', type=int, metavar='50',
                           default=50, min_value=0, max_value=100, help='')
-
         argspec = mcxt.parse_args(args)
-        return find_image_loacation(mcxt, argspec)
+        return find_image_location(mcxt, argspec)
 
 ################################################################################
 def main(*args):

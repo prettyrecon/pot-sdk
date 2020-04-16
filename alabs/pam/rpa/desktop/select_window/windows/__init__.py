@@ -97,11 +97,16 @@ def select_window(mcxt, argspec):
         if argspec.size is not None:
             # 사이즈 조정
             change_window_size(handle, argspec.size[0], argspec.size[1])
-        # 포커스
-        active_window(handle)
 
-        # 윈도우의 위치 사이즈 정보를 리턴
-        result = get_window_rect(handle)
+        if not argspec.web_window:
+            # 포커스
+            active_window(handle)
+            # 윈도우의 위치 사이즈 정보를 리턴
+            result = get_window_rect(handle)
+        else:
+            handle = find_window_ex(handle, *argspec.web_window_value)
+            result = get_window_rect(handle)
+
         data = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=result,MESSAGE='')
         sys.stdout.write(str(data))
         mcxt.logger.info(result)
@@ -109,6 +114,7 @@ def select_window(mcxt, argspec):
         return data
     except Exception as e:
         import traceback
+        print(traceback.print_exc())
         with captured_output() as (out, err):
             traceback.print_exc(file=out)
             data = StructureLogFormat(RETURN_CODE=False,
@@ -118,6 +124,10 @@ def select_window(mcxt, argspec):
         return data
 
 
+################################################################################
+def find_window_ex(handle, class_name, window_title):
+    result_handle = win32gui.FindWindowEx(handle, 0,  class_name, window_title)
+    return result_handle
 
 
 ################################################################################
@@ -378,6 +388,10 @@ def _main(*args):
                           help='Set Location')
         mcxt.add_argument('-s', '--size', nargs=2, type=int,
                           help='Set Size')
+        mcxt.add_argument('--web_window', action='store_true')
+        mcxt.add_argument('--web_window_value', nargs=2,
+                          default=('Chrome_RenderWidgetHostHWND',
+                                   'Chrome Legacy Window'))
         # mcxt.add_argument('-c', '--click', nargs=2, type=int,
         #                   help='Click Point')
         argspec = mcxt.parse_args(args)

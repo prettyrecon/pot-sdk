@@ -32,13 +32,17 @@ except ImportError:
     import Image
 import pytesseract
 import cv2
+import json
 # from tesserocr import PyTessBaseAPI
 # from tesserocr import PyTessBaseAPI, RIL, iterate_level, PSM, OEM
 
-
+import traceback
 import pathlib
 from alabs.common.util.vvargs import ModuleContext
 from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.rpa.desktop.screenshot import main as screenshot
+from alabs.pam.rpa.autogui.find_image_location import main as find_img_location
+from alabs.common.util.vvtest import captured_output
 
 
 ################################################################################
@@ -151,6 +155,47 @@ def tesseract_ocr():
 
 
 ################################################################################
+def get_screen_capture(coord):
+    """
+
+    :param coord: [1, 2, 3, 4]
+    :return:
+    """
+    with captured_output() as (out, err):
+        screenshot('--coord', *map(str, coord))
+    out = out.getvalue()
+    err = err.getvalue()
+    if err:
+        raise Exception("Failed to capture the screen.")
+    out = json.loads(out)
+    return out['RETURN_VALUE']
+
+
+################################################################################
+def find_image_location(taget_filepath, coord):
+    cmd = list()
+    cmd.append(taget_filepath)
+    cmd.append('--region')
+    cmd += list(map(str, coord))
+    with captured_output() as (out, err):
+        find_img_location(*cmd)
+
+    out = out.getvalue()
+    err = err.getvalue()
+    if err:
+        raise Exception("Failed to capture the screen.")
+    out = json.loads(out)
+    return out['RETURN_VALUE']
+
+
+################################################################################
+def xywh_to_x1y1x2y2(coord):
+    x, y, w, h = coord
+    x2, y2 = map(sum, zip([x,y], [w,h]))
+    return [x, y] + [x2, y2]
+
+
+################################################################################
 def ocr(mcxt, argspec):
     """
     plugin job function
@@ -158,19 +203,52 @@ def ocr(mcxt, argspec):
     :param argspec: argument spec
     :return: True
     """
+    mcxt.logger.info('OCR Start...')
+    try:
+        mcxt.logger.info('Finding the location of the image...')
+        rst = find_image_location(argspec.image_path, argspec.search_area)
+        if not rst['RESULT']:
+            result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
+                                        MESSAGE="Failed to find the image.")
+            sys.stderr(str(result))
+            return result
+        mcxt.logger.debug(rst)
+        coord = list(map(int, rst['VALUE'].split(', ')))
 
-    image = image_preprocessing(image_path=argspec.image_path,
-                                gaussianblur=argspec.gaussianblur,
-                                threshold=argspec.threshold,
-                                edgepreserv=argspec.edgepreserv)
-    data = tesseract(tesseract_path=argspec.tesseract_path,
-                     image=image,
-                     tessdata_path=argspec.tessdata,
-                     digit_only=argspec.digit_only,
-                     remove_space=argspec.remove_space)
+        mcxt.logger.info('Calculating the relative coordination of OCR area...')
+        ocr_area = argspec.ocr_area
+        ocr_coord = list(map(sum, list(zip(coord[:2], ocr_area[:2]))))
+        ocr_coord = xywh_to_x1y1x2y2(ocr_coord + ocr_area[2:])
+        mcxt.logger.debug(StructureLogFormat(
+            FOUND_AREA=list(coord), OCR_AREA=ocr_area, RESULT=ocr_coord))
 
-    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
-    sys.stdout.write(str(result))
+        mcxt.logger.info('Capturing whole screen...')
+        image_path = get_screen_capture(ocr_coord)
+
+        mcxt.logger.info('Image Pre Processing...')
+        image = image_preprocessing(image_path=image_path,
+                                    gaussianblur=argspec.gaussianblur,
+                                    threshold=argspec.threshold,
+                                    edgepreserv=argspec.edgepreserv)
+
+        mcxt.logger.info('Doing OCR...')
+        data = tesseract(tesseract_path=argspec.tesseract_path,
+                         image=image,
+                         tessdata_path=argspec.tessdata,
+                         digit_only=argspec.digit_only,
+                         remove_space=argspec.remove_space)
+
+        result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
+        sys.stdout.write(str(result))
+
+    except Exception as e:
+        with captured_output() as (out, err):
+            traceback.print_exc(file=out)
+            result = StructureLogFormat(RETURN_CODE=False,
+                                      MESSAGE='OCR Processing Error.')
+            mcxt.logger.error(out.getvalue())
+            sys.stderr.write(str(result))
+
     return result
 
 
@@ -215,6 +293,8 @@ def _main(*args):
         mcxt.add_argument('--edgepreserv', action='store_true')
         mcxt.add_argument('--minimum', type=int, default=0)
         mcxt.add_argument('--remove_space', action='store_true')
+        mcxt.add_argument('--search_area', nargs=4, type=int, default=None)
+        mcxt.add_argument('--ocr_area', nargs=4, type=int, default=None)
         argspec = mcxt.parse_args(args)
         return ocr(mcxt, argspec)
 

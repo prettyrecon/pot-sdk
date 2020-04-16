@@ -25,7 +25,11 @@ Change Log
 
 ################################################################################
 import io
+import sys
+import pathlib
+import tempfile
 import pyscreenshot as ImageGrab
+from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 
@@ -54,14 +58,22 @@ def screenshot(mcxt, argspec):
 
     mcxt.logger.info('>>>starting...')
 
-    img = ImageGrab.grab(bbox=argspec.coord)
+    img = ImageGrab.grab(argspec.coord)
     buffer = io.BytesIO()
 
     img.save(buffer, 'PNG')
-    if argspec.path:
-        img.save(argspec.path, 'PNG')
-    buffer.seek(0)
+    if not argspec.path:
+        tempdir = pathlib.Path(tempfile.gettempdir())
+        temppng = tempdir / pathlib.Path('temp.png')
+        file_path = str(temppng)
+    else:
+        file_path = argspec.path
+    img.save(file_path, 'PNG')
 
+    buffer.seek(0)
+    result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=file_path,
+                                MESSAGE="")
+    sys.stdout.write(str(result))
     mcxt.logger.info('>>>end...')
     return buffer
 

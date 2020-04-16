@@ -57,10 +57,7 @@ def main(*args):
         from alabs.pam.rpa.desktop.screenshot.macos import main as _main
         args = ['--path', '/tmp/tmp.png']
     elif _platform == 'Windows':
-        from alabs.pam.rpa.desktop.screenshot.linux import main as _main
-        tempdir = pathlib.Path(tempfile.gettempdir())
-        temppng = tempdir / pathlib.Path('temp.png')
-        args = ['--path', str(temppng)]
+        from alabs.pam.rpa.desktop.screenshot.windows import main as _main
     elif _platform == Platforms.IOS.value:
         from alabs.pam.rpa.desktop.screenshot.ios import main as _main
         url = os.environ.get("ARGOS_RPA_WDA_URL", "http://localhost")
