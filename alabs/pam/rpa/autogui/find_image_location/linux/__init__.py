@@ -56,6 +56,7 @@ def find_image_location(mcxt, argspec):
     mcxt.logger.info('FindImage start ...')
     location = pyautogui.locateOnScreen(
         argspec.filename,
+        minSearchTime=argspec.timeout,
         region=argspec.region,
         confidence=argspec.similarity * 0.01)
 
@@ -106,6 +107,7 @@ def _main(*args):
                           metavar='0', help='')
         mcxt.add_argument('--similarity', type=int, metavar='50',
                           default=50, min_value=0, max_value=100, help='')
+        mcxt.add_argument('--timeout', type=int, default=5)
         argspec = mcxt.parse_args(args)
         return find_image_location(mcxt, argspec)
 

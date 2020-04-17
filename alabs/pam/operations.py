@@ -518,6 +518,10 @@ class ImageMatch(Items):
         cmd.append('--similarity')
         cmd.append(self['imageMatch']['similarity'])
 
+        # timeout
+        cmd.append('--timeout')
+        cmd.append(str(self['verifyResultAction']['successActionRepeatCount']))
+
         return tuple(cmd)
 
     # ==========================================================================
