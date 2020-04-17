@@ -210,7 +210,7 @@ def ocr(mcxt, argspec):
         if not rst['RESULT']:
             result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                         MESSAGE="Failed to find the image.")
-            sys.stderr(str(result))
+            sys.stderr.write(str(result))
             return result
         mcxt.logger.debug(rst)
         coord = list(map(int, rst['VALUE'].split(', ')))

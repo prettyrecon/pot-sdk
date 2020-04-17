@@ -59,6 +59,7 @@ def locate_image(mcxt, argspec):
     try:
         location = pyautogui.locateOnScreen(
             argspec.filename,
+            region=argspec.region,
             confidence=argspec.similarity * 0.01)
     except Exception as e:
         result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,

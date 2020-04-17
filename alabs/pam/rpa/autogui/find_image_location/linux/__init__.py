@@ -60,16 +60,18 @@ def find_image_location(mcxt, argspec):
         region=argspec.region,
         confidence=argspec.similarity * 0.01)
 
-    value = True
-    if not location:
-        value = False
+    value = False
+    message = 'Failed to find location.'
+    if location:
+        value = True
+        location = ', '.join(map(str, list(location)))
+        message = ''
 
-    location = ', '.join(map(str, list(location)))
     result = StructureLogFormat(RETURN_CODE=True,
                                 RETURN_VALUE={
                                     'RESULT': value,
                                     'VALUE': str(location)},
-                                MESSAGE='Failed to find location.')
+                                MESSAGE=message)
 
     sys.stdout.write(str(result))
     mcxt.logger.info('FindImage end ...')
