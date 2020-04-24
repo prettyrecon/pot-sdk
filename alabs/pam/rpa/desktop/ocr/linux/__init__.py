@@ -40,9 +40,15 @@ import traceback
 import pathlib
 from alabs.common.util.vvargs import ModuleContext
 from alabs.common.util.vvlogger import StructureLogFormat
-from alabs.pam.rpa.desktop.screenshot import main as screenshot
-from alabs.pam.rpa.autogui.find_image_location import main as find_img_location
+from alabs.pam.rpa.autogui.find_image_location import main \
+    as find_image_location
 from alabs.common.util.vvtest import captured_output
+from alabs.pam.utils.graphics import xywh_to_x1y1x2y2
+from pam.utils.process import run_operation
+from alabs.pam.rpa.desktop.screenshot import main as screenshot
+
+from alabs.pam.utils.graphics import draw_box_with_title
+
 
 
 ################################################################################
@@ -155,44 +161,24 @@ def tesseract_ocr():
 
 
 ################################################################################
-def get_screen_capture(coord):
+def _find_image_location(filename, region, similarity, order_number):
     """
 
-    :param coord: [1, 2, 3, 4]
+    :param
     :return:
     """
     with captured_output() as (out, err):
-        screenshot('--coord', *map(str, coord))
+        find_image_location(
+            filename,
+            "--region", *map(int, region),
+            "--similarity", similarity,
+            "--order_number", order_number)
     out = out.getvalue()
     err = err.getvalue()
     if err:
         raise Exception("Failed to capture the screen.")
     out = json.loads(out)
     return out['RETURN_VALUE']
-
-
-################################################################################
-def find_image_location(taget_filepath, coord):
-    cmd = list()
-    cmd.append(taget_filepath)
-    cmd.append('--region')
-    cmd += list(map(str, coord))
-    with captured_output() as (out, err):
-        find_img_location(*cmd)
-
-    out = out.getvalue()
-    err = err.getvalue()
-    if err:
-        raise Exception("Failed to capture the screen.")
-    out = json.loads(out)
-    return out['RETURN_VALUE']
-
-
-################################################################################
-def xywh_to_x1y1x2y2(coord):
-    x, y, w, h = coord
-    x2, y2 = map(sum, zip([x,y], [w,h]))
-    return [x, y] + [x2, y2]
 
 
 ################################################################################
@@ -206,7 +192,10 @@ def ocr(mcxt, argspec):
     mcxt.logger.info('OCR Start...')
     try:
         mcxt.logger.info('Finding the location of the image...')
-        rst = find_image_location(argspec.image_path, argspec.search_area)
+        rst = _find_image_location(
+            argspec.image_path, argspec.search_area, argspec.similarity,
+            argspec.order_number)
+
         if not rst['RESULT']:
             result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                         MESSAGE="Failed to find the image.")
@@ -223,10 +212,18 @@ def ocr(mcxt, argspec):
             FOUND_AREA=list(coord), OCR_AREA=ocr_area, RESULT=ocr_coord))
 
         mcxt.logger.info('Capturing whole screen...')
-        image_path = get_screen_capture(ocr_coord)
+
+        # 현재화면 스크린 샷
+        op = screenshot
+        args = ('--path', 'temp.png')
+        rst = run_operation(op, args)
+        if not rst['RETURN_CODE']:
+            sys.stderr.write(str(rst))
+            return rst
+        source_image = rst['RETURN_VALUE']
 
         mcxt.logger.info('Image Pre Processing...')
-        image = image_preprocessing(image_path=image_path,
+        image = image_preprocessing(image_path=source_image,
                                     gaussianblur=argspec.gaussianblur,
                                     threshold=argspec.threshold,
                                     edgepreserv=argspec.edgepreserv)
@@ -237,6 +234,7 @@ def ocr(mcxt, argspec):
                          tessdata_path=argspec.tessdata,
                          digit_only=argspec.digit_only,
                          remove_space=argspec.remove_space)
+        draw_box_with_title('temp.png', 'OCR', ocr_coord)
 
         result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
         sys.stdout.write(str(result))
@@ -295,6 +293,10 @@ def _main(*args):
         mcxt.add_argument('--remove_space', action='store_true')
         mcxt.add_argument('--search_area', nargs=4, type=int, default=None)
         mcxt.add_argument('--ocr_area', nargs=4, type=int, default=None)
+        mcxt.add_argument('--order_number', type=int, default=0,
+                          help="chosen_number")
+        mcxt.add_argument('--similarity', type=int, metavar='50',
+                          default=50, min_value=0, max_value=100, help='')
         argspec = mcxt.parse_args(args)
         return ocr(mcxt, argspec)
 

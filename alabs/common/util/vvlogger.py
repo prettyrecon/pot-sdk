@@ -47,14 +47,15 @@ __license__ = "MIT"
 
 
 ################################################################################
-class StructureLogFormat:
+class StructureLogFormat(dict):
     def __init__(self, **kwargs):
-        self._data = json.dumps(kwargs)
+        dict.__init__(self, **kwargs)
+        # self._data = json.dumps(kwargs)
 
     # ==========================================================================
     def __repr__(self):
-        return self._data
-
+        return json.dumps(self)
+        # return self._data
 
 ################################################################################
 class LogMessageHelper(object):

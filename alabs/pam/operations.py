@@ -383,9 +383,9 @@ class SearchImage(Items):
         cmd.append(rt)
 
         # region
-        # cmd.append('--region')
-        # region = separate_coord(self['imageMatch']['searchLocation'])
-        # cmd += (x if int(x) > 0 else str(0) for x in region)
+        cmd.append('--region')
+        region = separate_coord(self['imageMatch']['searchLocation'])
+        cmd += (x if int(x) > 0 else str(0) for x in region)
 
         # coordinates
         cmd.append('--coordinates')
@@ -394,6 +394,10 @@ class SearchImage(Items):
         # similarity
         cmd.append('--similarity')
         cmd.append(self['imageMatch']['similarity'])
+
+        # Image Index
+        cmd.append('--order_number')
+        cmd.append(str(self['imageMatch']['imageIndex']))
 
         # button
         b = self['imageMatch']['clickType']
@@ -942,6 +946,13 @@ class ReadImageText(Items):
         cmd += separate_coord(self['imageMatch']['ocrLocation'])
         # cmd.append(' '.join(separate_coord(self['imageMatch']['ocrLocation'])))
 
+        # Image Index
+        cmd.append('--order_number')
+        cmd.append(str(self['imageMatch']['imageIndex']))
+
+        # similarity
+        cmd.append('--similarity')
+        cmd.append(self['imageMatch']['similarity'])
 
         return tuple(cmd)
 

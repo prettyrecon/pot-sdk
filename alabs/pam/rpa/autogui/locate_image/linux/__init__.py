@@ -26,10 +26,15 @@ Change Log
 ################################################################################
 import sys
 import pyautogui
+import json
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from alabs.pam.rpa.autogui.click import ClickMotionType, ClickType, to_int
 from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.rpa.autogui.find_image_location import main as \
+    find_image_location
+from alabs.common.util.vvtest import captured_output
+
 
 ################################################################################
 # Version
@@ -42,6 +47,28 @@ GROUP = 'Pam'
 PLATFORM = ['windows', 'darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
+
+
+
+################################################################################
+def _find_image_location(filename, region, similarity, order_number):
+    """
+
+    :param coord: [1, 2, 3, 4]
+    :return:
+    """
+    with captured_output() as (out, err):
+        find_image_location(
+            filename,
+            "--region", *map(int, region),
+            "--similarity", similarity,
+            "--order_number", order_number)
+    out = out.getvalue()
+    err = err.getvalue()
+    if err:
+        raise Exception("Failed to capture the screen.")
+    out = json.loads(out)
+    return out['RETURN_VALUE']
 
 ################################################################################
 @func_log
@@ -57,24 +84,26 @@ def locate_image(mcxt, argspec):
     # 이미지 좌표 구하기
     # Confidence 기본 값은 0.999
     try:
-        location = pyautogui.locateOnScreen(
-            argspec.filename,
-            region=argspec.region,
-            confidence=argspec.similarity * 0.01)
+        location = _find_image_location(
+            argspec.filename, argspec.region, argspec.similarity,
+            argspec.order_number)
+
     except Exception as e:
         result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                     MESSAGE=str(e))
         mcxt.logger.error(result)
         sys.stderr.write(str(result))
         return
-
+    mcxt.logger.info("Found the location...")
+    location = location['VALUE']
+    mcxt.logger.debug(StructureLogFormat(LOCATION=str(location)))
     if not location:
         result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                     MESSAGE='Failed to find location.')
         mcxt.logger.error(result)
         sys.stderr.write(str(result))
         exit(-1)
-    x, y, *_ = location
+    x, y, *_ = map(int, location.split(','))
     mcxt.logger.debug(StructureLogFormat(LOCATION_X=str(x), LOCATION_Y=str(y)))
 
     # 버튼
@@ -139,6 +168,8 @@ def _main(*args):
                           default=50, min_value=0, max_value=100, help='')
         mcxt.add_argument('--coordinates', type=int, nargs=2, default=[0, 0],
                           metavar='0', help='')
+        mcxt.add_argument('--order_number', type=int, default=0,
+                          help="chosen_number")
         mcxt.add_argument('--motion',
                           default=ClickMotionType.CLICK.name,
                           choices=[

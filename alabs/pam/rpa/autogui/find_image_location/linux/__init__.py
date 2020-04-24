@@ -25,10 +25,12 @@ Change Log
 
 ################################################################################
 import sys
-import pyautogui
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
 from alabs.common.util.vvlogger import StructureLogFormat
+from alabs.pam.rpa.autogui.find_image_location import find_all
+
+from pam.utils.process import run_operation
 from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 
@@ -54,15 +56,35 @@ def find_image_location(mcxt, argspec):
     :return: x, y
     """
     mcxt.logger.info('FindImage start ...')
-    location = pyautogui.locateOnScreen(
-        argspec.filename,
-        minSearchTime=argspec.timeout,
-        region=argspec.region,
-        confidence=argspec.similarity * 0.01)
+
+    # 현재화면 스크린 샷
+    op = screenshot
+    args = ('--path', 'temp.png')
+    rst = run_operation(op, args)
+    if not rst['RETURN_CODE']:
+        sys.stderr.write(str(rst))
+        return rst
+    source_image = rst['RETURN_VALUE']
+
+    # 같은 이미지 리스트
+    order_number = argspec.order_number
+    limit = 1000
+    if order_number == 0:
+        limit = 1
+    locations = find_all(argspec.filename, source_image,
+                         argspec.save_file,
+                         argspec.region,
+                         argspec.similarity * 0.01,
+                         limit=limit)
 
     value = False
+    location = None
     message = 'Failed to find location.'
-    if location:
+    if locations:
+        if order_number == 0:
+            location = locations[0]
+        else:
+            location = locations[order_number - 1]
         value = True
         location = ', '.join(map(str, list(location)))
         message = ''
@@ -70,7 +92,7 @@ def find_image_location(mcxt, argspec):
     result = StructureLogFormat(RETURN_CODE=True,
                                 RETURN_VALUE={
                                     'RESULT': value,
-                                    'VALUE': str(location)},
+                                    'VALUE': location},
                                 MESSAGE=message)
 
     sys.stdout.write(str(result))
@@ -110,6 +132,10 @@ def _main(*args):
         mcxt.add_argument('--similarity', type=int, metavar='50',
                           default=50, min_value=0, max_value=100, help='')
         mcxt.add_argument('--timeout', type=int, default=5)
+        mcxt.add_argument('--order_number', type=int, default=0,
+                          help="chosen_number")
+        mcxt.add_argument('--save_file', type=str, default=None,
+                          help="Path that result will be stored.")
         argspec = mcxt.parse_args(args)
         return find_image_location(mcxt, argspec)
 
