@@ -41,6 +41,13 @@ PLATFORM = ['darwin', 'linux']
 OUTPUT_TYPE = 'json'
 DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
+
+################################################################################
+class OcrEngine(enum.Enum):
+    GOOGLE_VISION = 'GoogleVisionAPI'
+    TESSERACT = 'Tesseract'
+
+
 ################################################################################
 def main(*args):
     _platform = os.environ.get('ARGOS_RPA_PAM_PLATFORM', platform.system())

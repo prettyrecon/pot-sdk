@@ -30,7 +30,7 @@ from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
 from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.pam.rpa.autogui.find_image_location import find_all
 
-from pam.utils.process import run_operation
+from alabs.pam.utils.process import run_operation
 from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 

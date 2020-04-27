@@ -882,10 +882,21 @@ class ReadImageText(Items):
     @arguments_options_fileout
     @convert_variable
     def arguments(self) -> tuple:
+        from alabs.pam.rpa.desktop.ocr import OcrEngine
         cmd = list()
+        engine = {
+            "GoogleVisionAPI": OcrEngine.GOOGLE_VISION.value,
+            "Tesseract": OcrEngine.TESSERACT.value}
+        cmd.append(engine[self['imageMatch']['ocrLib']])
+
         # Tesseract Path
         if "Tesseract" == self['imageMatch']['ocrLib']:
+            cmd.append('--tesseract_path')
             cmd.append(get_conf().get('/EXTERNAL_PROG/TESSERACT_EXECUTABLE'))
+        elif "GoogleVisionAPI" == self['imageMatch']['ocrLib']:
+            cmd.append('--credential_file')
+            crendtial = str(pathlib.Path.home() / 'credential.json')
+            cmd.append(crendtial)
         else:
             raise ValueError(f'{self["imageIndex"]["orcLib"]} is not supported')
 

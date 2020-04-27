@@ -1,6 +1,6 @@
 import json
 
-from common.util.vvtest import captured_output
+from alabs.common.util.vvtest import captured_output
 
 
 def run_operation(*args, **kwargs):

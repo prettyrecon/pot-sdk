@@ -25,6 +25,7 @@ Change Log
 
 ################################################################################
 import sys
+import os
 
 try:
     from PIL import Image
@@ -33,18 +34,22 @@ except ImportError:
 import pytesseract
 import cv2
 import json
+import enum
 # from tesserocr import PyTessBaseAPI
 # from tesserocr import PyTessBaseAPI, RIL, iterate_level, PSM, OEM
 
+
 import traceback
 import pathlib
+
+from alabs.pam.rpa.desktop.ocr import OcrEngine
 from alabs.common.util.vvargs import ModuleContext
 from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.pam.rpa.autogui.find_image_location import main \
     as find_image_location
 from alabs.common.util.vvtest import captured_output
 from alabs.pam.utils.graphics import xywh_to_x1y1x2y2
-from pam.utils.process import run_operation
+from alabs.pam.utils.process import run_operation
 from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 from alabs.pam.utils.graphics import draw_box_with_title
@@ -66,6 +71,37 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 SELECTED_BUTTON_VALUE = None
 
 
+def google_detect_text(image, credential):
+    """Detects text in the file."""
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credential
+    from google.cloud import vision
+    import io
+    client = vision.ImageAnnotatorClient()
+
+    # with io.open(image, 'rb') as image_file:
+    # with open(image, 'rb') as image_file:
+    #     content = image_file.read()
+    # image = cv2.imread(image)
+    success, encoded_image = cv2.imencode('.png', image)
+    content = encoded_image.tobytes()
+
+    image = vision.types.Image(content=content)
+
+    response = client.text_detection(image=image)
+    texts = response.text_annotations
+    if response.error.message:
+        raise Exception(
+            '{}\nFor more info on error messages, check: '
+            'https://cloud.google.com/apis/design/errors'.format(
+                response.error.message))
+
+    return texts[0].description
+
+
+
+
+
+################################################################################
 def image_preprocessing(image_path, gaussianblur=None, threshold=None,
                         edgepreserv=None):
     # 이미지 처리
@@ -121,6 +157,7 @@ def tesseract(tesseract_path, image, tessdata_path=None,  digit_only=False,
     return data
 
 
+################################################################################
 def tesseract_ocr():
     result = list()
     # with PyTessBaseAPI() as api:
@@ -215,7 +252,7 @@ def ocr(mcxt, argspec):
 
         # 현재화면 스크린 샷
         op = screenshot
-        args = ('--path', 'temp.png')
+        args = ('--path', 'temp.png', '--coord', *ocr_coord)
         rst = run_operation(op, args)
         if not rst['RETURN_CODE']:
             sys.stderr.write(str(rst))
@@ -229,11 +266,17 @@ def ocr(mcxt, argspec):
                                     edgepreserv=argspec.edgepreserv)
 
         mcxt.logger.info('Doing OCR...')
-        data = tesseract(tesseract_path=argspec.tesseract_path,
-                         image=image,
-                         tessdata_path=argspec.tessdata,
-                         digit_only=argspec.digit_only,
-                         remove_space=argspec.remove_space)
+        if OcrEngine.TESSERACT.value == argspec.engine:
+            data = tesseract(tesseract_path=argspec.tesseract_path,
+                             image=image,
+                             tessdata_path=argspec.tessdata,
+                             digit_only=argspec.digit_only,
+                             remove_space=argspec.remove_space)
+        elif OcrEngine.GOOGLE_VISION.value == argspec.engine:
+            data = google_detect_text(image, argspec.credential_file)
+        else:
+            raise ValueError(f'{argspec.engine} is not a supported OCR engine.')
+
         draw_box_with_title('temp.png', 'OCR', ocr_coord)
 
         result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
@@ -276,11 +319,16 @@ def _main(*args):
         description=DESCRIPTION,
     ) as mcxt:
         ########################################################################
-
-        mcxt.add_argument('tesseract_path', type=str,
-                          help='The location of Tesseract')
+        mcxt.add_argument('engine', type=str,
+                          choices=[OcrEngine.GOOGLE_VISION.value,
+                                   OcrEngine.TESSERACT.value],
+                          help='OCR Engine')
         mcxt.add_argument('image_path', type=str,
                           help='The target image file for OCR')
+        mcxt.add_argument('--credential_file', type=str)
+        mcxt.add_argument('--tesseract_path', type=str,
+                          help='The location of Tesseract')
+
         mcxt.add_argument('--lang', type=str, default='eng')
         mcxt.add_argument('--digit_only', action='store_true')
         mcxt.add_argument('--gaussianblur', nargs=2, type=int)
