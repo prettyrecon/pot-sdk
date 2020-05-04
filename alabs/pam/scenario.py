@@ -47,6 +47,14 @@ class Scenario(dict):
         self.web_driver = None
 
     # ==========================================================================
+    def close_web_driver(self):
+        if self.web_driver:
+            self.web_driver.quit()
+            time.sleep(1)
+            # self.web_driver.stop_client()
+            # self.web_driver.close()
+            del self.web_driver
+
     @property
     def name(self):
         return self.setdefault('name', '')

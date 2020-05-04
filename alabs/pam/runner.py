@@ -524,6 +524,7 @@ class Runner(mp.Process):
                 traceback.print_exc(file=out)
             self.logger.error(self.log_prefix.format(out.getvalue()))
         finally:
+            self._scenario.close_web_driver()
             with open(result_file, 'w') as f:
                 import json
                 f.write(json.dumps(result_list))

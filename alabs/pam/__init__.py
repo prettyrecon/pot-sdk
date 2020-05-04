@@ -145,8 +145,12 @@ def _main(*args):
     if not os.environ.setdefault('PAM_CONF', ''):
         path = pathlib.Path.home() / '.argos-rpa-pam.conf'
         os.environ['PAM_CONF'] = str(path)
-    conf = get_conf()
-    # logger = get_logger(conf.get('/PATH/PAM_LOG'))
+    configure = get_conf()
+
+    # logger = get_logger(configure.get('/PATH/PAM_LOG'))
+    # logger.info("="*80)
+
+    log_path = configure.get('/PATH/PAM_LOG')
     # logger.info("="*80)
 
     with ModuleContext(
@@ -161,14 +165,17 @@ def _main(*args):
     ) as mcxt:
 
         mcxt.add_argument('-a', '--host', type=str,
-                            default=conf.get('MANAGER/IP'), help='')
+                            default=configure.get('MANAGER/IP'), help='')
         mcxt.add_argument('-p', '--port', type=int,
-                            default=conf.get('MANAGER/PORT'), help='')
+                            default=configure.get('MANAGER/PORT'), help='')
 
         mcxt.add_argument('-f', '--filepath', type=str, default='',
                            help='JSON or BOT type of the scenario file')
 
-        argspec = mcxt.parse_args()
+
+        args = list(sys.argv[1:])
+        args += ['--logfile', log_path]
+        argspec = mcxt.parse_args(args)
 
         mcxt.logger.info("Arguments Parsing...")
         mcxt.logger.debug(StructureLogFormat(ARGUMENTS=str(argspec)))
