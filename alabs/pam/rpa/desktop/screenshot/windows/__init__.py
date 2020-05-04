@@ -29,6 +29,7 @@ import sys
 import pathlib
 import tempfile
 import pyscreenshot as ImageGrab
+from alabs.pam.utils.process import get_temp_filepath
 from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
     ArgsError, ArgsExit
@@ -56,16 +57,14 @@ def screenshot(mcxt, argspec):
     :return: True
     """
 
-    mcxt.logger.info('>>>starting...')
+    mcxt.logger.info('>>> Screens shot start...')
 
     img = ImageGrab.grab(argspec.coord)
     buffer = io.BytesIO()
 
     img.save(buffer, 'PNG')
     if not argspec.path:
-        tempdir = pathlib.Path(tempfile.gettempdir())
-        temppng = tempdir / pathlib.Path('temp.png')
-        file_path = str(temppng)
+        file_path = argspec.processing_image_path
     else:
         file_path = argspec.path
     img.save(file_path, 'PNG')
@@ -74,7 +73,8 @@ def screenshot(mcxt, argspec):
     result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=file_path,
                                 MESSAGE="")
     sys.stdout.write(str(result))
-    mcxt.logger.info('>>>end...')
+    mcxt.logger.info(str(result))
+    mcxt.logger.info('>>> Screens shot end...')
     return buffer
 
 ################################################################################
@@ -107,7 +107,8 @@ def _main(*args):
                           help='screenshot path')
         mcxt.add_argument('--coord', nargs=4, type=int, default=None,
                           help='x1 y1 x2 y2')
-
+        mcxt.add_argument('--processing_image_path', type=str,
+                          default='processing_image.png')
         argspec = mcxt.parse_args(args)
         return screenshot(mcxt, argspec)
 

@@ -33,6 +33,8 @@ class Scenario(dict):
         self._current_step_number = 0
         self._current_item_number = 0
 
+        self._current_item = None
+
         # Repeat
         self._repeat_stack = list()
 
@@ -211,6 +213,7 @@ class Scenario(dict):
             class_name = 'Plugin'
         _class = globals()[class_name]
         item = _class(data, self, logger=self.logger)
+        self._current_item = item
         return item
 
     # ==========================================================================
@@ -250,9 +253,10 @@ class Scenario(dict):
 
         # data = self.items[self._current_item_number]
         # class_name = data[ITEM_DIVISION_TYPE[data['itemDivisionType']]]
+        item = self._current_item['itemName']
         info['operator'] = {
             'order': self.current_item_index,
-            'name': self.item['itemName']}
+            'name': item}
         return info
 
     # ==========================================================================

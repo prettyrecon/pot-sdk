@@ -46,19 +46,20 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 
 ################################################################################
-def find_all(target, image, save_filename=None, region=None, confidence=0.50,
+def find_all(target, image, region=None, confidence=0.50,
              limit=1000, logger=None):
-
+    logger.info("Finding locations...")
     locations = pyautogui.locateAll(target, image,
                                     region=region,
                                     confidence=confidence, limit=limit)
-
+    logger.info("Finding locations... Done")
     x1, y1, x2, y2 = xywh_to_x1y1x2y2(region)
     draw_box_with_title(image, "Search Area", (x1, y1, x2, y2),
                         b_rgb=RGB.CHARTREUSE1.value,
                         box_thickness=2)
 
     if not locations:
+        logger.warning("Failed to find the images")
         raise ValueError("Failed to find the images")
 
     # 좌표 x의 값이 0과 가까운 순서대로 먼저 정렬
@@ -69,8 +70,7 @@ def find_all(target, image, save_filename=None, region=None, confidence=0.50,
         x1, y1, x2, y2 = xywh_to_x1y1x2y2(l)
         # 선택된
         draw_box_with_title(image, f'{i}', (x1, y1, x2, y2))
-
-
+    logger.info(f'Found location: {locations}')
     return locations
 
 

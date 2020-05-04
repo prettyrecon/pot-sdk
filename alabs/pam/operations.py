@@ -259,6 +259,25 @@ class Items(dict):
     def data(self):
         return self
 
+    @property
+    def current_step_order_number(self):
+        """
+
+        :return: STEP-02-OP-01
+        """
+        scn_info = self._scenario._get_current_info()
+        step = scn_info['step']['order']
+        order = scn_info['operator']['order']
+        return f'STEP-{step:02}-OP-{order:02}'
+
+    @property
+    def result_image_path(self):
+        d = pathlib.Path(get_conf().get('/PATH/CURRENT_PAM_LOG_DIR'))
+        pre = pathlib.Path(self.current_step_order_number)
+        name = 'result_image.png'
+        image_path = str(d / f'{str(pre)}_{name}')
+        return image_path
+
 
 ################################################################################
 class ExecuteProcess(Items):
@@ -525,6 +544,10 @@ class ImageMatch(Items):
         # timeout
         cmd.append('--timeout')
         cmd.append(str(self['verifyResultAction']['successActionRepeatCount']))
+
+        # processing_image_file
+        cmd.append('--processing_image_path')
+        cmd.append(self.result_image_path)
 
         return tuple(cmd)
 
@@ -965,6 +988,9 @@ class ReadImageText(Items):
         cmd.append('--similarity')
         cmd.append(self['imageMatch']['similarity'])
 
+        # processing_image_file
+        cmd.append('--processing_image_path')
+        cmd.append(self.result_image_path)
         return tuple(cmd)
 
     # ==========================================================================
@@ -1781,7 +1807,6 @@ class Navigate(Items):
 
         with captured_output() as (out, err):
             wdrv = webdriver.Chrome(**options)
-
         if err.getvalue():
             self.logger.error(self.log_msg.format(err.getvalue()))
         self.logger.info(self.log_msg.format(out.getvalue()))
@@ -2221,15 +2246,11 @@ class WindowObject(Items):
         cmd = list()
         driver = get_conf().get('/APP_DRIVER')
         cmd.append(driver['APP_DRIVER'])
-        # xpath = self['windowObject']['xPath'].replace('\\\\', '')
-        # print(xpath)
-        # xpath = self['windowObject']['xPath'].replace('\\', '')
         xpath = self['windowObject']['xPath'].replace('\\', '')
-        print(xpath)
         cmd.append(xpath)
-        print(cmd)
         return tuple(cmd)
 
+    # ==========================================================================
     def run(self):
         cmd = '{} -m alabs.pam.rpa.desktop.window_object {}'.format(
             self.python_executable, ' '.join(self.arguments))

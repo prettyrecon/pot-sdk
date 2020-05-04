@@ -30,7 +30,7 @@ from alabs.common.util.vvargs import ModuleContext, func_log, str2bool, \
 from alabs.common.util.vvlogger import StructureLogFormat
 from alabs.pam.rpa.autogui.find_image_location import find_all
 
-from alabs.pam.utils.process import run_operation
+from alabs.pam.utils.process import run_operation, get_temp_filepath
 from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 
@@ -59,24 +59,30 @@ def find_image_location(mcxt, argspec):
 
     # 현재화면 스크린 샷
     op = screenshot
-    args = ('--path', 'temp.png')
+    temp_filepath = argspec.processing_image_path
+
+    args = ('--path', temp_filepath,
+            '--logfile', mcxt._args.logfile + '_screen.log')
     rst = run_operation(op, args)
     if not rst['RETURN_CODE']:
+        mcxt.logger.error(str(rst))
         sys.stderr.write(str(rst))
         return rst
     source_image = rst['RETURN_VALUE']
+    mcxt.logger.info('Finding the image... Start1')
 
     # 같은 이미지 리스트
     order_number = argspec.order_number
     limit = 1000
     if order_number == 0:
         limit = 1
+    mcxt.logger.info('Finding the image... Start')
     locations = find_all(argspec.filename, source_image,
-                         argspec.save_file,
                          argspec.region,
                          argspec.similarity * 0.01,
-                         limit=limit)
-
+                         limit=limit,
+                         logger=mcxt.logger)
+    mcxt.logger.info('Finding the image... Done')
     value = False
     location = None
     message = 'Failed to find location.'
@@ -134,8 +140,8 @@ def _main(*args):
         mcxt.add_argument('--timeout', type=int, default=5)
         mcxt.add_argument('--order_number', type=int, default=0,
                           help="chosen_number")
-        mcxt.add_argument('--save_file', type=str, default=None,
-                          help="Path that result will be stored.")
+        mcxt.add_argument('--processing_image_path', type=str,
+                          default='processing_image.png')
         argspec = mcxt.parse_args(args)
         return find_image_location(mcxt, argspec)
 

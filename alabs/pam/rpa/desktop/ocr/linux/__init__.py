@@ -53,6 +53,7 @@ from alabs.pam.utils.process import run_operation
 from alabs.pam.rpa.desktop.screenshot import main as screenshot
 
 from alabs.pam.utils.graphics import draw_box_with_title
+from alabs.pam.utils.process import get_temp_filepath
 
 
 
@@ -229,17 +230,25 @@ def ocr(mcxt, argspec):
     mcxt.logger.info('OCR Start...')
     try:
         mcxt.logger.info('Finding the location of the image...')
-        rst = _find_image_location(
-            argspec.image_path, argspec.search_area, argspec.similarity,
-            argspec.order_number)
+        # rst = _find_image_location(
+        #     argspec.image_path, argspec.search_area, argspec.similarity,
+        #     argspec.order_number)
+        args = (argspec.image_path,
+                '--region', *map(int, argspec.search_area),
+                '--similarity', argspec.similarity,
+                '--order_number', argspec.order_number,
+                '--processing_image_path', argspec.processing_image_path,
+                '--logfile', mcxt._args.logfile + '_find_image_location.log')
 
-        if not rst['RESULT']:
+        op = find_image_location
+        rst = run_operation(op, args)
+        if not rst['RETURN_CODE']:
             result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,
                                         MESSAGE="Failed to find the image.")
             sys.stderr.write(str(result))
             return result
         mcxt.logger.debug(rst)
-        coord = list(map(int, rst['VALUE'].split(', ')))
+        coord = list(map(int, rst['RETURN_VALUE']['VALUE'].split(', ')))
 
         mcxt.logger.info('Calculating the relative coordination of OCR area...')
         ocr_area = argspec.ocr_area
@@ -252,7 +261,10 @@ def ocr(mcxt, argspec):
 
         # 현재화면 스크린 샷
         op = screenshot
-        args = ('--path', 'temp.png', '--coord', *ocr_coord)
+        ocr_file = get_temp_filepath('png')
+        mcxt.logger.debug(str(StructureLogFormat(OCR_FILE=ocr_file)))
+        args = ('--path', ocr_file, '--coord', *ocr_coord,
+                '--logfile', mcxt._args.logfile + '_screen.log')
         rst = run_operation(op, args)
         if not rst['RETURN_CODE']:
             sys.stderr.write(str(rst))
@@ -277,7 +289,7 @@ def ocr(mcxt, argspec):
         else:
             raise ValueError(f'{argspec.engine} is not a supported OCR engine.')
 
-        draw_box_with_title('temp.png', 'OCR', ocr_coord)
+        draw_box_with_title(argspec.processing_image_path, 'OCR', ocr_coord)
 
         result = StructureLogFormat(RETURN_CODE=True, RETURN_VALUE=data, MESSAGE="")
         sys.stdout.write(str(result))
@@ -345,6 +357,8 @@ def _main(*args):
                           help="chosen_number")
         mcxt.add_argument('--similarity', type=int, metavar='50',
                           default=50, min_value=0, max_value=100, help='')
+        mcxt.add_argument('--processing_image_path', type=str,
+                          default='processing_image.png')
         argspec = mcxt.parse_args(args)
         return ocr(mcxt, argspec)
 

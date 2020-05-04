@@ -24,7 +24,6 @@ pyperclip
 selenium
 wda
 keyboard
-pytesseract
 
 # Select Window for Windows
 pywin32
@@ -32,3 +31,12 @@ psutil
 
 # Crypto for Windows
 pycryptodome
+
+# OCR
+pytesseract
+
+# Window Object
+Appium-Python-Client
+
+# Excel Basic
+openpyxl
