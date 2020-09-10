@@ -8,7 +8,8 @@ from alabs.common.util.vvjson import get_xpath
 
 
 path = dict()
-ARGOS_RPA_PAM_DIR = pathlib.Path.home() / '.argoslabs-rpa'
+# ARGOS_RPA_PAM_DIR = pathlib.Path.home() / 'LocalApp' / 'PythonPAM' / .argoslabs-rpa'
+ARGOS_RPA_PAM_DIR = pathlib.Path.home() / 'AppData' / 'Local' / 'PythonPAM'
 PAM = ARGOS_RPA_PAM_DIR / 'pam'
 EXTERNAL_PROGRAM = PAM / 'ext_program'
 ARGOS_RPA_BOTS_DIR = PAM / 'bots'

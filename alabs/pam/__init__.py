@@ -141,11 +141,19 @@ def extract_bot_file(filepath, logger):
 ################################################################################
 def _main(*args):
     # 설정 파일
-
     if not os.environ.setdefault('PAM_CONF', ''):
         path = pathlib.Path.home() / '.argos-rpa-pam.conf'
         os.environ['PAM_CONF'] = str(path)
     configure = get_conf()
+
+    try:
+        working_dir = configure.get('/PATH/CURRENT_PAM_LOG_DIR')
+        # Change the current working Directory
+        os.chdir(working_dir)
+    except OSError:
+        print("Can't change the Current Working Directory")
+    print("Current Working Directory ", os.getcwd())
+
 
     # logger = get_logger(configure.get('/PATH/PAM_LOG'))
     # logger.info("="*80)

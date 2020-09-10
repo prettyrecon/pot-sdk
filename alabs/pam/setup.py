@@ -109,7 +109,7 @@ setup(
         'alabs.pam.utils',
         'alabs.pam.utils.graphics',
     ],
-    version='1.0.4',
+    version='1.0.5',
     description='ARGOS-LABS RPA PYTHON PAM',
     author='Duk Kyu Lim',
     author_email='deokyu@argos-labs.com',

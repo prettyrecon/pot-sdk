@@ -51,7 +51,7 @@ DESCRIPTION = 'Pam for HA. It reads json scenario files by LA Stu and runs'
 
 
 ################################################################################
-def _find_image_location(filename, region, similarity, order_number):
+def _find_image_location(filename, region, similarity, order_number, logfile):
     """
 
     :param coord: [1, 2, 3, 4]
@@ -62,7 +62,8 @@ def _find_image_location(filename, region, similarity, order_number):
             filename,
             "--region", *map(int, region),
             "--similarity", similarity,
-            "--order_number", order_number)
+            "--order_number", order_number,
+            "--logfile", logfile)
     out = out.getvalue()
     err = err.getvalue()
     if err:
@@ -86,7 +87,7 @@ def locate_image(mcxt, argspec):
     try:
         location = _find_image_location(
             argspec.filename, argspec.region, argspec.similarity,
-            argspec.order_number)
+            argspec.order_number, argspec.logfile)
 
     except Exception as e:
         result = StructureLogFormat(RETURN_CODE=False, RETURN_VALUE=None,

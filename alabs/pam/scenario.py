@@ -295,6 +295,7 @@ class Scenario(dict):
         :param index:
         :return:
         """
+        self.logger.debug(f"index : {index}")
         for i, item in enumerate(self.items):
             if item['index'] == index:
                 self._current_item_number = i
