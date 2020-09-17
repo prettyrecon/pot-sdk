@@ -1,11 +1,13 @@
 # pip dependent packages
 
+# ==============================================================================
 # default for alabs
 alabs.common
 alabs.ppm
 pyparsing
 
-
+# ==============================================================================
+# All of platform
 numpy
 gevent
 flask
@@ -24,19 +26,19 @@ pyperclip
 selenium
 wda
 keyboard
-
-# Select Window for Windows
-pywin32
-psutil
-
-# Crypto for Windows
 pycryptodome
 
 # OCR
 pytesseract
 
-# Window Object
-Appium-Python-Client
-
 # Excel Basic
 openpyxl
+
+# ==============================================================================
+# Select Window for Windows
+pywin32; sys_platform == 'win32'
+psutil; sys_platform == 'win32'
+
+# Window Object
+Appium-Python-Client; sys_platform == 'win32'
+

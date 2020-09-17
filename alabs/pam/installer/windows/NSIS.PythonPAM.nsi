@@ -29,7 +29,7 @@
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME
 ; License page
-!insertmacro MUI_PAGE_LICENSE "..\..\README.txt"
+!insertmacro MUI_PAGE_LICENSE "..\..\LICENSE.txt"
 ; Directory page
 !insertmacro MUI_PAGE_DIRECTORY
 
@@ -53,7 +53,8 @@ Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 InstallDir "$LOCALAPPDATA\PythonPAM"
 ; InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
 XPStyle on
-ShowInstDetails show
+ShowInstDetails hide
+; ShowInstDetails show
 ShowUnInstDetails show
 
 

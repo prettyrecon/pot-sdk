@@ -14,15 +14,44 @@ InstallDir "$LOCALAPPDATA\PythonPAM"
 
 BrandingText "ARGOS LABS - ARGOS PythonPAM for Windows Installer"
 
-; Section SEC00
-;     ${If} ${RunningX64}
-;         SetRegView 64
-;     ${EndIf}
-;     !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Tesseract-OCR"
-;     ReadRegStr $0 HKLM "${PRODUCT_UNINST_KEY}" UninstallString
-;     DetailPrint "OCR is installed at: $0"
-;     Sleep 10000
 
+Function CallbackTest
+  Pop $R8
+  Pop $R9
+
+  SetDetailsPrint textonly
+  DetailPrint "Extracting $R8 / $R9..."
+  SetDetailsPrint both
+FunctionEnd
+
+; Section SEC00
+;  ; Set output path to the installation directory.
+;   SetOutPath $INSTDIR
+;   SetCompress off
+  
+;   DetailPrint "Extracting package..."
+;   SetDetailsPrint listonly
+;   File python378_clean.7z
+;   SetCompress auto
+; ;  File /nonfatal /oname=$PLUGINSDIR\nsis7z.pdb Release\nsis7z.pdb
+;   SetDetailsPrint both
+
+;   ; Usual mode - set unpacking prompt using DetailPrint,
+;   ; plugin will animate progress bar
+; ;  DetailPrint "Installing package..."
+; ;  Nsis7z::Extract "$INSTDIR\Test.7z" 
+
+;   ; Details mode - unpacking promt generated from second param, use
+;   ; %s to insert unpack details like "10% (5 / 10 MB)"
+; ;  Nsis7z::ExtractWithDetails "$INSTDIR\Test.7z" "Installing package %s..."
+
+;   ; Callback mode - plugin will animate progress bar, you can do
+;   ; anything in callback function
+;   GetFunctionAddress $R9 CallbackTest
+;   Nsis7z::ExtractWithCallback "$INSTDIR\python378_clean.7z" $R9
+
+;   Delete "python378_clean.7z"  
+;   Sleep 10000
 ; SetRegView LastUsed
 ; SectionEnd
 
@@ -37,21 +66,21 @@ Section "${PRODUCT_NAME}-${PRODUCT_VERSION}" SEC01
 SectionEnd
 
 
-; Section "Tesseract 5.0" SEC02
-;     ReadRegStr $R0 HKCU "${CHROME}" "UninstallString"
-;     DetailPrint "Installing ${__SECTION__}"
-;     File "/oname=$TEMP\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe" "setup\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe" 
-;     ExecWait $TEMP\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe $0
-;     DetailPrint "Installing ${__SECTION__} ... $0"
-; SectionEnd
+Section "Tesseract 5.0" SEC02
+    ReadRegStr $R0 HKCU "${CHROME}" "UninstallString"
+    DetailPrint "Installing ${__SECTION__}"
+    File "/oname=$TEMP\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe" "setup\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe" 
+    ExecWait $TEMP\tesseract-ocr-w64-setup-v5.0.0-alpha.20200223.exe $0
+    DetailPrint "Installing ${__SECTION__} ... $0"
+SectionEnd
 
 
-; Section "WindowsApplicationDriver" SEC03
-;     DetailPrint "Installing ${__SECTION__}"
-;     File "/oname=$TEMP\WindowsApplicationDriver.msi" "setup\WindowsApplicationDriver.msi"
-;     ExecWait "msiexec.exe /i $TEMP\WindowsApplicationDriver.msi" $0
-;     DetailPrint "Installing ${__SECTION__} ... $0"
-; SectionEnd
+Section "WindowsApplicationDriver" SEC03
+    DetailPrint "Installing ${__SECTION__}"
+    File "/oname=$TEMP\WindowsApplicationDriver.msi" "setup\WindowsApplicationDriver.msi"
+    ExecWait "msiexec.exe /i $TEMP\WindowsApplicationDriver.msi" $0
+    DetailPrint "Installing ${__SECTION__} ... $0"
+SectionEnd
 
 
 Section "-Variable" SEC04
