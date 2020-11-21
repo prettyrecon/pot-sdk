@@ -16,6 +16,21 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/10/21]
+#   - tests 폴더가 없으면 __main__.py 생성하는 체크 코드 추가
+#  * [2020/09/07]
+#   - plugin venv-clean 명령 추가
+#  * [2020/08/10]
+#   - pandas2 플러그인을 설치하는데 오류가 발생하는데 모든 open 시 utf-8 옵션 추가
+#  * [2020/06/24]
+#   - selftest 용 테스트 시작
+#  * [2020/06/16]
+#   - on_premise 인 경우에만 --index 그 외에는 --extra-index-url 를 하도록 함
+#     IBM STT 플러그인에서 문제가 있어서 살펴보다가 확인
+#  * [2020/04/06]
+#   - plugin unique 명령 추가
+#  * [2020/03/30]
+#   - test for unique command
 #  * [2020/03/21]
 #   - YAML_PATH 파일이 없을 경우 upload 에서 오류 수정 (default 설정 저장)
 #   - upload 에서 서버 암호 잘못 입력한 경우 체크 오류 수정
@@ -39,12 +54,10 @@ import os
 import sys
 import glob
 import json
-# import time
 import shutil
 import tempfile
 import requests
 import datetime
-# import subprocess
 import urllib3
 from tempfile import gettempdir
 # from urllib.parse import quote
@@ -59,9 +72,7 @@ from pickle import dump, load
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
-else:
-    from urllib.parse import urlparse, quote
-    from pathlib import Path
+# from urllib.parse import urlparse, quote
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -179,8 +190,13 @@ class TU(TestCase):
     #         self.assertTrue(False)
 
     # ==========================================================================
-    def test_0035_clear_all(self):
+    def test_0032_clear_all(self):
         r = _main(['clear-all'])
+        self.assertTrue(r == 0)
+
+    # ==========================================================================
+    def test_0035_venv_clean(self):
+        r = _main(['plugin', 'venv-clean'])
         self.assertTrue(r == 0)
 
     # for repeated test comment out
@@ -231,10 +247,31 @@ class TU(TestCase):
             self.assertTrue(True)
 
     # ==========================================================================
-    def test_0058_upload_invalid_passwd(self):
+    # def test_0053_submit_invalid_key(self):
+    #     try:
+    #         _main(['submit', '--submit-key', 'aL0PK2Rhs6ed0mgqLC42',
+    #                'http://175.209.228.141:25478'])
+    #         self.assertTrue(False)
+    #     except Exception as e:
+    #         print(e)
+    #         self.assertTrue(str(e).find('authentication required') > 0)
+
+    # ==========================================================================
+    # def test_0055_submit_valid_key(self):
+    #     # 50MB 제한을 걸었는데 이 ppm은 100MB가 넘는 문제
+    #     try:
+    #         r = _main(['submit', '--submit-key', '202365426967206e652f',
+    #                   'http://175.209.228.141:25478'])
+    #         self.assertTrue(r == 0)
+    #     except Exception as e:
+    #         print(e)
+    #         self.assertTrue(False)
+
+    # ==========================================================================
+    def test_0060_upload_invalid_passwd(self):
         # 사설 저장소에 wheel upload
         try:
-            r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv22',
+            _ = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv22',
                        '--venv', 'upload'])
             # self.assertTrue(r == 0)
             self.assertTrue(False)
@@ -243,21 +280,11 @@ class TU(TestCase):
             self.assertTrue(True)
 
     # ==========================================================================
-    def test_0060_upload(self):
+    def test_0065_upload(self):
         # 사설 저장소에 wheel upload
         r = _main(['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
                    '--venv', 'upload'])
         self.assertTrue(r == 0)
-
-    # TODO
-    # # ==========================================================================
-    # def test_0065_submit_with_key(self):
-    #     try:
-    #         _main(['submit', '--submit-key', 'aL0PK2Rhs6ed0mgqLC42'])
-    #         self.assertTrue(True)
-    #     except Exception as e:
-    #         print(e)
-    #         self.assertTrue(False)
 
     # ==========================================================================
     def test_0070_clear_all_after_upload(self):
@@ -530,7 +557,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS'))
                 self.assertTrue('last_modify_datetime' in vd[0])
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
@@ -546,6 +573,7 @@ class TU(TestCase):
             cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
                    'plugin', 'get', '--official-only', '--with-dumpspec',
                    '--outfile', jsf]
+            print(' '.join(cmd))
             r = _main(cmd)
             self.assertTrue(r == 0)
             with open(jsf) as ifp:
@@ -558,7 +586,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS'))
                 self.assertTrue('last_modify_datetime' in vd[0])
                 if isinstance(vd, list):
                     for vdi in vd:
@@ -589,7 +617,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['owner'].startswith('ARGOS'))
                 self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
                             'argoslabs.demo.helloworld' not in rd)
@@ -618,7 +646,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['owner'].startswith('ARGOS'))
                 self.assertTrue('last_modify_datetime' in vd)
                 self.assertTrue('dumpspec' in vd and isinstance(vd['dumpspec'], dict))
             self.assertTrue('argoslabs.data.json' in rd and
@@ -642,7 +670,7 @@ class TU(TestCase):
             # pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS'))
                 self.assertTrue(vd[0]['name'] == k)
                 self.assertTrue('last_modify_datetime' in vd[0])
             self.assertTrue('argoslabs.data.json' in rd and
@@ -667,7 +695,7 @@ class TU(TestCase):
             # pprint(rd)
             for k, vd in rd.items():
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['owner'].startswith('ARGOS'))
                 self.assertTrue(vd['name'] == k)
                 self.assertTrue('last_modify_datetime' in vd)
             self.assertTrue('argoslabs.data.json' in rd and
@@ -698,7 +726,7 @@ class TU(TestCase):
                     continue
                 ag_cnt += 1
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['owner'].startswith('ARGOS'))
                 self.assertTrue(vd['name'] == k)
                 if 'last_modify_datetime' not in vd:
                     print('%s does not have "last_modify_datetime"' % k)
@@ -740,6 +768,30 @@ class TU(TestCase):
         except Exception as err:
             sys.stderr.write('%s%s' % (str(err), os.linesep))
             self.assertTrue(True)
+        finally:
+            if os.path.exists(jsf):
+                os.remove(jsf)
+
+    # ==========================================================================
+    def test_0545_plugin_dumpspec(self):
+        jsf = '%s%sdumpspec-private-all.json' % (gettempdir(), os.path.sep)
+        try:
+            cmd = ['plugin', 'dumpspec', 'argoslabs.data.binaryop',
+                   '--official-only',
+                   # '--user', 'fjoker@naver.com',
+                   # '--user', 'mcchae@gmail.com',
+                   # '--user-auth', 'ghkd67vv',
+                   '--outfile', jsf]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            with open(jsf) as ifp:
+                rstr = ifp.read()
+            print(rstr)
+            rj = json.loads(rstr)
+            ...
+        except Exception as err:
+            sys.stderr.write('%s%s' % (str(err), os.linesep))
+            self.assertTrue(False)
         finally:
             if os.path.exists(jsf):
                 os.remove(jsf)
@@ -811,7 +863,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd['owner'].startswith('ARGOS'))
                 self.assertTrue(vd['name'] == k)
         except Exception as err:
             sys.stderr.write('%s%s' % (str(err), os.linesep))
@@ -836,7 +888,7 @@ class TU(TestCase):
                 if not k.startswith('argoslabs.'):
                     continue
                 self.assertTrue(k.startswith('argoslabs.'))
-                self.assertTrue(vd[0]['owner'].startswith('ARGOS-LABS'))
+                self.assertTrue(vd[0]['owner'].startswith('ARGOS'))
                 self.assertTrue(vd[0]['name'] == k)
         finally:
             if os.path.exists(jsf):
@@ -853,7 +905,7 @@ class TU(TestCase):
                         or stdout == 'No private repository')
 
     # ==========================================================================
-    def test_0560_plugin_venv_clear(self):
+    def test_0560_plugin_versions(self):
         venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
         if os.path.exists(venv_d):
             shutil.rmtree(venv_d)
@@ -865,6 +917,7 @@ class TU(TestCase):
             r = _main(cmd)
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
+        print(stdout)
         TU.vers2 = stdout.split('\n')
         self._save_attr('vers2')
         self.assertTrue(len(TU.vers2) >= 2)
@@ -874,6 +927,7 @@ class TU(TestCase):
             r = _main(cmd)
         self.assertTrue(r == 0)
         stdout = out.getvalue().strip()
+        print(stdout)
         TU.vers3 = stdout.split('\n')
         self._save_attr('vers3')
         self.assertTrue(len(TU.vers3) >= 2)
@@ -1114,7 +1168,7 @@ class TU(TestCase):
             modlist = [
                 'argoslabs.data.fileconv==%s' % TU.vers2[1],
                 'argoslabs.web.bsoup==%s' % TU.vers3[0],
-                'yourfolder.demo.helloworld==1.100.1000',
+                # 'yourfolder.demo.helloworld==1.100.1000',  # 제거됨
             ]
             tmpdir = tempfile.mkdtemp(prefix='requirements_')
             requirements_txt = os.path.join(tmpdir, 'requirements.txt')
@@ -1140,12 +1194,14 @@ class TU(TestCase):
             with open(freeze_f) as ifp:
                 rd = json.load(ifp)
             self.assertTrue(
-                rd['argoslabs.data.fileconv'] == TU.vers2[1] and
-                rd['argoslabs.web.bsoup'] == TU.vers3[0] and
-                rd['yourfolder.demo.helloworld'] == '1.100.1000'
+                rd['argoslabs.data.fileconv'] == TU.vers2[1]
+                and rd['argoslabs.web.bsoup'] == TU.vers3[0]
+                # and rd['yourfolder.demo.helloworld'] == '1.100.1000'
             )
             for k, v in rd.items():
                 print('%s==%s' % (k, v))
+        except Exception as e:
+            raise e
         finally:
             if tmpdir and os.path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
@@ -1231,21 +1287,44 @@ class TU(TestCase):
             if os.path.exists(venvout):
                 os.remove(venvout)
 
-    # # ==========================================================================
-    # # DEBUG : for python PAM test
-    # def test_0710_plugin_venv(self):
-    #     try:
-    #         cmd = [
-    #             'plugin', 'venv',
-    #             'alabs.common',
-    #             'pyautogui',
-    #             'bs4',
-    #             'opencv-python',
-    #         ]
-    #         r = _main(cmd)
-    #         self.assertTrue(r == 0)
-    #     finally:
-    #         pass
+    # ==========================================================================
+    def test_0700_plugin_venv_pandas2(self):
+        tmpdir = None
+        venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
+        try:
+            modlist = [
+                'argoslabs.datanalysis.pandas2',
+            ]
+            tmpdir = tempfile.mkdtemp(prefix='requirements_')
+            requirements_txt = os.path.join(tmpdir, 'requirements.txt')
+            with open(requirements_txt, 'w') as ofp:
+                ofp.write('# pip dependent packages\n')
+                ofp.write('\n'.join(modlist))
+            cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'venv', '--requirements-txt', requirements_txt,
+                '--outfile', venvout
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+            with open(venvout, encoding='utf-8') as ifp:
+                stdout = ifp.read()
+            freeze_f = os.path.join(stdout, 'freeze.json')
+            self.assertTrue(os.path.exists(freeze_f))
+            with open(freeze_f) as ifp:
+                rd = json.load(ifp)
+            self.assertTrue(
+                rd['argoslabs.datanalysis.pandas2'] == '2.810.1800'
+            )
+            for k, v in rd.items():
+                print('%s==%s' % (k, v))
+        except Exception as e:
+            raise e
+        finally:
+            if tmpdir and os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+            if os.path.exists(venvout):
+                os.remove(venvout)
 
     # ==========================================================================
     # DEBUG : 수정완료
@@ -1274,7 +1353,19 @@ class TU(TestCase):
             pass
 
     # # ==========================================================================
-    # def test_0740_plugin_venv_debug(self):
+    # def test_0740_unique(self):
+    #     try:
+    #         cmd = [
+    #             '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+    #             'plugin', 'unique',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         ...
+
+    # # ==========================================================================
+    # def test_0750_plugin_venv_debug(self):
     #     try:
     #         cmd = [
     #             # '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
@@ -1287,7 +1378,7 @@ class TU(TestCase):
     #         pass
 
     # # ==========================================================================
-    # def test_0710_stu_issue(self):
+    # def test_0760_stu_issue(self):
     #     try:
     #         cmd = [
     #             '--self-upgrade',
@@ -1303,14 +1394,14 @@ class TU(TestCase):
     #         pass
 
 #     # ==========================================================================
-#     def test_0720_remove_all_venv(self):
+#     def test_0770_remove_all_venv(self):
 #         venv_d = os.path.join(str(Path.home()), '.argos-rpa.venv')
 #         if os.path.exists(venv_d):
 #             shutil.rmtree(venv_d)
 #         self.assertTrue(not os.path.exists(venv_d))
 #
 #     # ==========================================================================
-#     def test_0730_http_server(self):
+#     def test_0780_http_server(self):
 #         cmd = [
 #             'python',
 #             '-m',
@@ -1323,7 +1414,7 @@ class TU(TestCase):
 #         self.assertTrue(TU.HTTP_SERVER_PO is not None)
 #
 #     # ==========================================================================
-#     def test_0740_rename_conf(self):
+#     def test_0790_rename_conf(self):
 #         os.rename(CONF_PATH, '%s.org' % CONF_PATH)
 #         with open(CONF_PATH, 'w') as ofp:
 #             ofp.write('''
@@ -1335,7 +1426,7 @@ class TU(TestCase):
 #
 #     # 2019.08.09 : POT 이후 문제 발생
 #     # ==========================================================================
-#     def test_0750_plugin_venv_success(self):
+#     def test_0800_plugin_venv_success(self):
 #         venvout = '%s%svenv.out' % (gettempdir(), os.path.sep)
 #         try:
 #             cmd = ['plugin', 'venv', 'argoslabs.google.translate', '--outfile', venvout]
@@ -1353,13 +1444,13 @@ class TU(TestCase):
 #                 os.remove(venvout)
 #
 #     # ==========================================================================
-#     def test_0760_restore_conf(self):
+#     def test_0810_restore_conf(self):
 #         os.remove(CONF_PATH)
 #         os.rename('%s.org' % CONF_PATH, CONF_PATH)
 #         self.assertTrue(not os.path.exists('%s.org' % CONF_PATH))
 #
 #     # ==========================================================================
-#     def test_0770_stop_http_server(self):
+#     def test_0820_stop_http_server(self):
 #         self.assertTrue(TU.HTTP_SERVER_PO is not None)
 #         TU.HTTP_SERVER_PO.terminate()
 #         TU.HTTP_SERVER_PO.wait()
@@ -1380,7 +1471,7 @@ class TU(TestCase):
     #         self.assertTrue(r == 0)
     #     finally:
     #         pass
-    #
+
     # # ==========================================================================
     # def test_0840_plugin_venv_debug_hcl(self):
     #     try:
@@ -1392,6 +1483,78 @@ class TU(TestCase):
     #             '--private-only', '--last-only',
     #             # '--user', 'hcl@argos-labs.com',
     #             # '--user-auth', 'Bearer 4b3b299f-0f24-4e4f-a207-e7edb1d91dec',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
+
+    # ==========================================================================
+    def test_0850_selftest(self):
+        try:
+            cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'selftest',
+                'argoslabs.check.env',
+                # 'argoslabs.aaa.ldap==1.1124.2100',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # ==========================================================================
+    def test_0860_selftest(self):
+        try:
+            cmd = [
+                '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                'plugin', 'selftest',
+                'argoslabs.data.binaryop',
+                'argoslabs.datanalysis.pandas2',  # 20200810
+                # 'argoslabs.aaa.ldap==1.1124.2100',
+            ]
+            r = _main(cmd)
+            self.assertTrue(r == 0)
+        finally:
+            pass
+
+    # # ==========================================================================
+    # def test_0870_selftest(self):
+    #     try:
+    #         cmd = [
+    #             '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+    #             'plugin', 'selftest',
+    #             # 'argoslabs.file.chardet',
+    #             # 'argoslabs.aaa.ldap==1.1124.2100',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
+    #
+    # # ==========================================================================
+    # def test_0880_selftest(self):
+    #     try:
+    #         cmd = [
+    #             '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+    #             'plugin', 'selftest',
+    #             '--venv-dir', r'C:\Users\mcchae\.argos-rpa.test\all-venv',
+    #             '--selftest-email', 'mcchae@gmail.com',
+    #         ]
+    #         r = _main(cmd)
+    #         self.assertTrue(r == 0)
+    #     finally:
+    #         pass
+    #
+    # # ==========================================================================
+    # def test_0890_selftest(self):
+    #     try:
+    #         cmd = [
+    #             '--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+    #             'plugin', 'selftest',
+    #             '--official-only',
+    #             '--venv-dir', r'C:\Users\mcchae\.argos-rpa.test\all-venv',
+    #             '--selftest-email', 'mcchae@gmail.com',
     #         ]
     #         r = _main(cmd)
     #         self.assertTrue(r == 0)

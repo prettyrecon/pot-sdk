@@ -69,7 +69,7 @@ icons = {
     "backward": u("\uf04a"),
     "ban": u("\uf05e"),
     "bank": u("\uf19c"),
-    "bar-chart-o": u("\uf080"),
+    "foo-chart-o": u("\uf080"),
     "barcode": u("\uf02a"),
     "bars": u("\uf0c9"),
     "beer": u("\uf0fc"),

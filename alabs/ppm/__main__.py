@@ -20,6 +20,10 @@
 #     - 본 모듈 작업 시작
 ################################################################################
 import sys
+import six                  # for pyinstaller
+import packaging            # for pyinstaller
+import packaging.version    # for pyinstaller
+import packaging.specifiers # for pyinstaller
 from alabs.ppm import main
 
 ################################################################################

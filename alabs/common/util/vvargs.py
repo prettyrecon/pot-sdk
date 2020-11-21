@@ -17,6 +17,9 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #
+#  * [2020/10/21]
+#     - get_meta_info
+#     - --dumpspec 에서 해당 모듈에 dumpspec.json 이 있으면 해당 내용으로
 #  * [2019/09/20]
 #     - add flush() on _close() : sys.stdout.flush(), sys.stderr.flush()
 #  * [2019/04/25]
@@ -63,7 +66,7 @@ from yaml import dump as yaml_dump
 from yaml import load as yaml_load
 # noinspection PyProtectedMember
 from functools import wraps
-# noinspection PyProtectedMember
+# noinspection PyProtectedMember,PyUnresolvedReferences
 from argparse import ArgumentParser, _HelpAction
 from io import StringIO
 from alabs.common.util.vvlogger import get_logger
@@ -183,7 +186,7 @@ class ModuleContext(ArgumentParser):
         # 2.5) "folderwrite" : Stu에서 쓸 폴더를 지정
         # 2.6) "dateselect" : Stu에서 쓸 날짜 선택 다이얼로그 지정
         # 2.7) "textarea" : multiline 텍스트 입력
-        # 2.8) "radio" : choice로 선택해야 하는 경우 radio로 보여줌
+        # 2.8) "radio" : choice로 선택해야 하는 경우 radio로 보여줌 (현재 어려움)
         # 2.9) "combobox" : choice로 선택해야 하는 경우 combobox로 보여줌
         # 2.10)"imagebox" : image filename인 경우
         # 2.11)"mouseop" : STU의 mouse 관련 선택 항목
@@ -444,6 +447,7 @@ class ModuleContext(ArgumentParser):
             'group': self.group,  # group name
             'name': self.name,
             'plugin_version': get_pip_version(self.name),
+            'meta_info': get_meta_info(self.name),
             'last_modify_datetime': self._get_init_mtime(),
             'version': self.version,  # module version
             'sha256': None,
@@ -751,7 +755,7 @@ def get_all_pip_version():
 
 
 ################################################################################
-# noinspection PyUnresolvedReferences
+# noinspection PyUnresolvedReferences,PyPackageRequirements
 def get_pip_version(modname):
     # read setup.yaml from module directory
     import __main__
@@ -767,6 +771,22 @@ def get_pip_version(modname):
     if modname not in _d:
         return None
     return _d[modname]
+
+
+################################################################################
+# noinspection PyUnresolvedReferences,PyPackageRequirements
+def get_meta_info(modname):
+    # read setup.yaml from module directory
+    import __main__
+    setup_yaml = os.path.join(os.path.dirname(__main__.__file__), 'setup.yaml')
+    if os.path.exists(setup_yaml):
+        with open(setup_yaml) as ifp:
+            if yaml.__version__ >= '5.1':
+                yd = yaml_load(ifp, Loader=yaml.FullLoader)
+            else:
+                yd = yaml_load(ifp)
+            return yd.get('setup', None)
+    return None
 
 
 ################################################################################

@@ -89,15 +89,15 @@ class PackageUploader(object):
             >>> repo_config = {
             ...     'repository': 'http://localhost:8000',
             ...     'username': 'foo',
-            ...     'password': 'bar',
+            ...     'password': 'foo',
             ... }
             >>> uploader = PackageUploader.from_repository_config(repo_config)
             >>> uploader.host, uploader.username, uploader.password
-            'http://localhost:8000', 'foo', 'bar'
+            'http://localhost:8000', 'foo', 'foo'
             >>> uploader = PackageUploader.from_repository_config(
-            ...     repo_config, username='bar')
+            ...     repo_config, username='foo')
             >>> uploader.host, uploader.username, uploader.password
-            'http://localhost:8000', 'bar', 'bar'
+            'http://localhost:8000', 'foo', 'foo'
 
         Return a new instance of :class:`PackageUploader`.
 

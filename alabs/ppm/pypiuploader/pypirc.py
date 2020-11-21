@@ -23,7 +23,7 @@ class RCParser(object):
 
     >>> parser = RCParser.from_file()
     >>> parser.get_repository_config('internal')
-    {'repository': 'http://localhost/', 'username': 'foo', 'password': 'bar'}
+    {'repository': 'http://localhost/', 'username': 'foo', 'password': 'foo'}
 
     :param config_parser:
         :class:`configparser.ConfigParser` instance with the ``.pypirc``

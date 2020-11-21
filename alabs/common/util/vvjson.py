@@ -78,12 +78,12 @@ def safe_jsonify(data):
 
     :param data: 변환을 위한 객체
 
-    >>> d = { u'spam': u'eggs', u'foo': True, u'bar': { u'baz': 97 } }
+    >>> d = { u'spam': u'eggs', u'foo': True, u'foo': { u'baz': 97 } }
     >>> print d
-    {u'foo': True, u'bar': {u'baz': 97}, u'spam': u'eggs'}
+    {u'foo': True, u'foo': {u'baz': 97}, u'spam': u'eggs'}
     >>> d2 = convert_str(d)
     >>> print d2
-    {'foo': True, 'bar': {'baz': 97}, 'spam': 'eggs'}
+    {'foo': True, 'foo': {'baz': 97}, 'spam': 'eggs'}
     """
     if isinstance(data, dict) \
             and '_id' in data and isinstance(data[u'_id'], ObjectId):
@@ -109,12 +109,12 @@ def convert_str(data):
 
     :param data: 변환을 위한 객체
 
-    >>> d = { u'spam': u'eggs', u'foo': True, u'bar': { u'baz': 97 } }
+    >>> d = { u'spam': u'eggs', u'foo': True, u'foo': { u'baz': 97 } }
     >>> print d
-    {u'foo': True, u'bar': {u'baz': 97}, u'spam': u'eggs'}
+    {u'foo': True, u'foo': {u'baz': 97}, u'spam': u'eggs'}
     >>> d2 = convert_str(d)
     >>> print d2
-    {'foo': True, 'bar': {'baz': 97}, 'spam': 'eggs'}
+    {'foo': True, 'foo': {'baz': 97}, 'spam': 'eggs'}
     """
     if isinstance(data, str):
         return data
@@ -286,9 +286,9 @@ def decode_dict(data, case_sensitive=False):
     :param bool case_sensitive: 만약 False이면 키 값을 모두 소문자로 변경 (디폴트 False)
     :return: 새로 변경된 값을 채운 dict 객체
 
-    # >>> xmldict = xmltodict.parse(xmlstr, postprocessor=ftjson.postprocessor)
+    # >>> xmldict = xmltodict.parse(xmlstr, postprocessor=vvjson.postprocessor)
     # >>> jstr = json.dumps(xmldict)
-    # >>> js = json.loads(jstr, object_hook=ftjson.decode_dict)
+    # >>> js = json.loads(jstr, object_hook=vvjson.decode_dict)
     """
     rv = {}
     for key, value in data.items():
@@ -320,9 +320,9 @@ def decode_dict_cs(data):
     .. warning:: decode_dict_cs는 decode_dict(data, case_sensitive=True)를 호출함으로써
         무조건 dict의 키 값을 소문자로 변경합니다
 
-    # >>> xmldict = xmltodict.parse(xmlstr, postprocessor=ftjson.postprocessor)
+    # >>> xmldict = xmltodict.parse(xmlstr, postprocessor=vvjson.postprocessor)
     # >>> jstr = json.dumps(xmldict)
-    # >>> js = json.loads(jstr, object_hook=ftjson.decode_dict_cs)
+    # >>> js = json.loads(jstr, object_hook=vvjson.decode_dict_cs)
     """
     return decode_dict(data, case_sensitive=True)
 
@@ -333,7 +333,7 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
     """XML 접근 방법으로 XPath가 있듯이 유사한 방법으로 파이썬의 dict를 XPath로 접속하는 함수
 
     :param dict d: 정보를 담고 있을 파이썬의 dict 객체
-    :param str xpath: XPath 접근 문자열 (예, "/bar/lst[0]/@name2")
+    :param str xpath: XPath 접근 문자열 (예, "/foo/lst[0]/@name2")
     :param bool raise_exception:
         - 만약 True 이고 접근이 불가능하면 ReferenceError 예외발생
         - 만약 False 이고 접근이 불가능하면 None 리턴
@@ -343,16 +343,16 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
     :raises ReferenceError: 만약 raise_exception 패러미터가 True 이고 접근이
         불가능하면 ReferenceError 예외발생 (디폴트 False)
 
-    >>> ud = { u'spam': u'eggs', u'foo': True, u'bar': { u'baz': 97,
+    >>> ud = { u'spam': u'eggs', u'foo': True, u'foo': { u'baz': 97,
     ... 'lst':[{'@name':'aaa'},{'@name':'bbb'},{'@name':'ccc'},]}}
-    >>> print ud[u'bar']['baz'] # dict 를 바로 접근함
+    >>> print ud[u'foo']['baz'] # dict 를 바로 접근함
     97
-    >>> get_xpath(ud,'/bar/baz') # XPath 형식으로 가져옴
+    >>> get_xpath(ud,'/foo/baz') # XPath 형식으로 가져옴
     97
     """
     if not isinstance(d, dict):
         if raise_exception:
-            raise ReferenceError('ftjson.get_xpath: Invalid type <%s> must dict'
+            raise ReferenceError('vvjson.get_xpath: Invalid type <%s> must dict'
                                  % type(d))
         return default_value
     try:
@@ -367,7 +367,7 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
                     if xndx == 0:
                         continue  # regards /a[0] == /a
                     if raise_exception:
-                        raise ReferenceError('ftjson.get_xpath: '
+                        raise ReferenceError('vvjson.get_xpath: '
                                              'Invalid Index <%s>' % xndx)
                     return default_value
                 d = d[xndx]
@@ -376,11 +376,11 @@ def get_xpath(d, xpath, raise_exception=False, default_value=None):
         return d
     except KeyError as e:
         if raise_exception:
-            raise ReferenceError('ftjson.get_xpath: Invalid Key <%s>'
+            raise ReferenceError('vvjson.get_xpath: Invalid Key <%s>'
                                  % str(e))
     except Exception as e:
         if raise_exception:
-            raise ReferenceError('ftjson.get_xpath: Error <%s>' % str(e))
+            raise ReferenceError('vvjson.get_xpath: Error <%s>' % str(e))
         return default_value
 
 
@@ -390,7 +390,7 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
     """파이썬의 dict 객체를 XPath로 특정 값을 설정하는 함수
 
     :param dict d: 정보를 담고 있을 파이썬의 dict 객체
-    :param str xpath: 설정할 XPath 접근 문자열 (예, "/bar/lst[0]/@name2")
+    :param str xpath: 설정할 XPath 접근 문자열 (예, "/foo/lst[0]/@name2")
     :param object xval: 설정할 값 (어떠한 파이썬 객체/값도 OK)
     :param bool is_make_attribute:
         - 만약 True 이고 접근이 불가능하면 해당 내용을 접근 가능하도록 dict d를 수정
@@ -404,14 +404,14 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
         - False : 그렇지 않으면
     :raises ReferenceError: 만약 d가 dict가 아니면
 
-    >>> ud = {u'foo': True, u'bar': {'lst': [{'@name': 'aaa'}, \
+    >>> ud = {u'foo': True, u'foo': {'lst': [{'@name': 'aaa'}, \
     {'@name': 'bbb'}, {'@name': 'ccc'}], u'baz': 97}, u'spam': u'eggs'}
     >>> set_xpath(ud, '/foo', 123)
     True
     >>> ud
-    {u'foo': 123, u'bar': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'},
+    {u'foo': 123, u'foo': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'},
     {'@name': 'ccc'}], u'baz': 97}, u'spam': u'eggs'}
-    >>> set_xpath(ud, '/bar', None, is_delete=True)
+    >>> set_xpath(ud, '/foo', None, is_delete=True)
     True
     >>> ud
     {u'foo': 123, u'spam': u'eggs'}
@@ -423,7 +423,7 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
             None 항목으로 생성
     """
     if not isinstance(d, dict):
-        raise ReferenceError('ftjson.set_xpath: Invalid type <%s> must dict'
+        raise ReferenceError('vvjson.set_xpath: Invalid type <%s> must dict'
                              % type(d))
     try:
         xeles = re.split(r'/|\[', xpath.strip('/'))
@@ -468,7 +468,7 @@ def set_xpath(d, xpath, xval, is_make_attribute=True, is_delete=False):
                     d = d[xele]
         return True
     except Exception as e:
-        raise ReferenceError('ftjson.set_xpath: Error <%s>' % str(e))
+        raise ReferenceError('vvjson.set_xpath: Error <%s>' % str(e))
 
 
 ################################################################################
@@ -530,16 +530,16 @@ def get_safe_val(d, t, raise_exception=False):
     """파이썬의 dict를 tuple의 항목으로 접근하여 해당 값을 구하는 함수
 
     :param dict d: 정보를 담고 있을 파이썬의 dict 객체
-    :param tuple t: 문자열 tuple. 예, ('bar','lst',0,'@name2')
+    :param tuple t: 문자열 tuple. 예, ('foo','lst',0,'@name2')
     :param bool raise_exception:
         - 만약 True 이고 접근이 불가능하면 ReferenceError 예외발생
         - 만약 False 이고 접근이 불가능하면 None 리턴
         - 디폴트는 False
     :return: object dict에서 tuple로 찾은 해당 값
 
-    >>> ud = {u'foo': 123, u'bar': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'},\
+    >>> ud = {u'foo': 123, u'foo': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'},\
      {'@name': 'ccc'}], u'baz': 97}, u'spam': u'eggs'}
-    >>> get_safe_val(ud,(u'bar',u'lst',1,'@name'))
+    >>> get_safe_val(ud,(u'foo',u'lst',1,'@name'))
     'bbb'
     """
     xpath = ''
@@ -556,7 +556,7 @@ def set_safe_val(d, t, v, raise_exception=False):
     """파이썬의 dict를 tuple의 항목으로 접근하여 주어진 값으로 설정하는 함수
 
     :param dict d: 정보를 담고 있을 파이썬의 dict 객체
-    :param tuple t: 문자열 tuple. 예, ('bar','lst',0,'@name2')
+    :param tuple t: 문자열 tuple. 예, ('foo','lst',0,'@name2')
     :param object v: 값을 넣을 객체 값
     :param bool raise_exception:
         - 만약 True 이고 접근이 불가능하면 ReferenceError 예외발생
@@ -564,12 +564,12 @@ def set_safe_val(d, t, v, raise_exception=False):
         - 디폴트는 False
     :return: object dict에서 tuple로 찾은 해당 값
 
-    >>> ud = {u'foo': True, u'bar': {'lst': [{'@name': 'aaa'}, \
+    >>> ud = {u'foo': True, u'foo': {'lst': [{'@name': 'aaa'}, \
     {'@name': 'bbb'}, {'@name': 'ccc'}], u'baz': 97}, u'spam': u'eggs'}
     >>> set_safe_val(ud, (u'foo',), 123)
     True
     >>> ud
-    {u'foo': 123, u'bar': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'}, \
+    {u'foo': 123, u'foo': {'lst': [{'@name': 'aaa'}, {'@name': 'bbb'}, \
     {'@name': 'ccc'}], u'baz': 97}, u'spam': u'eggs'}
     """
     xpath = ''
@@ -696,7 +696,7 @@ def do_test():
     """
     ud = {
         u'spam': u'eggs', u'foo': True,
-        u'bar': {
+        u'foo': {
             u'baz': 97,
             'lst': [{'@name': 'aaa'}, {'@name': 'bbb'}, {'@name': 'ccc'}]
         },
@@ -721,10 +721,10 @@ def do_test():
 
     if sd['spam'] != 'eggs':
         return False
-    if sd['bar'].get('baz') != 97:
+    if sd['foo'].get('baz') != 97:
         return False
 
-    ut = (u'spam', u'eggs', u'foo', True, u'bar')
+    ut = (u'spam', u'eggs', u'foo', True, u'foo')
     _ = convert_str(ut)
     if sd['spam'] != 'eggs':
         return False
@@ -739,13 +739,13 @@ def do_test():
     #  org test
     if get_xpath(sd, '/spam') != 'eggs':
         return False
-    if get_xpath(sd, '/bar/baz') != 97:
+    if get_xpath(sd, '/foo/baz') != 97:
         return False
-    if not isinstance(get_xpath(sd, '/bar/lst'), (list, tuple)):
+    if not isinstance(get_xpath(sd, '/foo/lst'), (list, tuple)):
         return False
-    if not isinstance(get_xpath(sd, '/bar/lst[2]'), dict):
+    if not isinstance(get_xpath(sd, '/foo/lst[2]'), dict):
         return False
-    if get_xpath(sd, '/bar/lst[1]/@name') != 'bbb':
+    if get_xpath(sd, '/foo/lst[1]/@name') != 'bbb':
         return False
     try:
         get_xpath(sd, '/bar2', raise_exception=True)
@@ -753,12 +753,12 @@ def do_test():
     except Exception:
         pass
     try:
-        get_xpath(sd, '/bar/lst[3]', raise_exception=True)
+        get_xpath(sd, '/foo/lst[3]', raise_exception=True)
         return False
     except Exception:
         pass
     try:
-        get_xpath(sd, '/bar/lst[0]/@name2', raise_exception=True)
+        get_xpath(sd, '/foo/lst[0]/@name2', raise_exception=True)
         return False
     except Exception:
         pass
@@ -774,11 +774,11 @@ def do_test():
         return False
     if not get_xpath(sd, '/@att1') != 'roll':
         return False
-    if set_xpath(sd, '/bar/lst[3]', 'lst3', is_make_attribute=False):
+    if set_xpath(sd, '/foo/lst[3]', 'lst3', is_make_attribute=False):
         return False
-    if not set_xpath(sd, '/bar/lst[5]/@att2/#text', 'att2_text'):
+    if not set_xpath(sd, '/foo/lst[5]/@att2/#text', 'att2_text'):
         return False
-    if get_xpath(sd, '/bar/lst[5]/@att2/#text') != 'att2_text':
+    if get_xpath(sd, '/foo/lst[5]/@att2/#text') != 'att2_text':
         return False
     if not set_xpath(sd, 'aaa[2][2][2]/zzz', 888):
         return False
@@ -816,11 +816,11 @@ def do_test():
         return False
     if get_safe_list([3, 4]) != [3, 4]:
         return False
-    if get_safe_val(ud, (u'bar', 'lst', 1, '@name')) != 'bbb':
+    if get_safe_val(ud, (u'foo', 'lst', 1, '@name')) != 'bbb':
         return False
-    if not set_safe_val(ud, (u'bar', 'lst', 1, '@name'), 'kkk'):
+    if not set_safe_val(ud, (u'foo', 'lst', 1, '@name'), 'kkk'):
         return False
-    if get_safe_val(ud, (u'bar', 'lst', 1, '@name')) != 'kkk':
+    if get_safe_val(ud, (u'foo', 'lst', 1, '@name')) != 'kkk':
         return False
 
     return True

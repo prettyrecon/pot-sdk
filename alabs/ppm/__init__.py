@@ -16,6 +16,23 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2020/10/21]
+#   - tests 폴더가 없으면 __main__.py 생성하는 체크 코드 추가
+#   - setup.yaml 파일을 디폴트로 wheel 파일에 포함
+#  * [2020/09/07]
+#   - plugin venv-clean 명령 추가
+#   - _append_indices 로 PPM에서 Invalid 한 플러그인 저장소는 제외하도록 함
+#  * [2020/08/10]
+#   - pandas2 플러그인을 설치하는데 오류가 발생하는데 모든 open 시 utf-8 옵션 추가
+#  * [2020/07/08]
+#   - setup.yaml 에 install_requires 항목이 있으면 이를 추가하도록 함
+#   - argoslabs.check.env 에서 screeninfo 모듈을 소스째 가져오다 보니 필요
+#  * [2020/06/20~]
+#   - selftest 기능 추가
+#  * [2020/06/16]
+#   - on_premise 인 경우에만 --index 그 외에는 --extra-index-url 를 하도록 함
+#  * [2020/04/06]
+#   - plugin unique 명령 추가
 #  * [2020/03/21]
 #   - YAML_PATH 파일이 없을 경우 upload 에서 오류 수정 (default 설정 저장)
 #   - upload 에서 서버 암호 잘못 입력한 경우 체크 오류 수정
@@ -166,6 +183,15 @@ from functools import cmp_to_key
 from getpass import getpass
 from pathlib import Path
 from contextlib import closing
+
+import smtplib
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+# noinspection PyProtectedMember,PyUnresolvedReferences
+from email.utils import formatdate, COMMASPACE
+from alabs.common.util.vvencoding import get_file_encoding
+
 # from tempfile import gettempdir
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
@@ -173,6 +199,153 @@ if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
 else:
     from urllib.parse import urlparse, quote
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+################################################################################
+class EMailSend(object):
+    # ==========================================================================
+    def __init__(self, server, user, passwd,
+                 to, subject,
+                 cc=None, bcc=None,
+                 body_text=None, body_file=None, body_type=None,
+                 attachments=None,
+                 port=0, use_ssl=True, use_tls=False,
+                 logger=None):
+        self.server = server
+        self.user = user
+        self.passwd = passwd
+        self.to = to if to else []
+        self.subject = subject
+        self.cc = cc if cc else []
+        self.bcc = bcc if bcc else []
+        self.body_text = body_text
+        self.body_file = body_file
+        self.body_type = body_type
+        self.attachments = attachments if attachments else []
+        self.port = port
+        self.use_ssl = use_ssl
+        self.use_tls = use_tls
+        self.logger = logger
+        # for internal
+        self.sm = None
+        self.open()
+
+    # ==========================================================================
+    def __del__(self):
+        self.close()
+
+    # ==========================================================================
+    def __enter__(self):
+        return self
+
+    # ==========================================================================
+    # noinspection PyShadowingBuiltins
+    def __exit__(self, *args):
+        self.close()
+
+    # ==========================================================================
+    def open(self):
+        if self.use_ssl:
+            if not self.port:
+                self.port = 465
+            self.sm = smtplib.SMTP_SSL(self.server, self.port)
+        else:
+            if self.use_tls:
+                if not self.port:
+                    self.port = 587
+                self.sm = smtplib.SMTP(self.server, self.port)
+                self.sm.starttls()
+            else:
+                if not self.port:
+                    self.port = 25
+                self.sm = smtplib.SMTP(self.server, self.port)
+        self.sm.login(self.user, self.passwd)
+
+    # ==========================================================================
+    def close(self):
+        if self.sm is not None:
+            self.sm.close()
+            # self.sm.quit()
+            self.sm = None
+
+    # ==========================================================================
+    def check_valid(self):
+        if not self.to:
+            raise RuntimeError('One or more recepient needed with --to option!')
+        if self.body_type not in ('text', 'html'):
+            raise RuntimeError('Invalid type of Email body "%s"' % self.body_type)
+        if not self.logger:
+            raise RuntimeError('Invalid logger')
+
+    # ==========================================================================
+    def send(self):
+        self.check_valid()
+        # necessary mimey stuff
+        msg = MIMEMultipart()
+        msg.preamble = 'This is a multi-part message in MIME format.\n'
+        msg.epilogue = ''
+        msg['From'] = self.user
+        msg['To'] = COMMASPACE.join(self.to)
+        msg['Cc'] = COMMASPACE.join(self.cc)
+        msg['Bcc'] = COMMASPACE.join(self.bcc)
+        msg['Date'] = formatdate(localtime=True)
+        msg['Subject'] = self.subject
+        msg_body = MIMEMultipart('alternative')
+        body_type = 'html' if self.body_type == 'html' else 'plain'
+        body = self.body_text
+        if body:
+            msg_body.attach(MIMEText(body, body_type))
+        if self.body_file:
+            if not os.path.exists(self.body_file):
+                raise RuntimeError('Cannot find --body-file "%s"' % self.body_file)
+            encoding = get_file_encoding(self.body_file)
+            with open(self.body_file, encoding=encoding) as ifp:
+                body = ifp.read()
+        if not body:
+            raise RuntimeError('Invalid body, please set --body-text or --body-file')
+        msg_body.attach(MIMEText(body, body_type))
+        msg.attach(msg_body)
+        receiver = self.to + self.cc + self.bcc
+        for f in self.attachments:
+            with open(f, "rb") as fil:
+                part = MIMEApplication(
+                    fil.read(),
+                    Name=os.path.basename(f)
+                )
+            # After the file is closed
+            part['Content-Disposition'] = 'attachment; filename="%s"' % os.path.basename(f)
+            msg.attach(part)
+        # self.sm.set_debuglevel(1)
+        r = self.sm.sendmail(self.user, receiver, msg.as_string())
+        if r:
+            self.logger.error('Email send error: %s' % r)
+        else:
+            print('OK')
+        return not bool(r)
+
+
+################################################################################
+def send_email(**kwargs):
+    # kwargs = {
+    #     'server': args.server,
+    #     'user': args.user,
+    #     'passwd': args.passwd,
+    #     'to': args.to,
+    #     'cc': args.cc,
+    #     'bcc': args.bcc,
+    #     'subject': args.subject,
+    #     'body_text': args.body_text,
+    #     'body_file': args.body_file,
+    #     'body_type': args.body_type,
+    #     'attachments': args.attachments,
+    #     'port': args.port,
+    #     'use_ssl': not args.no_use_ssl,
+    #     'use_tls': args.use_tls,
+    #     'logger': mcxt.logger,
+    # }
+    with EMailSend(**kwargs) as sm:
+        r = sm.send()
+    return 0 if r else 1
 
 
 ################################################################################
@@ -221,6 +394,16 @@ __all__ = ['main']
 # _conf_last_contents = _conf_contents_dict[_conf_last_version]
 
 g_path = os.environ['PATH']
+
+
+################################################################################
+class DownloadInstallError(Exception):
+    pass
+
+
+################################################################################
+class PythonError(Exception):
+    pass
 
 
 ################################################################################
@@ -591,7 +774,7 @@ class VEnv(object):
             if po.returncode != 0 and kwargs['raise_error']:
                 msg = 'VEnv.venv_py: venv command "%s": error %s' % (' '.join(cmd), po.returncode)
                 self.logger.error(msg)
-                raise RuntimeError(msg)
+                raise PythonError(msg)
             self.logger.debug('VEnv.venv_py: returncode="%s"' % po.returncode)
             return po.returncode
         finally:
@@ -681,6 +864,8 @@ class PPM(object):
     URL_DEF_DUMPSPEC = '%s/dumpspec-def-all.json'
     URL_MOD_VER = '%s/mod-ver-list.json'
     URL_DUMPSPEC = '%s/{plugin_name}-{version}-dumpspec.json'
+    # ==========================================================================
+    SELFTEST_ROOT = os.path.join(str(Path.home()), '.argos-rpa.test')
 
     # ==========================================================================
     @staticmethod
@@ -788,7 +973,7 @@ class PPM(object):
         self.args = args
         self.url_config = {}    # %homepath%\.argos-rpa-config.yaml (yaml)
         if not os.path.exists(YAML_PATH):
-            with open (YAML_PATH, 'w', encoding='utf-8') as ofp:
+            with open(YAML_PATH, 'w', encoding='utf-8') as ofp:
                 ofp.write(YAML_CONFIG)
         if os.path.exists(YAML_PATH):
             with open(YAML_PATH, encoding='utf-8') as ifp:
@@ -903,7 +1088,7 @@ class PPM(object):
         yamlpath = os.path.join(self.pkgpath, 'setup.yaml')
         if not os.path.exists(yamlpath):
             raise IOError('PPM._get_setup_config: Cannot find "%s" for setup' % yamlpath)
-        with open(yamlpath) as ifp:
+        with open(yamlpath, encoding='utf-8') as ifp:
             if yaml.__version__ >= '5.1':
                 # noinspection PyUnresolvedReferences
                 yaml_config = yaml.load(ifp, Loader=yaml.FullLoader)
@@ -944,16 +1129,25 @@ class PPM(object):
                 if not self.args.pam_id:
                     headers['authorization'] = self.args.user_auth
                     r = requests.get(url, headers=headers, verify=False)
+                    r_msg = f'_get_private_repositories:url="{url}", ' \
+                            f'headers={headers} ' \
+                            f'status_code={r.status_code}'
                 else:
                     params = (
                         ('user_id', self.args.user),
                         ('pam_auth_key', self.args.user_auth),
                         ('pam_mac_address', self.args.pam_id),
                     )
+                    # noinspection PyTypeChecker
                     r = requests.get(url, headers=headers, params=params, verify=False)
+                    r_msg = f'_get_private_repositories:url="{url}", ' \
+                            f'headers={headers}, params={params}, ' \
+                            f'status_code={r.status_code}'
+                self.logger.info(r_msg)
                 if r.status_code // 10 == 20:
                     self._set_private_repositories(json.loads(r.text))
                     return True
+            # noinspection PyUnboundLocalVariable
             msg = 'Get private plugin for user "%s" Error: API result is %s' \
                   % (self.args.user, r.status_code)
             sys.stderr.write('%s\n' % msg)
@@ -968,6 +1162,27 @@ class PPM(object):
             return False
 
     # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _append_indices(self, url):
+        o = urlparse(url)
+        host = None
+        port = None
+        if o.netloc.find(':') >= 0:
+            host, port = o.netloc.split(':', maxsplit=1)
+        else:
+            host = o.netloc
+            if o.scheme.lower() == 'https':
+                port = 443
+            elif o.scheme.lower() == 'http':
+                port = 80
+            else:
+                return False
+        if is_svc_opeded(host, int(port)):
+            self.indices.append(url)
+            return True
+        return False
+
+    # ==========================================================================
     def _get_indices(self):
         self.indices = []
         self.ndx_param = []
@@ -976,8 +1191,11 @@ class PPM(object):
         url = self._get_URL_OFFPI()
         if not url:
             raise RuntimeError('PPM._get_indices: Invalid repository.url from %s' % YAML_NAME)
-        self.indices.append(url)
-        self.ndx_param.append('--index')
+        self._append_indices(url)
+        if self._is_on_premise():  # 2020
+            self.ndx_param.append('--index')
+        else:
+            self.ndx_param.append('--extra-index-url')
         self.ndx_param.append(url)
         self.ndx_param.append('--trusted-host')
         self.ndx_param.append(self._get_host_from_index(url))
@@ -1001,8 +1219,9 @@ class PPM(object):
                 continue
             # 만약 위에 on premise 인 경우에는 indices가 비어 있으므로
             # 첫 번째를 --index 로 기술해 주어야 함 (2020.1.21)
-            self.indices.append(url)
-            if len(self.indices) == 1:
+            if not self._append_indices(url):
+                continue
+            if self._is_on_premise() and len(self.indices) == 1:
                 self.ndx_param.append('--index-url')
             else:
                 self.ndx_param.append('--extra-index-url')
@@ -1091,7 +1310,7 @@ class PPM(object):
         jsfile = '%s%sdumpspec-%s-%s.json' % (tempfile.gettempdir(), os.path.sep, modname, version)
         if os.path.exists(jsfile):
             return False
-        with open(jsfile, 'w') as ofp:
+        with open(jsfile, 'w', encoding='utf-8') as ofp:
             json.dump(jd, ofp)
         self.logger.debug('PPM._dumpspec_json_save: save dumpspec cache "%s"' % jsfile)
         return True
@@ -1102,7 +1321,7 @@ class PPM(object):
         jsfile = '%s%sdumpspec-%s-%s.json' % (tempfile.gettempdir(), os.path.sep, modname, version)
         if not os.path.exists(jsfile):
             return None
-        with open(jsfile) as ifp:
+        with open(jsfile, encoding='utf-8') as ifp:
             r = json.load(ifp)
         self.logger.debug('PPM._dumpspec_json_load: load dumpspec from "%s"' % jsfile)
         return r
@@ -1304,7 +1523,7 @@ class PPM(object):
         # print(md)
         if not self.args.private_only:
             req_txt = os.path.join(tmpdir, 'requirements.txt')
-            with open(req_txt, 'w') as ofp:
+            with open(req_txt, 'w', encoding='utf-8') as ofp:
                 for md in mdlist:
                     if 'plugin_name' in md:
                         if 'plugin_version' in md:
@@ -1436,7 +1655,7 @@ class PPM(object):
                           % (new_venv.root, requirements_txt))
         r = -1
         _modspec = {}
-        with open(requirements_txt) as ifp:
+        with open(requirements_txt, encoding='utf-8') as ifp:
             for req in requirements.parse(ifp):
                 _modspec[req.name] = req.specs
         for modname, speclist in _modspec.items():
@@ -1461,7 +1680,7 @@ class PPM(object):
             else:
                 _tmpdir = tempfile.mkdtemp(prefix='get_venv_')
                 requirements_txt = os.path.join(_tmpdir, 'requirements.txt')
-                with open(requirements_txt, 'w') as ofp:
+                with open(requirements_txt, 'w', encoding='utf-8') as ofp:
                     ofp.write('# pip dependent packages\n')
                     for pm in self.args.plugin_module:
                         ofp.write('%s\n' % pm)
@@ -1472,7 +1691,7 @@ class PPM(object):
                 outfile = os.path.join(new_d, 'freeze.txt')
                 new_venv.venv_pip('freeze', outfile=outfile, getstdout=True)
                 freeze_d = {}
-                with open(outfile) as ifp:
+                with open(outfile, encoding='utf-8') as ifp:
                     for line in ifp:
                         eles = line.rstrip().split('==')
                         if len(eles) != 2:
@@ -1481,11 +1700,12 @@ class PPM(object):
                 if os.path.exists(outfile):
                     os.remove(outfile)
                 freeze_f = os.path.join(new_d, 'freeze.json')
-                with open(freeze_f, 'w') as ofp:
+                with open(freeze_f, 'w', encoding='utf-8') as ofp:
                     json.dump(freeze_d, ofp)
             else:
-                raise RuntimeError('PPM._get_venv: r=%s, new_venv="%s", requirements_txt="%s" error' %
-                                   (r, new_venv.root, requirements_txt))
+                raise DownloadInstallError('PPM._get_venv: r=%s, new_venv="%s", '
+                                           'requirements_txt="%s" error'
+                                           % (r, new_venv.root, requirements_txt))
             return r
         finally:
             if _tmpdir and os.path.exists(_tmpdir):
@@ -1501,7 +1721,7 @@ Mopidy-Dirble ~= 1.1        # Compatible release. Same as >= 1.1, == 1.*
 SomeProject
 SomeProject == 1.3
 SomeProject >=1.2,<2.0
-SomeProject[foo, bar]
+SomeProject[foo, foo]
 SomeProject~=1.4.2
 
 Django [('>=', '1.11'), ('<', '1.12')]
@@ -1514,13 +1734,13 @@ six [('==', '1.10.0')]
             if self.args.requirements_txt and os.path.exists(self.args.requirements_txt):
                 shutil.copy(self.args.requirements_txt, requirements_txt)
             if self.args.plugin_module:
-                with open(requirements_txt, 'a') as ofp:
+                with open(requirements_txt, 'a', encoding='utf-8') as ofp:
                     ofp.write('# plugin_module parameters\n')
                     for pm in self.args.plugin_module:
                         ofp.write('%s\n' % pm)
             if not os.path.exists(requirements_txt):
                 return modspec
-            with open(requirements_txt) as ifp:
+            with open(requirements_txt, encoding='utf-8') as ifp:
                 for req in requirements.parse(ifp):
                     modspec[req.name.lower()] = req.specs
             return modspec
@@ -1694,12 +1914,189 @@ six [('==', '1.10.0')]
             json.dump(modds, ofp)
 
     # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _clear_log(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            handler.close()
+        for f in glob.glob(os.path.join(str(Path.home()), '.argos-rpa.log*')):
+            os.remove(f)
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _zip_log(self, pkgname):
+        nowstr = datetime.datetime.now().strftime('%Y%m%d_%H%M')
+        zf_name = f'{pkgname}_{nowstr}.zip'
+        zf_path = os.path.join(self.SELFTEST_ROOT, zf_name)
+        with zipfile.ZipFile(zf_path, 'w') as zf:
+            for f in glob.glob(os.path.join(str(Path.home()), '.argos-rpa.log*')):
+                zf.write(f, compress_type=zipfile.ZIP_DEFLATED)
+        return zf_path
+
+    # ==========================================================================
+    def _selftest_one(self, st_or, version=None, venv_dir=None):
+        pkgname = st_or['pkgname']
+        print(f'>>>"{st_or["display_name"]}({st_or["pkgname"]} {st_or["plugin_version"]})" testing... ')
+        if not venv_dir:
+            venv_dir = os.path.join(self.SELFTEST_ROOT, pkgname)
+            # 만약 해당 폴더가 있다면 모두 지우고 시작
+            if os.path.isdir(venv_dir):
+                shutil.rmtree(venv_dir)
+        try:
+            self._clear_log()
+            st_or['start_ts'] = datetime.datetime.now()
+            self.args.plugin_module = [pkgname]
+            # if not self.args.venv:
+            #     # 새로운 가상환경을 만들기 위하여
+            #     self.args.venv = True
+            self._get_venv(venv_dir)
+            st_or['install'] = 'passed'  # install test passed
+            st_venv = VEnv(self.args, root=venv_dir, logger=self.logger)
+            r = st_venv.venv_py('-m', f'{pkgname}.tests', raise_error=True)
+            if r == 0:
+                st_or['unittest'] = 'passed'  # unittest passed
+            else:
+                st_or['unittest'] = 'failed'  # install test failed
+        except DownloadInstallError:
+            st_or['install'] = 'failed'  # install test failed
+        except PythonError:
+            st_or['unittest'] = 'failed'  # install test failed
+        except Exception as e:
+            raise RuntimeError('Unexpected selftest error!')
+        finally:
+            if st_or['install'] == 'failed' or st_or['unittest'] == 'failed':
+                st_or['zipped_log'] = self._zip_log(pkgname)
+            st_or['end_ts'] = datetime.datetime.now()
+            print(f'<<<install {st_or["install"]}, unittest {st_or["unittest"]} '
+                  f'takes {st_or["end_ts"] - st_or["start_ts"]}')
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _get_public_ip_address(self):
+        # noinspection PyBroadException
+        rs = 'N/A'
+        try:
+            rp = requests.get('https://api.ipify.org')
+            if rp.status_code // 10 == 20:
+                rs = f'[{rp.text}]'
+            else:
+                rs = '[Invalid IP Address]'
+        except Exception:
+            rs = '[No Internet connecton]'
+        finally:
+            return rs
+
+    # ==========================================================================
+    # noinspection PyMethodMayBeStatic
+    def _report_selftest(self, st_r):
+        pub_ip = self._get_public_ip_address()
+        lines = [f'Self test from {pub_ip}', '']
+        dnames = []
+        attachments = []
+        ceyaml = os.path.join(str(Path.home()), '.argos-rpa.test', '.check_env.yaml')
+        if os.path.exists(ceyaml):
+            attachments.append(ceyaml)
+        for st_or in st_r:
+            # if st_or["install"] == 'passed' and st_or["unittest"] == 'passed':
+            #     continue
+            dnames.append(f'"{st_or["display_name"]}"')
+            lines.append(f'"{st_or["display_name"]}({st_or["pkgname"]} {st_or["plugin_version"]})" testing... '
+                         f'install {st_or["install"]}, unittest {st_or["unittest"]} '
+                         f'takes {st_or["end_ts"] - st_or["start_ts"]}')
+            if st_or['zipped_log']:
+                attachments.append(st_or['zipped_log'])
+        to = ['plugin<plugin@argos-labs.com>']
+        if self.args.selftest_email:
+            to.append(self.args.selftest_email)
+        dns = ','.join(dnames[:3])
+        if len(dnames) > 3:
+            dns += '...'
+        subject = f'SelfTest {dns} from {pub_ip}'
+        send_email(
+            server='imap.gmail.com',
+            user='plugin@argos-labs.com',
+            passwd='argos0520',
+            to=to,
+            subject=subject,
+            body_text='\n'.join(lines),
+            body_type='text',
+            attachments=attachments,
+            logger=self.logger,
+        )
+
+    # ==========================================================================
+    def _selftest(self, modds, modspec):
+        self.sta.log(StatLogger.LT_2, "Self Testing for plugins")
+        venv_dir = None
+        if self.args.venv_dir:
+            # 전체 하나의 venv에서 설치하고 테스트 하는 경우
+            venv_dir = self.args.venv_dir
+            # 만약 해당 폴더가 있다면 모두 지우고 시작
+            if os.path.isdir(venv_dir):
+                shutil.rmtree(venv_dir)
+        ds = self._cmd_modspec(modds, modspec)
+        if self.args.plugin_module:
+            pms = self.args.plugin_module
+        else:
+            # for k, v in ds.items():
+            #     self._selftest_one(k, v['plugin_version'], venv_dir)
+            pms = list(ds.keys())
+            # argoslabs.check.env 를 제일 먼저 호출하도록 함 (테스트 환경 정보 구하기)
+            if 'argoslabs.check.env' in pms:
+                pms.remove('argoslabs.check.env')
+                pms.insert(0, 'argoslabs.check.env')
+        st_r = []
+        for pm in pms:
+            if isinstance(ds[pm], (list, tuple)):
+                dspm = ds[pm][0]
+            elif isinstance(ds[pm], dict):
+                dspm = ds[pm]
+            else:
+                raise RuntimeError('Invalid ds[pm] type')
+            st_or = {
+                'pkgname': pm,
+                'display_name': dspm['display_name'],
+                'plugin_version': dspm['plugin_version'],
+                'install': 'n/a',
+                'unittest': 'n/a',
+                'zipped_log': None,
+                'start_ts': None,
+                'end_ts': None,
+            }
+            self._selftest_one(st_or, venv_dir=venv_dir)
+            print(f'"{st_or["display_name"]}" testing... '
+                  f'install {st_or["install"]}, unittest {st_or["unittest"]}')
+            st_r.append(st_or)
+        self._report_selftest(st_r)
+        return 0
+
+    # ==========================================================================
+    def _venv_clean(self):
+        py_root = os.path.join(str(Path.home()), '.argos-rpa.venv')
+        dirs = [os.path.join(py_root, o) for o in os.listdir(py_root)
+                if os.path.isdir(os.path.join(py_root, o))]
+        del_list = list()
+        for dir in dirs:
+            dbn = os.path.basename(dir)
+            if not ('0' <= dbn[0] <= '9'):
+                del_list.append(dir)
+        for ditem in del_list:
+            dirs.remove(ditem)
+        for dir in dirs:
+            shutil.rmtree(dir)
+        return 0
+
+    # ==========================================================================
     def do_plugin(self):
         ofp = sys.stdout
         tmpdir = tempfile.mkdtemp(prefix='do_plugin_')
         try:
             self.sta.log(StatLogger.LT_2, "Starting plugin %s command" % self.args.plugin_cmd)
             self.logger.info('PPM.do_plugin: starting... %s' % self.args.plugin_cmd)
+            if self.args.plugin_cmd == 'venv-clean':
+                self._venv_clean()
+                print('Virtual Environment are cleaned.')
+                return 0
             if not self.args.without_cache:
                 # 속도를 위하여 hash 를 우선 가지고 옴
                 self._get_dumpspec_hash()
@@ -1714,6 +2111,20 @@ six [('==', '1.10.0')]
 
             if self.args.outfile:
                 ofp = open(self.args.outfile, 'w', encoding='utf-8')
+
+            # 만약 selftest 인 경우에는 'argoslabs.check.env' 첫번째 추가
+            if self.args.plugin_cmd == 'selftest' and self.args.plugin_module:
+                # self.args.plugin_module 에서 'argoslabs.check.env' 첫번째 추가
+                pms = self.args.plugin_module
+                f_mn_ndx = -1
+                for i, mn in enumerate(pms):
+                    if mn.startswith('argoslabs.check.env'):
+                        f_mn_ndx = i
+                        break
+                if f_mn_ndx >= 0:
+                    del pms[f_mn_ndx]
+                pms.insert(0, 'argoslabs.check.env')
+                self.args.plugin_module = pms
 
             ####################################################################
             # PAM용 환경설정 만들기
@@ -1741,7 +2152,7 @@ six [('==', '1.10.0')]
                     if not os.path.exists(fzj):
                         shutil.rmtree(f)
                         continue
-                    with open(fzj) as ifp:
+                    with open(fzj, encoding='utf-8') as ifp:
                         freeze_d = json.load(ifp)
                     if self._is_conflict(freeze_d, modspec):
                         continue
@@ -1765,7 +2176,7 @@ six [('==', '1.10.0')]
 
             # 만약 CHIEF에 특정 사용자별 dumpspec 결과를 가져오려면 우선
             # 해당 모듈 리스트를 구함
-            if self.args.plugin_cmd == 'dumpspec' and self.args.user:
+            if self.args.plugin_cmd.endswith('dumpspec') and self.args.user:
                 self._dumpspec_user(tmpdir)
 
             # 나머지는 CHIEF, STU용
@@ -1882,11 +2293,39 @@ six [('==', '1.10.0')]
             # --official-only 는 공식사이트, --private-only는 자신의 private 만 (~/.argos-rpa.conf 에서)
             # 예) alabs.ppm plugin dumpspec --private-only --outfile dumpspec.json
             ####################################################################
-            elif self.args.plugin_cmd == 'dumpspec':
+            elif self.args.plugin_cmd.endswith('dumpspec'):
                 self.sta.log(StatLogger.LT_2, "Getting the specifications of plugins")
                 # rd = self._cmd_modspec(modds, modspec, version_attr='plugin_version')  # 2020.02.20
                 rd = self._cmd_modspec(modds, modspec)
                 json.dump(rd, ofp)
+
+            elif self.args.plugin_cmd == 'unique':
+                self.sta.log(StatLogger.LT_2, "Checking the uniqueness of plugins")
+                setattr(self.args, 'venv', True)
+                self._check_pkg()
+                self._get_setup_config()
+
+                ds = self._cmd_modspec(modds, modspec)
+                if self.pkgname in ds:
+                    print(f'Package name "{self.pkgname}" is already exists!')
+                    return 2
+                dn = self._get_pkg_display_name()
+                if not dn:
+                    print('Cannot get display_name')
+                    return 3
+                for ddl in ds.values():
+                    for dd in ddl:
+                        if dn == dd.get('display_name'):
+                            print(f'Package name "{self.pkgname}" is already exists!')
+                            return 4
+                print(f'Package "{self.pkgname}" and Display name "{dn}" seems OK to use.')
+                return 0
+            ####################################################################
+            # PAM selftest
+            ####################################################################
+            elif self.args.plugin_cmd == 'selftest':
+                return self._selftest(modds, modspec)
+
             return 0
         finally:
             if self.args.outfile and ofp != sys.stdout:
@@ -2004,7 +2443,9 @@ six [('==', '1.10.0')]
             os.path.join(os.path.dirname(__file__), 'setup.yaml'),
         ]
         if hasattr(sys, '_MEIPASS'):
-            su_yaml_files.append(os.path.join(os.path.abspath(sys._MEIPASS), 'setup.yaml'))
+            # noinspection PyProtectedMember
+            su_yaml_files.append(
+                os.path.join(os.path.abspath(sys._MEIPASS), 'setup.yaml'))
         su_yaml_file = None
         for syf in su_yaml_files:
             if os.path.exists(syf):
@@ -2282,7 +2723,29 @@ six [('==', '1.10.0')]
                 r = self._do_upload(**kwargs)
                 print('upload is done. success is %s' % (r == 0,))
                 return r
-
+            # elif self.args.command == 'unique':
+            #     _ = self.pkgname
+            #     setattr(self.args, 'plugin_cmd', '_dumpspec')
+            #     setattr(self.args, 'without_cache', False)
+            #     setattr(self.args, 'outfile', None)
+            #     setattr(self.args, 'private_only', False)
+            #     setattr(self.args, 'flush_cache', False)
+            #     setattr(self.args, 'startswith', None)
+            #     setattr(self.args, 'plugin_module', None)
+            #     ds = self.do_plugin()
+            #     if self.pkgname in ds:
+            #         print(f'Package name "{self.pkgname}" is already exists!')
+            #         return 2
+            #     dn = self._get_pkg_display_name()
+            #     if not dn:
+            #         print('Cannot get display_name')
+            #         return 3
+            #     for dd in ds.values():
+            #         if dn == dd.get('display_name'):
+            #             print(f'Package name "{self.pkgname}" is already exists!')
+            #             return 4
+            #     print(f'Package "{self.pkgname}" and Display name "{dn}" seems OK to use.')
+            #     return 0
             # else:
             #     raise RuntimeError('PPM.do: Cannot support command "%s"'
             #                        % self.args.command)
@@ -2302,6 +2765,26 @@ six [('==', '1.10.0')]
             self.logger.info('PPM.do: end. %s' % self.args.command)
 
     # ==========================================================================
+    def _get_pkg_display_name(self):
+        init_file = os.path.join(self.basepath, self.pkgpath, '__init__.py')
+        if not os.path.exists(init_file):
+            raise IOError(f'Cannot read "{init_file}"')
+        with open(init_file, encoding='utf-8') as ifp:
+            is_in_mc = False
+            for line in ifp:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.find('with ModuleContext(') >= 0:
+                    is_in_mc = True
+                if not is_in_mc:
+                    continue
+                dn_ndx = line.find('display_name=')
+                if dn_ndx >= 0:
+                    dn = line[dn_ndx + len('display_name='):].rstrip(',')
+                    return dn[1:-1]
+
+    # ==========================================================================
     def append_pkg_history(self, pkghistory):
         fl = [f for f in
               glob.glob(os.path.join(self.pkgpath, '**', '__init__.py'),
@@ -2314,7 +2797,8 @@ six [('==', '1.10.0')]
             md_list = md.split('.')
             b_missed = False
             for i in range(3, len(md_list)):
-                if "'%s'" % md[:i] not in pkghistory:
+                md_prefix = '.'.join(md_list[:i])
+                if "'%s'" % md_prefix not in pkghistory:
                     b_missed = True
                     break
             if b_missed:
@@ -2336,7 +2820,7 @@ six [('==', '1.10.0')]
         self._install_precompiled_wheel()
         requirements_txt = os.path.join(self.pkgpath, 'requirements.txt')
         if not os.path.exists(requirements_txt):
-            with open(requirements_txt, 'w') as ofp:
+            with open(requirements_txt, 'w', encoding='utf-8') as ofp:
                 ofp.write('# pip dependent packages\n')
         r = self.venv.venv_pip('install', '-r', requirements_txt,
                                *self.ndx_param, getstdout=True)
@@ -2370,10 +2854,13 @@ six [('==', '1.10.0')]
             requirements_txt = requirements_txt.replace('\\', '\\\\')
         # for package_data
         package_data = self.setup_config.get('package_data',
-                                             "{%s: ['icon.*']}" % self.pkgname)
+                                             {self.pkgname: ['icon.*', 'setup.yaml']})
+        if self.pkgname not in package_data:
+            # package_data[self.pkgname] = ['icon.*']
+            raise RuntimeError('Please check package_data in setup.yaml')
         if self.DUMPSPEC_JSON not in package_data[self.pkgname]:
             package_data[self.pkgname].append(self.DUMPSPEC_JSON)
-        with open(supath, 'w') as ofp:
+        with open(supath, 'w', encoding='utf-8') as ofp:
             setup_str = '''
 import unittest
 from setuptools import setup
@@ -2397,6 +2884,7 @@ def my_test_suite():
 # parse_requirements() returns generator of pip.req.InstallRequirement objects
 install_reqs = parse_requirements("{requirements_txt}", session=PipSession())
 reqs = [str(ir.req) for ir in install_reqs]
+reqs.extend({install_requires})
 
 setup(
     name='{pkgname}',
@@ -2431,6 +2919,7 @@ setup(
                 requirements_txt=requirements_txt,
                 pkgname=self.pkgname,
                 version=self.setup_config.get('version', '0.1.0'),
+                install_requires=self.setup_config.get('install_requires', []),
                 description=self.setup_config.get('description', 'description'),
                 author=self.setup_config.get('author', 'author'),
                 author_email=self.setup_config.get('author_email', 'author_email'),
@@ -2453,7 +2942,7 @@ setup(
         if os.path.exists(os.path.join(self.pkgpath, 'README.md')):
             readme = "description-file = %s%sREADME.md" \
                       % (self.pkgpath, os.path.sep)
-        with open(sucpath, 'w') as ofp:
+        with open(sucpath, 'w', encoding='utf-8') as ofp:
             sucstr = '''
 [metadata]
 # license_files = LICENSE.txt
@@ -2466,6 +2955,28 @@ setup(
         # instead use package_data
         # if os.path.exists(os.path.join(self.pkgpath, 'MANIFEST.in')):
         #     shutil.copy(os.path.join(self.pkgpath, 'MANIFEST.in'), self.basepath)
+
+        # for {pkgname}.tests.__main__.py
+        if os.path.exists(os.path.join(self.pkgpath, 'tests')):
+            tmpath = os.path.join(self.pkgpath, 'tests', '__main__.py')
+            if not os.path.exists(tmpath):
+                with open(tmpath, 'w', encoding='utf-8') as ofp:
+                    tmstr = '''
+import sys
+from {pkgname}.tests.test_me import TU
+from unittest import TestLoader, TextTestRunner
+
+
+################################################################################
+if __name__ == "__main__":
+    suite = TestLoader().loadTestsFromTestCase(TU)
+    result = TextTestRunner(verbosity=2).run(suite)
+    ret = not result.wasSuccessful()
+    sys.exit(ret)
+'''.format(pkgname=self.pkgname)
+                    ofp.write(tmstr)
+                    self.logger.debug('PPM.setup: %s=<%s>' % (tmpath, tmstr))
+
         r = self.venv.venv_py(supath, *args, getstdout=True)
         self.logger.info('PPM.setup: end.')
         return r
@@ -2475,9 +2986,9 @@ setup(
 # def get_repository_env():
 #     cf = CONF_PATH
 #     if not os.path.exists(cf):
-#         with open(cf, 'w') as ofp:
+#         with open(cf, 'w', encoding='utf-8') as ofp:
 #             ofp.write(_conf_last_contents)
-#     with open(cf) as ifp:
+#     with open(cf, encoding='utf-8') as ifp:
 #         if yaml.__version__ >= '5.1':
 #             # noinspection PyUnresolvedReferences
 #             dcf = yaml.load(ifp, Loader=yaml.FullLoader)
@@ -2489,9 +3000,9 @@ setup(
 #     elif ver_compare(dcf['version'], _conf_last_version) < 0:
 #         need_conf_upgrade = True
 #     if need_conf_upgrade:
-#         with open(cf, 'w') as ofp:
+#         with open(cf, 'w', encoding='utf-8') as ofp:
 #             ofp.write(_conf_last_contents)
-#         with open(cf) as ifp:
+#         with open(cf, encoding='utf-8') as ifp:
 #             if yaml.__version__ >= '5.1':
 #                 # noinspection PyUnresolvedReferences
 #                 dcf = yaml.load(ifp, Loader=yaml.FullLoader)
@@ -2560,6 +3071,7 @@ def _main(argv=None):
     cwd = os.getcwd()
     try:
         # dcf = get_repository_env()
+        # noinspection PyTypeChecker
         parser = ArgumentParser(
             description='''ARGOS-LABS Plugin Package Manager''',
             formatter_class=argparse.RawTextHelpFormatter)
@@ -2609,6 +3121,7 @@ def _main(argv=None):
         _ = subps.add_parser('clear-all',
                              help='clear all temporary folders and '
                                   'virtual environment')
+        # _ = subps.add_parser('unique', help='Check for uniqueness for the pkgname and display name')
 
         ########################################################################
         # get command
@@ -2623,13 +3136,18 @@ def _main(argv=None):
         ########################################################################
         sp = subps.add_parser('plugin', help='plugin command')
         sp.add_argument('plugin_cmd',
-                        choices=['get', 'dumpspec', 'venv', 'versions', 'dumppi'],
-                        help="""plugin command, one of {'get', 'dumpspec', 'venv', 'versions', 'dumppi']}.
+                        choices=[
+                            'get', 'dumpspec', 'venv', 'versions', 'dumppi',
+                            'unique', 'selftest', 'venv-clean',
+                        ],
+                        help="""plugin command, one of {'get', 'dumpspec', 'venv', 'versions', 'dumppi', 'unique', 'selftest', 'venv-clean']}.
    - get : get plugin info for STU
    - dumpspec : get plugin spec for STU
    - venv : making virtual environment for PAM
    - versions : get versions for a plugin
    - dumppi : dump all pypi index for mirroring to a folder
+   - unique : check for uniqueness for the pkgname and display name of plugin
+   - selftest : self test for plugin and report in case of failure
 """)
         sp.add_argument('plugin_module',
                         nargs="*",
@@ -2664,6 +3182,10 @@ def _main(argv=None):
                         help="filename to read modules from requirements.txt instead plugin_module parameters")
         sp.add_argument('--without-cache', action='store_true',
                         help="module filter to start with")
+        sp.add_argument('--venv-dir',
+                        help="self testing directory for virtual environment")
+        sp.add_argument('--selftest-email',
+                        help="self testing report email, default is plugin@argos-labs.com")
 
         ########################################################################
         # pip command
@@ -2733,6 +3255,7 @@ def _main(argv=None):
         sta.log(StatLogger.LT_1, 'Preparing STU and PAM is done.')
         global pbtail_po
         if pbtail_po is not None:
+            # noinspection PyUnresolvedReferences
             pbtail_po.wait()
             # pbtail_po.terminate()
             StatLogger().clear()

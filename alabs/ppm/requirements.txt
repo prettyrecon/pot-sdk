@@ -1,6 +1,6 @@
 # pip dependent packages
 
-alabs.common
+#alabs.common
 
 # needed
 wheel
@@ -11,6 +11,10 @@ requests
 requirements-parser
 beautifulsoup4
 
-# for installer STU & PAM pakcaging
-# PyInstaller
-# pypiwin32
+## for installer STU & PAM pakcaging
+#PyInstaller
+#pypiwin32
+#
+## for pyinstaller
+#six
+#packaging
