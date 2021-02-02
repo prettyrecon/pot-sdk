@@ -1,0 +1,139 @@
+---
+environment:
+  virtualenv:
+    py3: 'C:\Python37-32\python.exe'
+    dir: '{{home}}\autotest.venv'
+  log: '{{home}}\autotest.log'
+  report: email
+
+report:
+  email:
+    plugin: argoslabs.office.emailsend
+    server: imap.gmail.com
+    user: plugin@argos-labs.com
+    passwd: teehjthjseblwjqt
+    subject: Automatic Plugin Test
+    to:
+      - plugin@argos-labs.com
+#      - staff@argos-labs.com
+
+schedule:
+  - at: '00:00'
+    before_clear: true
+  - at: '06:00'
+    before_clear: false
+  - at: '12:00'
+    before_clear: false
+  - at: '18:00'
+    before_clear: false
+
+tests:
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - OCR op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - OCR
+      - data/text-01.png
+#      - --output-image
+#      - data/text-01.out.png
+    assert_true: stdout.endswith('to The Economist')
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - OCR op for fulltext
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - OCR
+      - data/full-text-03.jpg
+    assert_true: stdout.startswith('No.1133\r\n学生氏名')
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - Face op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Face
+      - data/faces-01.jpg
+#      - --output-image
+#      - data/faces-01.out.jpg
+    assert_true: stdout == '2'
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - Label op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Label
+      - data/label-01.jpg
+    assert_true: stdout.find('Dog') > 0
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - Label op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Landmark
+      - data/landmark-01.jpg
+#      - --output-image
+#      - data/landmark-01.out.jpg
+    assert_true: stdout.find('Eiffel Tower') > 0
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - Logo op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Logo
+      - data/logo-01.jpg
+#      - --output-image
+#      - data/logo-01.out.jpg
+    assert_true: stdout.find('Google') > 0
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - 'Localized Object' op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Localized Object
+      - data/local-01.png
+#      - --output-image
+#      - data/local-01.out.png
+    assert_true: stdout.find('Food') > 0
+  - plugin: argoslabs.google.vision
+    name: Google Vision API - 'Dominant Colors' op
+    version:
+    cmd:
+      - argoslabs.google.vision
+      - data/stt-test-db6074635845.json
+      - Dominant Colors
+      - data/property-01.jpg
+    assert_true: stdout.find('0.01451832801103592') > 0
+  - plugin: argoslabs.google.translate
+    name: Google Translate - detect op
+    version:
+    cmd:
+      - argoslabs.google.translate
+      - こんにちは世界？私はTTSです?
+      - --detect
+    assert_true: stdout == 'lang, confidence\r\nja, N/A\r\n'
+  - plugin: argoslabs.google.translate
+    name: Google Translate - translate op
+    version:
+    cmd:
+      - argoslabs.google.translate
+      - こんにちは世界？私はTTSです?
+      - --dest
+      - English
+    assert_true: stdout == 'Hello World? Am i TTS? '
+  - plugin: argoslabs.api.rest
+    name: REST API - get
+    version:
+    cmd:
+      - argoslabs.api.rest
+      - get
+      - https://reqres.in/api/unknown/2
+    # 만약 stdout_json이 true이면 stdout를 js dict에 json.load
+    stdout_json: true
+    assert_true: js['data']['id'] == 2 and js['data']['year'] == 2001

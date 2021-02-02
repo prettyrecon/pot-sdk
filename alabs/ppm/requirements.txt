@@ -6,6 +6,7 @@
 wheel
 
 # default for alabs.ppm
+idna==2.7
 PyYAML
 requests
 requirements-parser

@@ -1,13 +1,13 @@
 """
 ====================================
- :mod:`argoslabs.data.binaryop`
+ :mod:`alabs.icon`
 ====================================
 .. moduleauthor:: Jerry Chae <mcchae@argos-labs.com>
 .. note:: ARGOS-LABS License
 
 Description
 ===========
-ARGOS LABS plugin module demo helloworld
+ARGOS LABS icon utility
 """
 
 ################################################################################

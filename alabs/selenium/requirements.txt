@@ -1,0 +1,9 @@
+# util
+alabs.common
+
+# for selenium
+selenium
+
+# for util
+requests
+xlrd==1.2.0

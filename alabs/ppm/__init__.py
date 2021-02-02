@@ -16,6 +16,10 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2021/01/25]
+#   - idna==2.7 install
+#     ERROR: Could not find a version that satisfies the requirement idna<3,>=2.5 (from requests->alabs.ppm) (from versions: 3.1)
+#     ERROR: No matching distribution found for idna<3,>=2.5 (from requests->alabs.ppm)
 #  * [2020/10/21]
 #   - tests 폴더가 없으면 __main__.py 생성하는 체크 코드 추가
 #   - setup.yaml 파일을 디폴트로 wheel 파일에 포함
