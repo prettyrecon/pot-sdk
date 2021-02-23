@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2021/02/06]
+#   - for Linux porting
 #  * [2021/01/25]
 #   - idna==2.7 install
 #     ERROR: Could not find a version that satisfies the requirement idna<3,>=2.5 (from requests->alabs.ppm) (from versions: 3.1)
@@ -2077,6 +2079,9 @@ six [('==', '1.10.0')]
     # ==========================================================================
     def _venv_clean(self):
         py_root = os.path.join(str(Path.home()), '.argos-rpa.venv')
+        if not os.path.exists(py_root):
+            os.makedirs(py_root)
+            return 0
         dirs = [os.path.join(py_root, o) for o in os.listdir(py_root)
                 if os.path.isdir(os.path.join(py_root, o))]
         del_list = list()
@@ -2866,12 +2871,18 @@ six [('==', '1.10.0')]
             package_data[self.pkgname].append(self.DUMPSPEC_JSON)
         with open(supath, 'w', encoding='utf-8') as ofp:
             setup_str = '''
+import pip
 import unittest
 from setuptools import setup
-try: # for pip >= 10
+
+pip_major_version = int(pip.__version__.split(".")[0])
+if pip_major_version >= 20:
+    from pip._internal.req import parse_requirements
+    from pip._internal.network.session import PipSession
+elif pip_major_version >= 10:
     from pip._internal.req import parse_requirements
     from pip._internal.download import PipSession
-except ImportError: # for pip <= 9.0.3
+else:
     from pip.req import parse_requirements
     from pip.download import PipSession
 

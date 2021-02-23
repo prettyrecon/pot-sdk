@@ -638,7 +638,7 @@ def _dict2xml(key, val, output, depth=0, attr_prefix='@', cdata_key='#text'):
                             output.write(' %s="%s"' % (k[1:], v))
                 if _has_other:
                     output.write('>')
-                elif _cd_text is not '':
+                elif _cd_text != '':
                     output.write('>%s</%s>' % (_cd_text, key))
                 else:
                     output.write(' />')
