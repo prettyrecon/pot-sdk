@@ -2,7 +2,7 @@
 alabs.common
 
 # for scheduler
-schedule
+APScheduler
 
 # for conf
 PyYAML

@@ -43,3 +43,4 @@ exe
 *.whl
 *.spec
 **/installer/windows/python_pam/python/**
+.vscode*

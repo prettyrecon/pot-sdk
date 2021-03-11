@@ -18,14 +18,14 @@ report:
 #      - staff@argos-labs.com
 
 schedule:
-  - at: '00:00'
+  - at: '*:*/10'
     before_clear: true
-  - at: '06:00'
-    before_clear: false
-  - at: '12:00'
-    before_clear: false
-  - at: '18:00'
-    before_clear: false
+#  - at: '06:00'
+#    before_clear: false
+#  - at: '12:00'
+#    before_clear: false
+#  - at: '18:00'
+#    before_clear: false
 
 tests:
   - plugin: argoslabs.google.vision
@@ -69,7 +69,7 @@ tests:
       - data/label-01.jpg
     assert_true: stdout.find('Dog') > 0
   - plugin: argoslabs.google.vision
-    name: Google Vision API - Label op
+    name: Google Vision API - Landmark op
     version:
     cmd:
       - argoslabs.google.vision
@@ -126,7 +126,8 @@ tests:
       - こんにちは世界？私はTTSです?
       - --dest
       - English
-    assert_true: stdout == 'Hello World? Am i TTS? '
+    assert_true: stdout.find('Hello World?') >= 0
+
   - plugin: argoslabs.api.rest
     name: REST API - get
     version:

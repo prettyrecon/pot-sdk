@@ -17,6 +17,10 @@ ARGOS LABS base class to use Selenium
 # Change Log
 # --------
 #
+#  * [2021/03/11]
+#     - Chrome 89 버전용 링크 추가
+#  * [2021/03/03]
+#     - Mac porting 시작
 #  * [2021/01/17]
 #     - get_by_xpath에 move_to_element flag 추가
 #  * [2020/12/02]
@@ -25,6 +29,7 @@ ARGOS LABS base class to use Selenium
 import os
 import sys
 import csv
+import stat
 import xlrd
 import time
 import glob
@@ -57,6 +62,15 @@ class PySelenium(object):
     BROWSERS = {
         'Chrome': {
             'driver-download-link': [
+                {
+                    'version': '89',
+                    'link': {
+                        'win32': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_win32.zip',
+                        'linux': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_linux64.zip',
+                        'darwin': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_mac64.zip',
+                        # todo: 'darwin_m1': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_mac64_m1.zip',
+                    }
+                },
                 {
                     'version': '88',
                     'link': {
@@ -176,6 +190,24 @@ class PySelenium(object):
                 raise IOError(f'"{self.browser}" is not installed is this system')
             else:
                 raise NotImplementedError(f'to get {self.browser} browser version')
+        elif self.platform == 'darwin':
+            if self.browser == 'Chrome':
+                chrome_exe = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+                if not os.path.exists(chrome_exe):
+                    raise RuntimeError(f'Cannot find Chrome at "{chrome_exe}"')
+                cmd = [
+                    chrome_exe,
+                    '--version',
+                ]
+                # Google Chrome 88.0.4324.192
+                po = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                po.wait()
+                out = po.stdout.read().decode().strip()
+                if out.find('Google Chrome') >= 0:
+                    bv = out.split()[-1]
+                    return bv.split('.')[0]
+                else:
+                    raise IOError(f'"{self.browser}" is not installed is this system')
         else:
             raise NotImplementedError('Linux, Mac need to be get browser version')
 
@@ -230,6 +262,8 @@ class PySelenium(object):
         else:
             with open(drive_f, 'wb') as ofp:
                 ofp.write(r.content)
+        st = os.stat(drive_f)
+        os.chmod(drive_f, st.st_mode | stat.S_IEXEC)
 
     # ==========================================================================
     def _get_driver(self):

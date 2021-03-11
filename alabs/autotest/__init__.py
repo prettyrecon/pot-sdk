@@ -17,6 +17,8 @@ automatic testing for plugins
 # Change Log
 # --------
 #
+#  * [2020/01/24]
+#     - change Scheduler => APScheduler
 #  * [2020/01/04]
 #     - demploy to alabs.autotest
 #  * [2020/12/14]
@@ -27,10 +29,9 @@ import os
 import sys
 import yaml
 import json
-import time
+# import time
 import shutil
-import argparse
-import schedule
+# import argparse
 import datetime
 import traceback
 import subprocess
@@ -40,10 +41,7 @@ from tempfile import gettempdir, TemporaryFile
 from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvargs import ModuleContext, func_log, \
     ArgsError, ArgsExit, get_icon_path
-
-
-################################################################################
-AT = None
+from apscheduler.schedulers.gbackground import BlockingScheduler
 
 
 ################################################################################
@@ -69,7 +67,7 @@ class AutoTest(object):
             g_dir = c_dir = os.path.abspath(os.path.dirname(__file__))
         self.g_dir = g_dir
         if not conf_f:
-            conf_f = os.path.join(g_dir, 'autotest.yaml')
+            conf_f = 'autotest.yaml'
         if not os.path.exists(conf_f):
             raise IOError(f'Cannot read conf file "{conf_f}"')
         with open(conf_f, encoding='utf-8') as ifp:
@@ -108,10 +106,9 @@ class AutoTest(object):
 
     # ==========================================================================
     def _info(self, msg):
-        msg = msg.strip()
         if self.tee:
             sys.stdout.write('[INFO]:' + msg + '\n')
-        self.logger.info(msg)
+        self.logger.info(msg.strip())
         self.report['contents'].append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] INFO: {msg}')
 
     # ==========================================================================
@@ -187,20 +184,27 @@ class AutoTest(object):
     # ==========================================================================
     def prepare_venv(self, is_clear=False):
         venv_dir = self.conf['environment']['virtualenv']['dir']
+        self._info(f'\n[venv]{"=" * 80}\nvenv dir="{venv_dir}"')
         if is_clear and os.path.exists(venv_dir):
+            self._info(f'removing venv dir="{venv_dir}"')
             shutil.rmtree(venv_dir)
         # venv_py_f = os.path.join(venv_dir, 'Scripts', 'python.exe')
         if not os.path.exists(venv_dir):
             # making venv
+            self._info(f'making venv dir="{venv_dir}"')
             self.make_venv()
+        self._info(f'\n[install reporting module]{"=" * 80}')
         self.pip_install_plugin(self.conf['report']['email']['plugin'])
 
     # ==========================================================================
-    def do_test(self, test):
+    def do_test(self, ndx, test):
+        ver_str = test["version"] if test["version"] else 'latest'
+        s_title = f'[{test["plugin"]}:{ver_str}] "{test["name"]}"'
         s_ts = datetime.datetime.now()
         try:
-            self._info(f'\n{"="*100}\nStart testing {test["name"]}')
-            self.pip_install_plugin(test['plugin'])
+            self._info(f'\n\n[{ndx+1}th]{"="*80}\nTesting "{test["name"]}", '
+                       f'plugin="{test["plugin"]}", version="{ver_str}"')
+            self.pip_install_plugin(test['plugin'], test['version'])
             cmd = test['cmd']
             cmd[0] = os.path.join(self.conf['environment']['virtualenv']['dir'],
                                   'Scripts', cmd[0])
@@ -211,10 +215,10 @@ class AutoTest(object):
             br = eval(test['assert_true'], globals(), locals())
             if br:
                 self._info(f'Checking for result "{test["assert_true"]}" is OK')
-                self._summary(f'[{test["plugin"]}] {test["name"]} passed')
+                self._summary(f'{s_title} passed')
             else:
                 self._info(f'Checking for result "{test["assert_true"]}" is NOK!')
-                self._summary(f'[{test["plugin"]}] {test["name"]} NOT passed')
+                self._summary(f'{s_title} NOT passed')
             return br
         except Exception as err:
             _exc_info = sys.exc_info()
@@ -222,7 +226,7 @@ class AutoTest(object):
             del _exc_info
             self._error('implicitly_wait Error: %s\n' % str(err))
             self._error('%s\n' % ''.join(_out))
-            self._summary(f'[{test["plugin"]}] {test["name"]} got Exception!')
+            self._summary(f'{s_title} got Exception!')
             return False
         finally:
             e_ts = datetime.datetime.now()
@@ -237,7 +241,7 @@ class AutoTest(object):
                       f'it took {e_ts - s_ts}\n\n')
             ofp.write(f'Total {total_cnt} plugins and falied {fail_cnt}\n\n\n')
             for i, s in enumerate(self.report['summary']):
-                ofp.write(f'[{i+1:04}/{total_cnt}] {s}\n')
+                ofp.write(f'[{i+1}/{total_cnt}] {s}\n')
             ofp.write(f'\n\n\n{"*" * 100}\n')
             ofp.write('\n'.join(self.report['contents']))
         cmd = [
@@ -275,8 +279,8 @@ class AutoTest(object):
                     tests.append(t)
         else:
             tests = self.conf.get('tests', [])
-        for test in tests:
-            br = self.do_test(test)
+        for i, test in enumerate(tests):
+            br = self.do_test(i, test)
             if br:
                 succ_cnt += 1
             else:
@@ -286,16 +290,14 @@ class AutoTest(object):
 
 
 ################################################################################
-def do_schedule():
-    global AT
-    AT.do_tests()
+def do_schedule(at):
+    at.do_tests()
 
 
 ################################################################################
-def do_schedule_new_env():
-    global AT
-    AT.prepare_venv(is_clear=True)
-    AT.do_tests()
+def do_schedule_new_env(at):
+    at.prepare_venv(is_clear=True)
+    at.do_tests()
 
 
 ################################################################################
@@ -311,7 +313,7 @@ def _main(*args):
         description='alabs.autotest util for automatic plugin testing',
     ) as mcxt:
         mcxt.add_argument('--conf', '-c',
-                          help='set config file')
+                          help='set config file, default is "autotest.yaml"')
         mcxt.add_argument('--start', '-s', action='store_true',
                           help='If this flag is set just run starting and exit')
         mcxt.add_argument('--filter', '-f', action='append',
@@ -327,16 +329,18 @@ def _main(*args):
         if argspec.start:
             at.do_tests()
             return 0
-        global AT
-        AT = at
+        scheduler = BlockingScheduler()
         for sch in at.conf.get('schedule', []):
+            hour, minute = sch['at'].split(':')
             if sch['before_clear']:
-                schedule.every().day.at(sch['at']).do(do_schedule_new_env)
+                scheduler.add_job(do_schedule_new_env, args=(at,),
+                                  trigger='cron', hour=hour, minute=minute)
+                at._info(f'do_schedule_new_env scheduled at "{sch["at"]}"')
             else:
-                schedule.every().day.at(sch['at']).do(do_schedule)
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
+                scheduler.add_job(do_schedule, args=(at,),
+                                  trigger='cron', hour=hour, minute=minute)
+                at._info(f'do_schedule scheduled at "{sch["at"]}"')
+        scheduler.start()
         return 0
 
 
