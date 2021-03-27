@@ -12,10 +12,10 @@ requests
 requirements-parser
 beautifulsoup4
 
-## for installer STU & PAM pakcaging
-#PyInstaller
+# for installer STU & PAM pakcaging
+PyInstaller
 #pypiwin32
-#
-## for pyinstaller
-#six
-#packaging
+
+# for pyinstaller
+six
+packaging

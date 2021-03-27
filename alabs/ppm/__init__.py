@@ -17,6 +17,9 @@
 #
 # 다음과 같은 작업 사항이 있었습니다:
 #  * [2021/02/06]
+#   - setup.py 에서 PipSession 의 경우 20 이상 되는 것 체크하는 코드 추가
+#   - setup.py 에서 req, requirement attr 문제 코드 넣음
+#  * [2021/02/06]
 #   - for Linux porting
 #  * [2021/01/25]
 #   - idna==2.7 install
@@ -2898,7 +2901,16 @@ def my_test_suite():
 ################################################################################
 # parse_requirements() returns generator of pip.req.InstallRequirement objects
 install_reqs = parse_requirements("{requirements_txt}", session=PipSession())
-reqs = [str(ir.req) for ir in install_reqs]
+#reqs = [str(ir.req) for ir in install_reqs]
+reqs = list()
+for ir in install_reqs:
+    if hasattr(ir, 'req'):
+        req = ir.req
+    elif hasattr(ir, 'requirement'):
+        req = ir.requirement
+    else:
+        raise LookupError('Cannot get requirement')
+    reqs.append(str(req))
 reqs.extend({install_requires})
 
 setup(

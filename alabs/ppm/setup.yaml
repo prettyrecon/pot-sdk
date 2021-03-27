@@ -30,4 +30,4 @@ setup:
   url: https://www.argos-labs.com
   # do not start '0'
 #  version: 2.1021.1800
-  version: 3.125.1430
+  version: 3.325.2420
