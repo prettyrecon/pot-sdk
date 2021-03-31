@@ -750,7 +750,10 @@ def get_all_pip_version():
     for p in x:
         # print(p)
         eles = p.split('==')
-        rd[eles[0]] = eles[1]
+        if len(eles) == 2:
+            rd[eles[0]] = eles[1]
+        else:
+            rd[eles[0]] = '0.0.0'
     return rd
 
 
