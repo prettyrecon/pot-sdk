@@ -1,3 +1,4 @@
+import os
 import csv
 import sys
 import json
@@ -5,8 +6,11 @@ import json
 import requests
 import logging
 import urllib3
+import subprocess
 from bs4 import BeautifulSoup
 from operator import itemgetter
+from tempfile import NamedTemporaryFile
+from alabs.ppm import _main
 
 
 ################################################################################
@@ -40,17 +44,52 @@ class PluginReport(object):
 
     # ==========================================================================
     def get_dump_all(self):
-        r = requests.get(self.DUMP_ALL)
-        self.dumpall = json.loads(r.text)
+        # self.DUMP_ALL 에서 json 을 가져와서 처리하는데
+        #   argoslabs.time.getts 와 같은 모듈이 안 보여서 alabs.ppm.main을 이용
+        # r = requests.get(self.DUMP_ALL)
+        # self.dumpall = json.loads(r.text)
+        tf_name = None
+        try:
+            with NamedTemporaryFile(suffix='.json', prefix='dump-all-') as tf:
+                tf_name = tf.name
+            cmd = [
+                #'alabs.ppm',
+                '--plugin-index',
+                'https://pypi-official.argos-labs.com/pypi',
+                'plugin',
+                'get',
+                '--official-only',
+                '--without-cache',
+                '--outfile',
+                tf_name
+            ]
+            r = _main(cmd)
+            #po = subprocess.Popen(cmd)
+            #po.wait()
+            #r = po.returncode
+            if r != 0:
+                self.logger.error('Cannot get dump_all.json')
+                return False
+            with open(tf_name, encoding='utf-8') as ifp:
+                self.dumpall = json.load(ifp)
+            return bool(self.dumpall)
+        except Exception as e:
+            msg = f'get_dump_all Error: {str(e)}'
+            self.logger.error(msg)
+        finally:
+            if tf_name and os.path.exists(tf_name):
+                os.remove(tf_name)
 
     # ==========================================================================
     def get_display_name(self, m_name, ver):
         if m_name not in self.dumpall:
             return "UnKnown Plugin"
+        disp_name = "UnKnown Plugin"
         for dspec in self.dumpall[m_name]:
-            if ver == dspec['plugin_version']:
-                return dspec['display_name']
-        return "UnKnown Plugin"
+            disp_name = dspec['display_name']
+            if ver == dspec['version']:
+                return disp_name
+        return f'{disp_name} no version {ver}'
 
     # ==========================================================================
     def get_list_from_repository(self):

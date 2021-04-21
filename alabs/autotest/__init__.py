@@ -17,6 +17,11 @@ automatic testing for plugins
 # Change Log
 # --------
 #
+#  * [2020/03/12]
+#     - stat email
+#  * [2020/03/05]
+#     - Delete APScheduler
+#     - crontab 또는 윈도우 스케줄러를 이용하도록 함
 #  * [2020/01/24]
 #     - change Scheduler => APScheduler
 #  * [2020/01/04]
@@ -27,21 +32,295 @@ automatic testing for plugins
 ################################################################################
 import os
 import sys
+import csv
 import yaml
 import json
 # import time
 import shutil
 # import argparse
+import pathlib
+import logging
+import urllib3
+import requests
 import datetime
 import traceback
 import subprocess
-import pathlib
+from bs4 import BeautifulSoup
+from operator import itemgetter
+from tempfile import NamedTemporaryFile
 from io import StringIO
 from tempfile import gettempdir, TemporaryFile
 from alabs.common.util.vvlogger import get_logger
 from alabs.common.util.vvargs import ModuleContext, func_log, \
     ArgsError, ArgsExit, get_icon_path
-from apscheduler.schedulers.gbackground import BlockingScheduler
+#from apscheduler.schedulers.gbackground import BlockingScheduler
+from alabs.ppm import _main as ppm_main
+
+
+################################################################################
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+################################################################################
+class PluginReport(object):
+    DUMP_ALL = "https://pypi-official.argos-labs.com/data/plugin-static-files/dumpspec-def-all.json"
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    # ==========================================================================
+    def __init__(self, logger):
+        self.logger = logger
+        self.report = {}
+        self.rows = []
+        self.gbn_rows = []
+        self.dumpall = None
+
+    # ==========================================================================
+    @staticmethod
+    def ver_compare(a, b):
+        a_eles = a.split('.')
+        b_eles = b.split('.')
+        max_len = max(len(a_eles), len(b_eles))
+        for i in range(max_len):
+            if i >= len(a_eles):  # a='1.2', b='1.2.3' 인 경우 a < b
+                return -1
+            elif i >= len(b_eles):  # a='1.2.3', b='1.2' 인 경우 a > b
+                return 1
+            if int(a_eles[i]) > int(b_eles[i]):
+                return 1
+            elif int(a_eles[i]) < int(b_eles[i]):
+                return -1
+        return 0
+
+    # ==========================================================================
+    def get_dump_all(self):
+        # self.DUMP_ALL 에서 json 을 가져와서 처리하는데
+        #   argoslabs.time.getts 와 같은 모듈이 안 보여서 alabs.ppm.main을 이용
+        # r = requests.get(self.DUMP_ALL)
+        # self.dumpall = json.loads(r.text)
+        tf_name = None
+        try:
+            with NamedTemporaryFile(suffix='.json', prefix='dump-all-') as tf:
+                tf_name = tf.name
+            cmd = [
+                #'alabs.ppm',
+                '--plugin-index',
+                'https://pypi-official.argos-labs.com/pypi',
+                'plugin',
+                'get',
+                '--official-only',
+                '--without-cache',
+                '--outfile',
+                tf_name
+            ]
+            r = ppm_main(cmd)
+            if r != 0:
+                self.logger.error('Cannot get dump_all.json')
+                return False
+            with open(tf_name, encoding='utf-8') as ifp:
+                self.dumpall = json.load(ifp)
+            return bool(self.dumpall)
+        except Exception as e:
+            msg = f'get_dump_all Error: {str(e)}'
+            self.logger.error(msg)
+        finally:
+            if tf_name and os.path.exists(tf_name):
+                os.remove(tf_name)
+
+    # ==========================================================================
+    def get_display_name(self, m_name, ver):
+        if m_name not in self.dumpall:
+            return "UnKnown Plugin"
+        disp_name = "UnKnown Plugin"
+        for dspec in self.dumpall[m_name]:
+            disp_name = dspec['display_name']
+            if ver == dspec['version']:
+                return disp_name
+        return f'{disp_name} no version {ver}'
+
+    # ==========================================================================
+    def get_list_from_repository(self):
+        self.get_dump_all()
+        self.report = {}
+        url = 'https://pypi-official.argos-labs.com/packages/'
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        for x in soup.find_all('a'):
+            modname = x.text
+            if not modname.startswith('argoslabs.'):
+                continue
+            pi_name, pi_version, *rests = modname.split('-')
+            if pi_name not in self.report:
+                self.report[pi_name] = dict()
+            if pi_version not in self.report[pi_name]:
+                self.report[pi_name][pi_version] = {
+                    'active_bot': 0,
+                    'access_count': 0,
+                }
+        # pprint.pprint(self.report, width=200)
+
+    # ==========================================================================
+    def get_access_token(self):
+        headers = {
+            'Authorization': 'Basic YXJnb3MtYXBpOjc4Jiphcmdvcy1hcGkhQDEy',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+        data = {
+            'grant_type': 'client_credentials',
+        }
+        rp = requests.post('https://oauth-rpa.argos-labs.com/oauth/token',
+                           headers=headers, data=data, verify=False)
+        if rp.status_code // 10 != 20:
+            msg = f'Cannot get access token, response code is {rp.status_code}: {rp.text}'
+            self.logger.error(msg)
+            raise IOError(msg)
+        # print(rp.text)
+        rj = json.loads(rp.text)
+        self.logger.info('Getting access token was successful')
+        return rj['access_token']
+
+    # ==========================================================================
+    def get_usage_report(self, access_token):
+        # 호출한 시점에서 마지막 7일간의 통계정보를 가져
+        headers = {
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'sec-ch-ua': '"Google Chrome";v="89", "Chromium";v="89", ";Not A Brand";v="99"',
+            'Authorization': f'Bearer {access_token}',
+            'DNT': '1',
+            'sec-ch-ua-mobile': '?0',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
+            'Content-Type': 'application/json',
+            'Accept': '*/*',
+            'Origin': 'https://admin-rpa.argos-labs.com',
+            'Sec-Fetch-Site': 'same-site',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Dest': 'empty',
+            'Referer': 'https://admin-rpa.argos-labs.com/',
+            'Accept-Language': 'ko,en-US;q=0.9,en;q=0.8,ko-KR;q=0.7',
+        }
+        data = {
+            "queryId": "of_plugin_weekly_by_version",
+            "conditionMap": [],
+        }
+        rp = requests.post('https://api-rpa.argos-labs.com/report/v1/any_sql/query',
+                           headers=headers, json=data, verify=False)
+        if rp.status_code // 10 != 20:
+            msg = f'Cannot get report, response code is {rp.status_code}: {rp.text}'
+            self.logger.error(msg)
+            raise IOError(msg)
+        # print(rp.text)
+        rj = json.loads(rp.text)
+        # pprint.pprint(rj)
+        return rj
+
+    # ==========================================================================
+    def get_report_from_rj(self, rj):
+        self.get_list_from_repository()
+        # report has this structure
+        # {
+        #     'argoslabs.data.binaryop': {
+        #         '1.22.333': {
+        #             'active_bot': 230,
+        #             'access_count': 1687,
+        #         },
+        #         ...
+        #     },
+        #     ...
+        # }
+        for row in rj['data']:
+            if row['plugin_name'] not in self.report:
+                self.report[row['plugin_name']] = dict()
+            vdict = self.report[row['plugin_name']]
+            if row['plugin_version'] not in vdict:
+                vdict[row['plugin_version']] = {
+                    'active_bot': 0,
+                    'access_count': 0,
+                }
+            adict = vdict[row['plugin_version']]
+            adict['active_bot'] += row['active_bot']
+            adict['access_count'] += row['access_count']
+        # pprint.pprint(self.report, width=200)
+        rows = list()
+        #rows.append((
+        #    'plugin_name', 'version', 'active_bot', 'access_count'
+        #))
+        for pi_name, pi_dict in self.report.items():
+            for version, adict in pi_dict.items():
+                rows.append([
+                    pi_name,
+                    version,
+                    adict['active_bot'],
+                    adict['access_count'],
+                ])
+        self.rows = rows
+        # pprint.pprint(self.rows, width=200)
+
+    # ==========================================================================
+    # def get_report(self, ofp,
+    #                get_not_used=False, sort_index=2, _reversed=True,
+    #                group_by_name=False):
+    def get_report(self, stat_ver_f, stat_gbn_f):
+        get_not_used = False
+        # sort_index = 2
+        # _reversed = True
+        # group_by_name=False
+        at = self.get_access_token()
+        rj = self.get_usage_report(at)
+        self.get_report_from_rj(rj)
+        if not self.rows:
+            return list()
+        # fltering
+        for i in range(len(self.rows)-1, -1, -1):
+            not_used = False
+            if self.rows[i][2] == 0 and self.rows[i][3] == 0:
+                not_used = True
+            if get_not_used and not not_used:
+                del self.rows[i]
+            #if not get_not_used and not_used:
+            #    del self.rows[i]
+        # sorting
+        #if not isinstance(sort_index, (tuple, list)):
+        #    sort_index = [sort_index]
+        #for j in range(len(sort_index)-1, -1, -1):
+        #    if not (0 <= j <= 3):
+        #        continue
+        #    #sorted(self.rows, key=itemgetter(j))
+        #    self.rows.sort(key=itemgetter(j))
+
+        # for group_by_name
+        gbn = {}
+        for row in self.rows:
+            if row[0] not in gbn:
+                gbn[row[0]] = (0, 0)
+            gbn[row[0]] = (gbn[row[0]][0] + int(row[2]), gbn[row[0]][1] + int(row[3]))
+        rows = list()
+        for pn, cnt_t in gbn.items():
+            rows.append([pn, cnt_t[0], cnt_t[1]])
+        self.gbn_rows = rows
+        self.gbn_rows.sort(key=itemgetter(2))
+
+        for row in self.rows:
+            row[2] = int(row[2])
+            row[3] = int(row[3])
+
+        self.rows.sort(key=itemgetter(3))
+        if _reversed:
+            self.rows.reverse()
+
+        cw = csv.writer(ofp, lineterminator='\n')
+        if not group_by_name:
+            cw.writerow((
+                'display_name', 'plugin_name', 'version', 'active_bot', 'access_count'
+            ))
+        else:
+            cw.writerow((
+                'display_name', 'plugin_name', 'active_bot', 'access_count'
+            ))
+        for row in self.rows:
+            d_name = self.get_display_name(row[0], row[1])
+            row.insert(0, d_name)
+            cw.writerow(row)
 
 
 ################################################################################
@@ -55,6 +334,7 @@ class AutoTest(object):
 
     # ==========================================================================
     def __init__(self, args):
+        self.args = args
         conf_f = args.conf
         _filter = args.filter
         if not _filter:
@@ -76,7 +356,6 @@ class AutoTest(object):
         conf_sio = StringIO(conf_s)
         self.conf = yaml.load(conf_sio, yaml.FullLoader)
         self.filter = _filter
-        self.tee = args.tee
         # for internal
         self.logger = get_logger(self.conf['environment']['log'])
         self.logger.info('Starting AutoTest object...')
@@ -85,8 +364,12 @@ class AutoTest(object):
 
     # ==========================================================================
     def _init_report(self):
+        if self.args.stat:
+            subject = 'Getting statistics for Plugin usage'
+        else:
+            subject = 'Automatic Plugin Test'
         self.report = {
-            'subject': 'Automatic Plugin Test',
+            'subject': subject,
             'contents': [],
             'summary': [],
         }
@@ -99,23 +382,20 @@ class AutoTest(object):
     # ==========================================================================
     def _error(self, msg):
         msg = msg.strip()
-        if self.tee:
-            sys.stderr.write('[ERROR]:' + msg + '\n')
+        sys.stderr.write('[ERROR]:' + msg + '\n')
         self.logger.error(msg)
         self.report['contents'].append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] ERROR: {msg}')
 
     # ==========================================================================
     def _info(self, msg):
-        if self.tee:
-            sys.stdout.write('[INFO]:' + msg + '\n')
+        sys.stdout.write('[INFO]:' + msg + '\n')
         self.logger.info(msg.strip())
         self.report['contents'].append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] INFO: {msg}')
 
     # ==========================================================================
     def _debug(self, msg):
         msg = msg.strip()
-        if self.tee:
-            sys.stdout.write('[DEBUG]:' + msg + '\n')
+        sys.stdout.write('[DEBUG]:' + msg + '\n')
         self.logger.debug(msg)
         self.report['contents'].append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] DEBUG: {msg}')
 
@@ -233,7 +513,7 @@ class AutoTest(object):
             self._info(f'\nTesting ended and it takes {e_ts - s_ts}')
 
     # ==========================================================================
-    def email_report(self, s_ts, e_ts, succ_cnt, fail_cnt):
+    def email_report_tests(self, s_ts, e_ts, succ_cnt, fail_cnt):
         total_cnt = succ_cnt + fail_cnt
         email_f = os.path.join(gettempdir(), 'autotest.report.txt')
         with open(email_f, 'w', encoding='utf-8') as ofp:
@@ -265,7 +545,7 @@ class AutoTest(object):
     def do_tests(self):
         s_ts = datetime.datetime.now()
         self._init_report()
-        self.prepare_venv()
+        self.prepare_venv(is_clear=self.args.clear_venv)
         succ_cnt = fail_cnt = 0
         if self.filter:
             tests = list()
@@ -286,18 +566,68 @@ class AutoTest(object):
             else:
                 fail_cnt += 1
         e_ts = datetime.datetime.now()
-        self.email_report(s_ts, e_ts, succ_cnt, fail_cnt)
+        self.email_report_tests(s_ts, e_ts, succ_cnt, fail_cnt)
 
+    # ==========================================================================
+    def email_report_stats(self, s_ts, e_ts, stat_ver_f, stat_gbn_f):
+        self._info(f'Statistics for version by version usage: {os.path.basename(stat_ver_f)}')
+        self._info(f'Statistics for group by name usage: {os.path.basename(stat_gbn_f)}')
+        email_f = os.path.join(gettempdir(), 'autotest.report.txt')
+        with open(email_f, 'w', encoding='utf-8') as ofp:
+            ofp.write(f'This testing started at {s_ts} and ended at {e_ts},\n'
+                      f'it took {e_ts - s_ts}\n\n')
+            ofp.write(f'{"*" * 100}\n')
+            ofp.write('\n'.join(self.report['contents']))
+        cmd = [
+            os.path.join(self.conf['environment']['virtualenv']['dir'],
+                         'Scripts', self.conf['report']['email']['plugin']),
+            self.conf['report']['email']['server'],
+            self.conf['report']['email']['user'],
+            self.conf['report']['email']['passwd'],
+            f'[{s_ts.strftime("%Y%m%d %H%M%S")}~{e_ts.strftime("%Y%m%d %H%M%S")}]'
+            f' {self.report["subject"]} for {s_ts.strftime("%Y%m%d-%H%M")}',
+            '--body-file', email_f,
+        ]
+        for i, to in enumerate(self.conf['report']['email']['to']):
+            cmd.extend(['--to', to])
+        cmd.extend(['--attachments', stat_ver_f])
+        cmd.extend(['--attachments', stat_gbn_f])
+        self._do_cmd(cmd)
 
-################################################################################
-def do_schedule(at):
-    at.do_tests()
+    # ==========================================================================
+    def do_stats(self):
+        s_ts = datetime.datetime.now()
+        self._init_report()
+        self.prepare_venv(is_clear=self.args.clear_venv)
 
+        statdir = self.conf['environment']['statdir']
+        if not os.path.exists(statdir):
+            os.makedirs(statdir)
 
-################################################################################
-def do_schedule_new_env(at):
-    at.prepare_venv(is_clear=True)
-    at.do_tests()
+        # 1) get version by version stat
+        stat_fn = f'alabs-plugins-usage-ver-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
+        stat_ver_f = os.path.join(statdir, stat_fn)
+        # with open(stat_ver_f, 'w', encoding='utf-8') as ofp:
+        #     pr = PluginReport(logger=self.logger)
+        #     pr.get_report(ofp, sort_index=3, _reversed=True)
+
+        # 2) get group by name stat
+        stat_fn = f'alabs-plugins-usage-gbn-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
+        stat_gbn_f = os.path.join(statdir, stat_fn)
+        # with open(stat_gbn_f, 'w', encoding='utf-8') as ofp:
+        #     pr = PluginReport(logger=self.logger)
+        #     pr.get_report(ofp, sort_index=2, _reversed=True, group_by_name=True)
+        pr = PluginReport(logger=self.logger)
+        pr.get_report(stat_ver_f, stat_gbn_f)
+
+        e_ts = datetime.datetime.now()
+        self.email_report_stats(s_ts, e_ts, stat_ver_f, stat_gbn_f)
+
+    # ==========================================================================
+    def do(self):
+        if self.args.stat:
+            return self.do_stats()
+        return self.do_tests()
 
 
 ################################################################################
@@ -314,33 +644,15 @@ def _main(*args):
     ) as mcxt:
         mcxt.add_argument('--conf', '-c',
                           help='set config file, default is "autotest.yaml"')
-        mcxt.add_argument('--start', '-s', action='store_true',
-                          help='If this flag is set just run starting and exit')
         mcxt.add_argument('--filter', '-f', action='append',
                           help='Only matching contains this string for the name')
         mcxt.add_argument('--clear-venv', action='store_true',
                           help='If this flag is set clear VirtualEnv before testing')
-        mcxt.add_argument('--tee', action='store_true',
-                          help='If this flag is set print out to stdout too')
+        mcxt.add_argument('--stat', '-s', action='store_true',
+                          help='If this flag is set getting the statistics of plugin usage count')
         argspec = mcxt.parse_args(args)
         at = AutoTest(argspec)
-        if argspec.clear_venv:
-            at.prepare_venv(is_clear=True)
-        if argspec.start:
-            at.do_tests()
-            return 0
-        scheduler = BlockingScheduler()
-        for sch in at.conf.get('schedule', []):
-            hour, minute = sch['at'].split(':')
-            if sch['before_clear']:
-                scheduler.add_job(do_schedule_new_env, args=(at,),
-                                  trigger='cron', hour=hour, minute=minute)
-                at._info(f'do_schedule_new_env scheduled at "{sch["at"]}"')
-            else:
-                scheduler.add_job(do_schedule, args=(at,),
-                                  trigger='cron', hour=hour, minute=minute)
-                at._info(f'do_schedule scheduled at "{sch["at"]}"')
-        scheduler.start()
+        at.do()
         return 0
 
 

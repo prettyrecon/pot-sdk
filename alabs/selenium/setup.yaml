@@ -9,12 +9,8 @@ setup:
   - 'Natural Language :: English'
   - 'Programming Language :: Python :: 3.7'
   - 'Topic :: Library'
-  - 'Topic :: argos :: common'
-  - 'Topic :: System :: RPA'
-  - 'Topic :: Change :: Log :: Unittest for Mac'
-  - 'Topic :: Change :: Log :: Unittest for Linux'
-  - 'Topic :: Change :: Log :: Unittest for Windows'
-  - 'Topic :: Change :: Log :: Add input_group, input_method for plugin argument input attributes'
+  - 'Topic :: ARGOS :: common'
+  - 'Topic :: Web :: Selenium'
   description: ARGOS-LABS common library for python
   keywords:
   - common
@@ -28,4 +24,4 @@ setup:
   package_data:
     alabs.selenium: ['icon.*']
   url: https://www.argos-labs.com
-  version: 3.317.1408
+  version: 3.421.1428

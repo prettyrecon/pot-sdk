@@ -3,6 +3,7 @@ environment:
   virtualenv:
     py3: 'C:\Python37-32\python.exe'
     dir: '{{home}}\autotest.venv'
+  statdir: '{{home}}\autotest.stat'
   log: '{{home}}\autotest.log'
   report: email
 
@@ -17,9 +18,11 @@ report:
       - plugin@argos-labs.com
 #      - staff@argos-labs.com
 
-schedule:
-  - at: '*:*/10'
-    before_clear: true
+#statistics:
+
+#schedule:
+#  - at: '*:*/10'
+#    before_clear: true
 #  - at: '06:00'
 #    before_clear: false
 #  - at: '12:00'

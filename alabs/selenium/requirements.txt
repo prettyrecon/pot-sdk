@@ -7,3 +7,6 @@ selenium
 # for util
 requests
 xlrd==1.2.0
+
+# for BeautifulSoup
+beautifulsoup4

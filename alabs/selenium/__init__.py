@@ -17,6 +17,8 @@ ARGOS LABS base class to use Selenium
 # Change Log
 # --------
 #
+#  * [2021/04/21]
+#     - Chrome, Edge 에 대해서 자동으로 해당 버전 링크 구하기
 #  * [2021/03/11]
 #     - Chrome 89 버전용 링크 추가
 #  * [2021/03/03]
@@ -27,6 +29,8 @@ ARGOS LABS base class to use Selenium
 #     - starting
 
 import os
+import platform
+import re
 import sys
 import csv
 import stat
@@ -41,6 +45,7 @@ import traceback
 import subprocess
 from tempfile import gettempdir
 from zipfile import ZipFile
+from urllib.parse import urljoin
 # for selenium
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -54,6 +59,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import Select
+# for bs
+from bs4 import BeautifulSoup
 
 
 ################################################################################
@@ -61,61 +68,11 @@ class PySelenium(object):
     # ==========================================================================
     BROWSERS = {
         'Chrome': {
-            'driver-download-link': [
-                {
-                    'version': '89',
-                    'link': {
-                        'win32': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_win32.zip',
-                        'linux': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_linux64.zip',
-                        'darwin': 'https://chromedriver.storage.googleapis.com/89.0.4389.23/chromedriver_mac64.zip',
-                        # todo: 'darwin_m1': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_mac64_m1.zip',
-                    }
-                },
-                {
-                    'version': '88',
-                    'link': {
-                        'win32': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_win32.zip',
-                        'linux': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_linux64.zip',
-                        'darwin': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_mac64.zip',
-                        # todo: 'darwin_m1': 'https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_mac64_m1.zip',
-                    }
-                },
-                {
-                    'version': '87',
-                    'link': {
-                        'win32': 'https://chromedriver.storage.googleapis.com/87.0.4280.20/chromedriver_win32.zip',
-                        'linux': 'https://chromedriver.storage.googleapis.com/87.0.4280.20/chromedriver_linux64.zip',
-                        'darwin': 'https://chromedriver.storage.googleapis.com/87.0.4280.20/chromedriver_mac64.zip',
-                    }
-                },
-                {
-                    'version': '86',
-                    'link': {
-                        'win32': 'https://chromedriver.storage.googleapis.com/86.0.4240.22/chromedriver_win32.zip',
-                        'linux': 'https://chromedriver.storage.googleapis.com/86.0.4240.22/chromedriver_linux64.zip',
-                        'darwin': 'https://chromedriver.storage.googleapis.com/86.0.4240.22/chromedriver_mac64.zip',
-                    },
-                },
-                {
-                    'version': '85',
-                    'link': {
-                        'win32': 'https://chromedriver.storage.googleapis.com/85.0.4183.87/chromedriver_win32.zip',
-                        'linux': 'https://chromedriver.storage.googleapis.com/85.0.4183.87/chromedriver_linux64.zip',
-                        'darwin': 'https://chromedriver.storage.googleapis.com/85.0.4183.87/chromedriver_mac64.zip',
-                    },
-                },
-            ]
+            'driver-download-home': 'https://chromedriver.chromium.org/downloads',
+            'rec': re.compile(r'ChromeDriver\s[\d.]+')
         },
         'Edge': {
-            'driver-download-link': [
-                {
-                    'version': '*',
-                    'link': {
-                        'win32': 'https://msedgedriver.azureedge.net/{version}/edgedriver_win32.zip',
-                        'darwin': 'https://msedgedriver.azureedge.net/{version}/edgedriver_mac64.zip',
-                    }
-                },
-            ]
+            'driver-download-base': 'https://msedgedriver.azureedge.net/',
         }
         # 'Firefox',
     }
@@ -220,16 +177,70 @@ class PySelenium(object):
         raise NotImplementedError(f'Need to implement for the driver {self.browser} at {self.platform}')
 
     # ==========================================================================
+    def _get_download_url_chrome(self):
+        hp_url = self.BROWSERS[self.browser].get('driver-download-home')
+        if not hp_url:
+            raise ReferenceError(f'Cannot get download link homepage for {self.browser} with version {self.browser_version}')
+        r = requests.get(hp_url)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        for x in soup.find_all('a'):
+            atext = x.text
+            rec = self.BROWSERS[self.browser].get('rec')
+            m = rec.search(atext)
+            if m is None:
+                continue
+            version = atext.split()[1]
+            if version.startswith(self.browser_version+'.'):
+                href = x.get('href')
+                r = requests.get(href)
+                soup = BeautifulSoup(r.text, 'html.parser')
+                # chromedriver_linux64.zip
+                d_link = None
+                if self.platform == 'win32':
+                    d_link = urljoin(href, version + '/chromedriver_win32.zip')
+                elif self.platform == 'linux':
+                    d_link = urljoin(href, version + '/chromedriver_linux64.zip')
+                elif self.platform == 'darwin':
+                    if platform.platform().find('arm64') > 0:
+                        d_link = urljoin(href, version + '/chromedriver_mac64_m1.zip')
+                    else:
+                        d_link = urljoin(href, version + '/chromedriver_mac64.zip')
+                if d_link:
+                    return d_link
+        raise LookupError(f'Cannot find web Chrome driver for version "{self.browser_version}" on "{self.platform}"')
+
+    # ==========================================================================
+    def _get_download_url_edge(self):
+        href = self.BROWSERS[self.browser].get('driver-download-base')
+        if not href:
+            raise ReferenceError(f'Cannot get download link homepage for {self.browser} with version {self.browser_version}')
+        # https://msedgedriver.azureedge.net/90.0.818.42/edgedriver_win32.zip
+
+        version = self.browser_version
+        d_link = None
+        if self.platform == 'win32':
+            if platform.machine().endswith('64'):
+                d_link = urljoin(href, version + '/edgedriver_win64.zip')
+            else:
+                d_link = urljoin(href, version + '/edgedriver_win32.zip')
+        # elif self.platform == 'linux':
+        #     d_link = urljoin(href, version + '/edgedriver_linux64.zip')
+        elif self.platform == 'darwin':
+            if platform.platform().find('arm64') > 0:
+                d_link = urljoin(href, version + '/edgedriver_arm64.zip')
+            else:
+                d_link = urljoin(href, version + '/edgedriver_mac64.zip')
+        if d_link:
+            return d_link
+        raise LookupError(f'Cannot find web Edge driver for version "{self.browser_version}" on "{self.platform}"')
+
+    # ==========================================================================
     def _get_download_url(self):
-        for dwl in self.BROWSERS[self.browser].get('driver-download-link', []):
-            if self.browser == 'Chrome':
-                if self.browser_version.startswith(dwl['version']):
-                    if self.platform not in dwl['link']:
-                        raise ReferenceError(f'Cannot get driver link for the platform "{self.platform}"')
-                    return dwl['link'][self.platform]
-            elif self.browser == 'Edge':
-                if dwl['version'] == '*':
-                    return dwl['link'][self.platform].format(version=self.browser_version)
+        if self.browser == 'Chrome':
+            return self._get_download_url_chrome()
+        elif self.browser == 'Edge':
+            return self._get_download_url_edge()
+
         raise ReferenceError(f'Cannot get driver link for the version "{self.browser_version}"')
 
     # ==========================================================================
