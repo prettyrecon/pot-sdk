@@ -17,6 +17,8 @@ ARGOS LABS base class to use Selenium
 # Change Log
 # --------
 #
+#  * [2021/04/28]
+#     - A1 Mac에서 Edge 버전 구하기
 #  * [2021/04/21]
 #     - Chrome, Edge 에 대해서 자동으로 해당 버전 링크 구하기
 #  * [2021/03/11]
@@ -165,6 +167,24 @@ class PySelenium(object):
                     return bv.split('.')[0]
                 else:
                     raise IOError(f'"{self.browser}" is not installed is this system')
+            elif self.browser == 'Edge':
+                info_f = '/Applications/Microsoft Edge.app/Contents/Info.plist'
+                if not os.path.exists(info_f):
+                    raise RuntimeError(f'Cannot find Edge at "/Applications/Microsoft Edge.app"')
+                with open(info_f) as ifp:
+                    b_found = False
+                    for line in ifp:
+                        if b_found:
+                            # must be like  <string>90.818.21042449</string>
+                            fa = re.findall(r'([\d.]+)', line)
+                            if not fa:
+                                raise RuntimeError('Cannot find Edge version at Mac')
+                            return fa[0]
+                        if line.find('CFBundleShortVersionString') > 0:
+                            b_found = True
+
+            else:
+                raise NotImplementedError('Linux, Mac need to be get browser version')
         else:
             raise NotImplementedError('Linux, Mac need to be get browser version')
 
@@ -173,6 +193,8 @@ class PySelenium(object):
         if self.browser == 'Chrome':
             return webdriver.Chrome(executable_path=drive_f)
         if self.browser == 'Edge':
+            if self.platform == 'darwin' and platform.platform().find('arm64') > 0:
+                options = webdriver.EdgeOption
             return webdriver.Edge(executable_path=drive_f)
         raise NotImplementedError(f'Need to implement for the driver {self.browser} at {self.platform}')
 
@@ -226,10 +248,11 @@ class PySelenium(object):
         # elif self.platform == 'linux':
         #     d_link = urljoin(href, version + '/edgedriver_linux64.zip')
         elif self.platform == 'darwin':
-            if platform.platform().find('arm64') > 0:
-                d_link = urljoin(href, version + '/edgedriver_arm64.zip')
-            else:
-                d_link = urljoin(href, version + '/edgedriver_mac64.zip')
+            # test arm64 but failed instead use mac64 on M1
+            # if platform.platform().find('arm64') > 0:
+            #     d_link = urljoin(href, version + '/edgedriver_arm64.zip')
+            # else:
+            d_link = urljoin(href, version + '/edgedriver_mac64.zip')
         if d_link:
             return d_link
         raise LookupError(f'Cannot find web Edge driver for version "{self.browser_version}" on "{self.platform}"')

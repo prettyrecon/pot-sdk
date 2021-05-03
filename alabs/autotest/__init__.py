@@ -17,6 +17,12 @@ automatic testing for plugins
 # Change Log
 # --------
 #
+#  * [2020/04/23]
+#     - _do_cmd 에서 stdout 결과를 가져오는데
+#       cp949' codec can't encode character '\u5b66' in position 9: illegal multibyte sequence
+#     - set PYTHONIOENCODING=UTF-8
+#  * [2020/04/21]
+#     - 통계 확인 및 OP-AUTOTEST 에 매일 0시 적용
 #  * [2020/03/12]
 #     - stat email
 #  * [2020/03/05]
@@ -39,8 +45,8 @@ import json
 import shutil
 # import argparse
 import pathlib
-import logging
-import urllib3
+# import logging
+# import urllib3
 import requests
 import datetime
 import traceback
@@ -55,24 +61,51 @@ from alabs.common.util.vvargs import ModuleContext, func_log, \
     ArgsError, ArgsExit, get_icon_path
 #from apscheduler.schedulers.gbackground import BlockingScheduler
 from alabs.ppm import _main as ppm_main
-
-
-################################################################################
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 
 ################################################################################
 class PluginReport(object):
     DUMP_ALL = "https://pypi-official.argos-labs.com/data/plugin-static-files/dumpspec-def-all.json"
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
     # ==========================================================================
-    def __init__(self, logger):
+    def __init__(self, statdir, logger):
+        self.statdir = statdir
         self.logger = logger
         self.report = {}
+        # for result filenames
+        self.stat_ver_f = None
+        self.stat_gbn_f = None
+        self.stat_gnu_f = None
+        # 결과 rows
         self.rows = []
         self.gbn_rows = []
+        self.gnu_rows = []
+        # for getting display_name
         self.dumpall = None
+        # for report
+        self.contents = []
+
+    # ==========================================================================
+    def _error(self, msg):
+        msg = msg.strip()
+        sys.stderr.write('[ERROR]:' + msg + '\n')
+        self.logger.error(msg)
+        self.contents.append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] ERROR: {msg}')
+
+    # ==========================================================================
+    def _info(self, msg):
+        sys.stdout.write('[INFO]:' + msg + '\n')
+        self.logger.info(msg.strip())
+        self.contents.append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] INFO: {msg}')
+
+    # ==========================================================================
+    def _debug(self, msg):
+        msg = msg.strip()
+        sys.stdout.write('[DEBUG]:' + msg + '\n')
+        self.logger.debug(msg)
+        self.contents.append(f'[{datetime.datetime.now().strftime("%Y%m%d %H%M%S")}] DEBUG: {msg}')
 
     # ==========================================================================
     @staticmethod
@@ -127,12 +160,14 @@ class PluginReport(object):
                 os.remove(tf_name)
 
     # ==========================================================================
-    def get_display_name(self, m_name, ver):
+    def get_display_name(self, m_name, ver=None):
         if m_name not in self.dumpall:
             return "UnKnown Plugin"
         disp_name = "UnKnown Plugin"
         for dspec in self.dumpall[m_name]:
             disp_name = dspec['display_name']
+            if ver is None:  # 만약 버전을 지정하지 않으면 무조건 첫번째 disp_name
+                return disp_name
             if ver == dspec['version']:
                 return disp_name
         return f'{disp_name} no version {ver}'
@@ -207,7 +242,7 @@ class PluginReport(object):
                            headers=headers, json=data, verify=False)
         if rp.status_code // 10 != 20:
             msg = f'Cannot get report, response code is {rp.status_code}: {rp.text}'
-            self.logger.error(msg)
+            self._error(msg)
             raise IOError(msg)
         # print(rp.text)
         rj = json.loads(rp.text)
@@ -257,70 +292,107 @@ class PluginReport(object):
         # pprint.pprint(self.rows, width=200)
 
     # ==========================================================================
-    # def get_report(self, ofp,
-    #                get_not_used=False, sort_index=2, _reversed=True,
-    #                group_by_name=False):
-    def get_report(self, stat_ver_f, stat_gbn_f):
-        get_not_used = False
-        # sort_index = 2
-        # _reversed = True
-        # group_by_name=False
-        at = self.get_access_token()
-        rj = self.get_usage_report(at)
-        self.get_report_from_rj(rj)
-        if not self.rows:
-            return list()
-        # fltering
-        for i in range(len(self.rows)-1, -1, -1):
-            not_used = False
-            if self.rows[i][2] == 0 and self.rows[i][3] == 0:
-                not_used = True
-            if get_not_used and not not_used:
-                del self.rows[i]
-            #if not get_not_used and not_used:
-            #    del self.rows[i]
-        # sorting
-        #if not isinstance(sort_index, (tuple, list)):
-        #    sort_index = [sort_index]
-        #for j in range(len(sort_index)-1, -1, -1):
-        #    if not (0 <= j <= 3):
-        #        continue
-        #    #sorted(self.rows, key=itemgetter(j))
-        #    self.rows.sort(key=itemgetter(j))
+    def get_report(self, s_ts):
+        try:
+            self._info('Starting Usage Statistics...')
 
-        # for group_by_name
-        gbn = {}
-        for row in self.rows:
-            if row[0] not in gbn:
-                gbn[row[0]] = (0, 0)
-            gbn[row[0]] = (gbn[row[0]][0] + int(row[2]), gbn[row[0]][1] + int(row[3]))
-        rows = list()
-        for pn, cnt_t in gbn.items():
-            rows.append([pn, cnt_t[0], cnt_t[1]])
-        self.gbn_rows = rows
-        self.gbn_rows.sort(key=itemgetter(2))
+            stat_fn = f'alabs-plugins-usage-ver-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
+            self.stat_ver_f = os.path.join(self.statdir, stat_fn)
+            stat_fn = f'alabs-plugins-usage-gbn-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
+            self.stat_gbn_f = os.path.join(self.statdir, stat_fn)
+            stat_fn = f'alabs-plugins-usage-gnu-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
+            self.stat_gnu_f = os.path.join(self.statdir, stat_fn)
 
-        for row in self.rows:
-            row[2] = int(row[2])
-            row[3] = int(row[3])
+            # get_not_used = False
+            # sort_index = 2
+            _reversed = True
+            # group_by_name=False
+            at = self.get_access_token()
+            rj = self.get_usage_report(at)
+            self.get_report_from_rj(rj)
+            if not self.rows:
+                return list()
+            # get not used
+            from copy import deepcopy
+            self.gnu_rows = deepcopy(self.rows)
+            for i in range(len(self.gnu_rows)-1, -1, -1):
+                not_used = False
+                if self.gnu_rows[i][2] == 0 and self.gnu_rows[i][3] == 0:
+                    not_used = True
+                if not not_used:
+                    del self.gnu_rows[i]
+            # sorting
+            #if not isinstance(sort_index, (tuple, list)):
+            #    sort_index = [sort_index]
+            #for j in range(len(sort_index)-1, -1, -1):
+            #    if not (0 <= j <= 3):
+            #        continue
+            #    #sorted(self.rows, key=itemgetter(j))
+            #    self.rows.sort(key=itemgetter(j))
 
-        self.rows.sort(key=itemgetter(3))
-        if _reversed:
+            # for group_by_name
+            gbn = {}
+            for row in self.rows:
+                if row[0] not in gbn:
+                    gbn[row[0]] = (0, 0)
+                gbn[row[0]] = (gbn[row[0]][0] + int(row[2]), gbn[row[0]][1] + int(row[3]))
+            gbn_rows = list()
+            for pn, cnt_t in gbn.items():
+                gbn_rows.append([pn, cnt_t[0], cnt_t[1]])
+            self.gbn_rows = gbn_rows
+            self.gbn_rows.sort(key=itemgetter(2))
+            self.gbn_rows.reverse()
+
+            for row in self.rows:
+                row[2] = int(row[2])
+                row[3] = int(row[3])
+
+            self.rows.sort(key=itemgetter(3))
             self.rows.reverse()
 
-        cw = csv.writer(ofp, lineterminator='\n')
-        if not group_by_name:
-            cw.writerow((
-                'display_name', 'plugin_name', 'version', 'active_bot', 'access_count'
-            ))
-        else:
-            cw.writerow((
-                'display_name', 'plugin_name', 'active_bot', 'access_count'
-            ))
-        for row in self.rows:
-            d_name = self.get_display_name(row[0], row[1])
-            row.insert(0, d_name)
-            cw.writerow(row)
+            # 1) 버전별 사용 카운트 저장
+            with open(self.stat_ver_f, 'w', encoding='utf-8') as ofp:
+                cw = csv.writer(ofp, lineterminator='\n')
+                cw.writerow((
+                    'display_name', 'plugin_name', 'version', 'active_bot', 'access_count'
+                ))
+                for row in self.rows:
+                    d_name = self.get_display_name(row[0], row[1])
+                    row.insert(0, d_name)
+                    cw.writerow(row)
+            self._info(f'Statistics for version by version usage: {os.path.basename(self.stat_ver_f)}')
+
+            # 2) 그룹별 카운트 저장
+            with open(self.stat_gbn_f, 'w', encoding='utf-8') as ofp:
+                cw = csv.writer(ofp, lineterminator='\n')
+                cw.writerow((
+                    'display_name', 'plugin_name', 'active_bot', 'access_count'
+                ))
+                for row in self.gbn_rows:
+                    d_name = self.get_display_name(row[0])
+                    row.insert(0, d_name)
+                    cw.writerow(row)
+            self._info(f'Statistics for group by name usage: {os.path.basename(self.stat_gbn_f)}')
+
+            # 3) 사용되지 않은 카운트 저장
+            with open(self.stat_gnu_f, 'w', encoding='utf-8') as ofp:
+                cw = csv.writer(ofp, lineterminator='\n')
+                cw.writerow((
+                    'display_name', 'plugin_name', 'version', 'active_bot', 'access_count'
+                ))
+                for row in self.gnu_rows:
+                    d_name = self.get_display_name(row[0], row[1])
+                    row.insert(0, d_name)
+                    cw.writerow(row)
+            self._info(f'Statistics for Not used plugins: {os.path.basename(self.stat_gnu_f)}')
+        except Exception as e:
+            exc_info = sys.exc_info()
+            out = traceback.format_exception(*exc_info)
+            del exc_info
+            msg = '%s\n' % ''.join(out)
+            self._error(msg)
+            msg = 'get_report Error: %s' % str(e)
+            self._error(msg)
 
 
 ################################################################################
@@ -413,8 +485,8 @@ class AutoTest(object):
             rc = po.returncode
             f_out.seek(0)
             f_err.seek(0)
-            s_out = f_out.read().decode()
-            s_err = f_err.read().decode()
+            s_out = f_out.read().decode('utf-8')
+            s_err = f_err.read().decode('utf-8')
             if rc != 0:
                 raise RuntimeError(f'Cmd="{" ".join(cmd)}" returns {rc}\n'
                                    f'stdout="{s_out}"\nstderr="{s_err}"')
@@ -569,9 +641,8 @@ class AutoTest(object):
         self.email_report_tests(s_ts, e_ts, succ_cnt, fail_cnt)
 
     # ==========================================================================
-    def email_report_stats(self, s_ts, e_ts, stat_ver_f, stat_gbn_f):
-        self._info(f'Statistics for version by version usage: {os.path.basename(stat_ver_f)}')
-        self._info(f'Statistics for group by name usage: {os.path.basename(stat_gbn_f)}')
+    def email_report_stats(self, s_ts, e_ts, pr):
+        self.report['contents'].extend(pr.contents)
         email_f = os.path.join(gettempdir(), 'autotest.report.txt')
         with open(email_f, 'w', encoding='utf-8') as ofp:
             ofp.write(f'This testing started at {s_ts} and ended at {e_ts},\n'
@@ -590,8 +661,9 @@ class AutoTest(object):
         ]
         for i, to in enumerate(self.conf['report']['email']['to']):
             cmd.extend(['--to', to])
-        cmd.extend(['--attachments', stat_ver_f])
-        cmd.extend(['--attachments', stat_gbn_f])
+        cmd.extend(['--attachments', pr.stat_ver_f])
+        cmd.extend(['--attachments', pr.stat_gbn_f])
+        cmd.extend(['--attachments', pr.stat_gnu_f])
         self._do_cmd(cmd)
 
     # ==========================================================================
@@ -604,24 +676,11 @@ class AutoTest(object):
         if not os.path.exists(statdir):
             os.makedirs(statdir)
 
-        # 1) get version by version stat
-        stat_fn = f'alabs-plugins-usage-ver-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
-        stat_ver_f = os.path.join(statdir, stat_fn)
-        # with open(stat_ver_f, 'w', encoding='utf-8') as ofp:
-        #     pr = PluginReport(logger=self.logger)
-        #     pr.get_report(ofp, sort_index=3, _reversed=True)
-
-        # 2) get group by name stat
-        stat_fn = f'alabs-plugins-usage-gbn-{s_ts.strftime("%Y%m%d-%H%M")}.csv'
-        stat_gbn_f = os.path.join(statdir, stat_fn)
-        # with open(stat_gbn_f, 'w', encoding='utf-8') as ofp:
-        #     pr = PluginReport(logger=self.logger)
-        #     pr.get_report(ofp, sort_index=2, _reversed=True, group_by_name=True)
-        pr = PluginReport(logger=self.logger)
-        pr.get_report(stat_ver_f, stat_gbn_f)
+        pr = PluginReport(statdir, logger=self.logger)
+        pr.get_report(s_ts)
 
         e_ts = datetime.datetime.now()
-        self.email_report_stats(s_ts, e_ts, stat_ver_f, stat_gbn_f)
+        self.email_report_stats(s_ts, e_ts, pr)
 
     # ==========================================================================
     def do(self):
@@ -651,6 +710,8 @@ def _main(*args):
         mcxt.add_argument('--stat', '-s', action='store_true',
                           help='If this flag is set getting the statistics of plugin usage count')
         argspec = mcxt.parse_args(args)
+
+        os.environ['PYTHONIOENCODING'] = 'UTF-8'
         at = AutoTest(argspec)
         at.do()
         return 0

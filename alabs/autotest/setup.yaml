@@ -11,9 +11,6 @@ setup:
   - 'Topic :: Library'
   - 'Topic :: argos :: common'
   - 'Topic :: System :: RPA'
-  - 'Topic :: Change :: Log :: Unittest for Mac'
-  - 'Topic :: Change :: Log :: Unittest for Linux'
-  - 'Topic :: Change :: Log :: Unittest for Windows'
   - 'Topic :: Change :: Log :: Automatic testing for plugins'
   description: ARGOS-LABS common library for python
   keywords:
@@ -22,6 +19,8 @@ setup:
   - auto
   - test
   - plugins
+  - usage
+  - statistics
   license: ARGOS-LABS Proprietary License
   platforms:
   - Mac
@@ -30,4 +29,4 @@ setup:
   package_data:
     alabs.autotest: ['icon.*', 'get-pip.py', 'autotest.yaml', 'data/*.*']
   url: https://www.argos-labs.com
-  version: 3.412.1652
+  version: 3.423.742
