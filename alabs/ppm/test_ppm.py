@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2021/05/27]
+#   - 암호로 다운로드하는 private repository 에 대한 pip 처리
 #  * [2021/02/06]
 #   - setup.py 에서 PipSession 의 경우 20 이상 되는 것 체크하는 코드 추가
 #  * [2021/02/06]
@@ -1359,6 +1361,19 @@ class TU(TestCase):
             self.assertTrue(r == 0)
         finally:
             pass
+
+    # ==========================================================================
+    def test_0740_venv_install_auth_private_repository(self):
+        try:
+            r = _main(['plugin', 'venv-clean'])
+            self.assertTrue(r == 0)
+            cmd = ['--pr-user', 'mcchae@gmail.com', '--pr-user-pass', 'ghkd67vv',
+                   'plugin', 'venv', 'argoslabs.system.screenlock']
+            with captured_output() as (out, err):
+                r = _main(cmd)
+            self.assertTrue(False)
+        except:
+            self.assertTrue(True)
 
     # # ==========================================================================
     # def test_0740_unique(self):

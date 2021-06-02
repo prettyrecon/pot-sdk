@@ -63,6 +63,8 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import Select
 # for bs
 from bs4 import BeautifulSoup
+# for Edge and EdgeOptions
+from msedge.selenium_tools import Edge, EdgeOptions
 
 
 ################################################################################
@@ -119,7 +121,9 @@ class PySelenium(object):
                 if out.find('ProductVersion') <= 0:
                     lines = out.split('\n')
                     bv = lines[-1].split()[0]
-                    return bv.split('.')[0]
+                    rs = bv.split('.')[0]
+                    po.stdout.close()
+                    return rs
                 else:
                     raise IOError(f'"{self.browser}" is not installed is this system')
             # todo: "Edge Legacy"
@@ -145,7 +149,9 @@ class PySelenium(object):
                 for line in out.split('\n'):
                     line = line.strip()
                     if line.startswith('version'):
-                        return line.split()[-1]
+                        rs = line.split()[-1]
+                        po.stdout.close()
+                        return rs
                 raise IOError(f'"{self.browser}" is not installed is this system')
             else:
                 raise NotImplementedError(f'to get {self.browser} browser version')
@@ -191,11 +197,28 @@ class PySelenium(object):
     # ==========================================================================
     def _get_web_driver(self, drive_f):
         if self.browser == 'Chrome':
-            return webdriver.Chrome(executable_path=drive_f)
+            if not self.headless:
+                wd = webdriver.Chrome(executable_path=drive_f)
+            else:
+                wo = webdriver.ChromeOptions()
+                wo.add_argument('headless')
+                wo.add_argument(f'window-size={self.width}x{self.height}')
+                wo.add_argument("disable-gpu")
+                wd = webdriver.Chrome(executable_path=drive_f, options=wo)
+            return wd
         if self.browser == 'Edge':
-            if self.platform == 'darwin' and platform.platform().find('arm64') > 0:
-                options = webdriver.EdgeOption
-            return webdriver.Edge(executable_path=drive_f)
+            # if self.platform == 'darwin' and platform.platform().find('arm64') > 0:
+            #     wo = webdriver.EdgeOption
+            if not self.headless:
+                wd = webdriver.Edge(executable_path=drive_f)
+            else:
+                wo = EdgeOptions()
+                wo.use_chromium = True
+                wo.add_argument('headless')
+                wo.add_argument(f'window-size={self.width}x{self.height}')
+                wo.add_argument("disable-gpu")
+                wd = Edge(executable_path=drive_f, options=wo)
+            return wd
         raise NotImplementedError(f'Need to implement for the driver {self.browser} at {self.platform}')
 
     # ==========================================================================
@@ -313,12 +336,14 @@ class PySelenium(object):
         raise RuntimeError(f'Cannot get web driver')
 
     # ==========================================================================
-    def __init__(self, browser='Chrome', url='www.google.com',
+    def __init__(self, browser='Chrome', headless=False,
+                 url='www.google.com',
                  width=1200, height=800, logger=None):
         try:
             if browser not in self.BROWSERS:
                 raise ReferenceError(f'Cannot get info for the browser "{browser}"')
             self.browser = browser
+            self.headless = headless
             self.url = url
             self.width = width
             self.height = height

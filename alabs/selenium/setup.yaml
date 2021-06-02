@@ -24,4 +24,4 @@ setup:
   package_data:
     alabs.selenium: ['icon.*']
   url: https://www.argos-labs.com
-  version: 3.421.1428
+  version: 3.601.900

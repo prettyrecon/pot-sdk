@@ -16,6 +16,8 @@
 # --------
 #
 # 다음과 같은 작업 사항이 있었습니다:
+#  * [2021/05/27]
+#   - 암호로 다운로드하는 private repository 에 대한 pip 처리
 #  * [2021/02/06]
 #   - setup.py 에서 PipSession 의 경우 20 이상 되는 것 체크하는 코드 추가
 #   - setup.py 에서 req, requirement attr 문제 코드 넣음
@@ -201,7 +203,7 @@ from email.mime.text import MIMEText
 from email.utils import formatdate, COMMASPACE
 from alabs.common.util.vvencoding import get_file_encoding
 
-# from tempfile import gettempdir
+from tempfile import gettempdir
 if '%s.%s' % (sys.version_info.major, sys.version_info.minor) < '3.3':
     raise EnvironmentError('Python Version must greater then "3.3" '
                            'which support venv')
@@ -718,6 +720,7 @@ class VEnv(object):
     # ==========================================================================
     def venv_py(self, *args, **kwargs):
         tmpdir = None
+        stdin_ifp = None
         try:
             if 'raise_error' not in kwargs:
                 kwargs['raise_error'] = False
@@ -745,7 +748,18 @@ class VEnv(object):
                     open(err_path, 'w', encoding='utf-8') as err_fp:
                 # po = subprocess.Popen(' '.join(cmd), shell=True,
                 #                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                po = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                # private repository 저장소 구현을 위하여 잘못된 user 암호를 넣은 경우
+                # User for ...? 라고 물어보는 것을 그냥 지나기 위하여 stdin 을 처리
+                if 'pip' in args:
+                    stdin_f = os.path.join(gettempdir(), 'alabs_ppm_pip_stdin.txt')
+                    with open(stdin_f, 'w') as ofp:
+                        ofp.write('\n')
+                    stdin_ifp = open(stdin_f)
+                    po = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                          stdin=stdin_ifp)
+                else:
+                    po = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
                 q_out, q_err = Queue(), Queue()
                 t_out = Thread(target=self.enqueue_stdout, args=(po.stdout, q_out))
                 t_out.daemon = True  # thread dies with the program
@@ -789,6 +803,8 @@ class VEnv(object):
         finally:
             if tmpdir and os.path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
+            if stdin_ifp is not None:
+                stdin_ifp.close()
 
     # ==========================================================================
     def venv_pip(self, *args, **kwargs):
@@ -1192,6 +1208,18 @@ class PPM(object):
         return False
 
     # ==========================================================================
+    def _add_private_url(self, rep):
+        url = rep.get('url')
+        username = rep.get('username')
+        password = rep.get('password')
+        if not (username and password):
+            self.ndx_param.append(url)
+        else:
+            up = urlparse(url)
+            up_url = f'{up.scheme}://{quote(username)}:{quote(password)}@{up.netloc}{up.path}'
+            self.ndx_param.append(up_url)
+
+    # ==========================================================================
     def _get_indices(self):
         self.indices = []
         self.ndx_param = []
@@ -1234,7 +1262,11 @@ class PPM(object):
                 self.ndx_param.append('--index-url')
             else:
                 self.ndx_param.append('--extra-index-url')
-            self.ndx_param.append(url)
+            #  * [2021/05/27]
+            #   - 암호로 다운로드하는 private repository 에 대한 pip 처리
+            # self.ndx_param.append(url)
+            self._add_private_url(rep)
+
             self.ndx_param.append('--trusted-host')
             self.ndx_param.append(self._get_host_from_index(url))
         self.logger.debug('PPM._get_indices: indices=%s, ndx_param=%s' %
